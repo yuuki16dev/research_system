@@ -213,41 +213,59 @@ async function runLive(p, s, ctx) {
   }
 
   ctx.progress(18, 'search');
-  ctx.log(`検索クエリ ${tasks.length} 本を一斉並列実行中 (${providerLabel})…`, 'search');
+  ctx.log(`検索クエリ ${tasks.length} 本を実行中 (${providerLabel})…`, 'search');
 
   let completedTasks = 0;
-  const buckets = await Promise.all(
-    tasks.map(async (t) => {
-      try {
-        ctx.log(`検索中: ${t.site ? `site:${t.site} ` : ''}${t.query}${t.fromMemory ? ' [知見メモリ]' : ''}`, 'search', providerLabel);
-        const results = await search.run({
-          provider,
-          apiKey: s.tavilyApiKey,
-          query: t.query,
-          site: t.site,
-          sns: p.scope === 'sns' ? SNS_DOMAINS : null,
-          maxResults: perQuery,
-          deep,
-          timeRange: dateParams.timeRange,
-          startDate: dateParams.startDate,
-          endDate: dateParams.endDate,
-          df: dateParams.df,
-          signal,
-        });
-        if (t.fromMemory) {
-          results.forEach((r) => (r.fromMemory = true));
-        }
-        completedTasks++;
-        ctx.progress(18 + Math.round(36 * (completedTasks / tasks.length)), 'search');
-        ctx.log(`${results.length}件の結果を取得 (${t.query.slice(0, 20)})`, 'ok', results.slice(0, 2).map((r) => r.domain).join(' / '));
-        return results;
-      } catch (e) {
-        if (signal.aborted) throw e;
-        ctx.log(`検索に失敗しました (${t.query}): ${e.message}`, 'warn');
-        return [];
+  const buckets = [];
+
+  const executeTask = async (t) => {
+    try {
+      ctx.log(`検索中: ${t.site ? `site:${t.site} ` : ''}${t.query}${t.fromMemory ? ' [知見メモリ]' : ''}`, 'search', providerLabel);
+      const results = await search.run({
+        provider,
+        apiKey: s.tavilyApiKey,
+        query: t.query,
+        site: t.site,
+        sns: p.scope === 'sns' ? SNS_DOMAINS : null,
+        maxResults: perQuery,
+        deep,
+        timeRange: dateParams.timeRange,
+        startDate: dateParams.startDate,
+        endDate: dateParams.endDate,
+        df: dateParams.df,
+        signal,
+      });
+      if (t.fromMemory) {
+        results.forEach((r) => (r.fromMemory = true));
       }
-    })
-  );
+      completedTasks++;
+      ctx.progress(18 + Math.round(36 * (completedTasks / tasks.length)), 'search');
+      ctx.log(`${results.length}件の結果を取得 (${t.query.slice(0, 20)})`, 'ok', results.slice(0, 2).map((r) => r.domain).join(' / '));
+      return results;
+    } catch (e) {
+      if (signal.aborted) throw e;
+      ctx.log(`検索に失敗しました (${t.query}): ${e.message}`, 'warn');
+      return [];
+    }
+  };
+
+  if (provider === 'tavily') {
+    // Tavily は公式 API のため一斉並列で高速実行
+    const res = await Promise.all(tasks.map(executeTask));
+    buckets.push(...res);
+  } else {
+    // DuckDuckGo はスクレイピング制限（429/202 Challenge）を避けるため、2件ずつのバッチ＋インターバルで実行
+    for (let i = 0; i < tasks.length; i += 2) {
+      if (signal.aborted) break;
+      const batch = tasks.slice(i, i + 2);
+      const batchResults = await Promise.all(batch.map(executeTask));
+      buckets.push(...batchResults);
+      if (i + 2 < tasks.length) {
+        await sleep(400, signal);
+      }
+    }
+  }
+
 
   // ラウンドロビンで重複除去しながら統合（特定クエリへの偏りを防ぐ）
   const limit = deep ? 22 : 14;
@@ -269,8 +287,13 @@ async function runLive(p, s, ctx) {
   }
   ctx.progress(55, 'search');
   if (!sources.length) {
-    notices.push('Web検索で結果を取得できなかったため、AIの知識ベースのみで生成しています（要ファクトチェック）');
-    ctx.log('検索結果が0件でした。AIの知識ベースで続行します', 'warn');
+    if (provider === 'duckduckgo') {
+      notices.push('DuckDuckGo の一時的なアクセス制限により検索結果を取得できませんでした。設定から無料の「Tavily APIキー」を設定すると制限なく高精度に検索できます。今回はAIの知識ベースで生成しました。');
+      ctx.log('検索結果が0件でした（DuckDuckGo制限の可能性あり）。AIの知識ベースで続行します', 'warn');
+    } else {
+      notices.push('Web検索で結果を取得できなかったため、AIの知識ベースのみで生成しています（要ファクトチェック）');
+      ctx.log('検索結果が0件でした。AIの知識ベースで続行します', 'warn');
+    }
   } else {
     ctx.log(`重複を除いた ${sources.length} 件のソースを解析対象に選定`, 'ok');
   }

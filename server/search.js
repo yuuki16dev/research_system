@@ -87,21 +87,54 @@ function unwrapDdgUrl(href) {
 }
 
 async function ddgSearch({ query, maxResults = 5, df, signal }) {
-  const params = { q: query, kl: 'jp-jp' };
-  if (df) params.df = df;
-  const res = await fetch('https://html.duckduckgo.com/html/', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'User-Agent': UA,
-      'Accept-Language': 'ja,en-US;q=0.8,en;q=0.6',
-    },
-    body: new URLSearchParams(params),
-    signal: withTimeout(signal, 20000),
-  });
-  if (!res.ok) throw new Error(`DuckDuckGo 検索エラー (${res.status})`);
-  const html = await res.text();
+  const params = new URLSearchParams({ q: query, kl: 'jp-jp' });
+  if (df) params.append('df', df);
 
+  // 1. まずブロックされにくい GET リクエストを試行
+  let html = '';
+  try {
+    const getUrl = `https://html.duckduckgo.com/html/?${params.toString()}`;
+    const res = await fetch(getUrl, {
+      method: 'GET',
+      headers: {
+        'User-Agent': UA,
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept-Language': 'ja,en-US;q=0.8,en;q=0.6',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache',
+      },
+      signal: withTimeout(signal, 15000),
+    });
+    if (res.ok) {
+      html = await res.text();
+    }
+  } catch (err) {
+    if (signal && signal.aborted) throw err;
+  }
+
+  // 2. GET で結果が取れない・ブロックされた場合は POST を試行
+  if (!html || /anomaly|captcha|challenge/i.test(html)) {
+    try {
+      const res = await fetch('https://html.duckduckgo.com/html/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'User-Agent': UA,
+          'Accept': 'text/html,application/xhtml+xml',
+          'Accept-Language': 'ja,en-US;q=0.8,en;q=0.6',
+        },
+        body: params,
+        signal: withTimeout(signal, 15000),
+      });
+      if (res.ok) {
+        html = await res.text();
+      }
+    } catch (err) {
+      if (signal && signal.aborted) throw err;
+    }
+  }
+
+  // 3. パース処理
   const anchorRe = /<a[^>]*class="[^"]*result__a[^"]*"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
   const matches = [...html.matchAll(anchorRe)];
   const results = [];
@@ -114,9 +147,11 @@ async function ddgSearch({ query, maxResults = 5, df, signal }) {
     const sn = seg.match(/class="[^"]*result__snippet[^"]*"[^>]*>([\s\S]*?)<\/(?:a|div)>/i);
     results.push({ title: stripTags(m[2]) || url, url, snippet: sn ? stripTags(sn[1]) : '', rawContent: '' });
   }
+
   if (!results.length && /anomaly|captcha|challenge/i.test(html)) {
     throw new Error('DuckDuckGo が一時的にアクセスを制限しています（Tavily APIキーの設定を推奨）');
   }
+
   try {
     const { recordSearch } = require('./usage');
     recordSearch({ provider: 'duckduckgo', count: 1 });
