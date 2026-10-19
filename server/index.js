@@ -36,6 +36,8 @@ const { generate } = require('./gemini');
 const { tavilySearch } = require('./search');
 const deepdive = require('./deepdive');
 const pdf = require('./pdf');
+const { getFullUsageSummary } = require('./usage');
+
 
 const PORT = Number(process.env.PORT) || 3939;
 const HOST = process.env.HOST || '0.0.0.0';

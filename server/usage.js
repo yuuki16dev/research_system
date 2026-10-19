@@ -2,8 +2,10 @@
 
 const fs = require('fs');
 const path = require('path');
+const { DATA_DIR } = require('./settings');
 
-const FILE = path.join(__dirname, '..', 'data', 'usage.json');
+const FILE = path.join(DATA_DIR, 'usage.json');
+
 
 // Gemini 3.8 Flash / 2.5 Flash 参考価格 ($ per 1,000,000 tokens)
 const GEMINI_PRICING = {

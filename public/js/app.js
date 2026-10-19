@@ -1789,41 +1789,53 @@ function renderUsageDashboard(data, container) {
               <small style="color: var(--text-3);">${esc(gemini.model)} · 日次1,500回無料枠</small>
             </div>
           </div>
-          <span class="cap-status-badge ok">🟢 残り ${geminiRemainPct}%</span>
+          <span class="cap-status-badge ${gemini.configured ? 'ok' : 'off'}">
+            ${gemini.configured ? `🟢 残り ${geminiRemainPct}%` : '⚪ 未設定'}
+          </span>
         </div>
 
-        <div class="capacity-main-stat">
-          <div class="stat-highlight">
-            <span class="stat-label">今日あと使える回数</span>
-            <div class="stat-big-num">
-              <strong class="remain-num success">${geminiRemain.toLocaleString()}</strong>
-              <span class="denom">/ ${geminiLimit.toLocaleString()} 回</span>
+        ${gemini.configured ? `
+          <div class="capacity-main-stat">
+            <div class="stat-highlight">
+              <span class="stat-label">今日あと使える回数</span>
+              <div class="stat-big-num">
+                <strong class="remain-num success">${geminiRemain.toLocaleString()}</strong>
+                <span class="denom">/ ${geminiLimit.toLocaleString()} 回</span>
+              </div>
+            </div>
+            <div class="stat-conversion">
+              <span class="conv-tag">💡 リサーチ実行目安</span>
+              <div class="conv-val">
+                あと約 <strong>${geminiResearchesLeft.toLocaleString()}</strong> 回
+              </div>
+              <small>※1リサーチあたり約3回AI呼出換算</small>
             </div>
           </div>
-          <div class="stat-conversion">
-            <span class="conv-tag">💡 リサーチ実行目安</span>
-            <div class="conv-val">
-              あと約 <strong>${geminiResearchesLeft.toLocaleString()}</strong> 回
+
+          <!-- 視覚的残量メーター -->
+          <div class="capacity-meter-wrap">
+            <div class="meter-bar-track">
+              <div class="meter-bar-used" style="width: ${Math.max(1.5, geminiUsedPct)}%;"></div>
             </div>
-            <small>※1リサーチあたり約3回AI呼出換算</small>
+            <div class="meter-legend">
+              <span>本日利用: <strong>${geminiUsed.toLocaleString()} 回</strong> (${geminiUsedPct}%)</span>
+              <span style="color: var(--success-light);">残り枠: <strong>${geminiRemain.toLocaleString()} 回</strong> (${geminiRemainPct}%)</span>
+            </div>
           </div>
-        </div>
 
-        <!-- 視覚的残量メーター -->
-        <div class="capacity-meter-wrap">
-          <div class="meter-bar-track">
-            <div class="meter-bar-used" style="width: ${Math.max(1.5, geminiUsedPct)}%;"></div>
+          <div class="capacity-reset-pill">
+            <span data-icon="clock"></span>
+            <span>次回リセット: <strong>${esc(reset.formattedTargetJST || '毎日 16:00 JST')}</strong>（${esc(reset.remainingText || '')}で1,500回全快）</span>
           </div>
-          <div class="meter-legend">
-            <span>本日利用: <strong>${geminiUsed.toLocaleString()} 回</strong> (${geminiUsedPct}%)</span>
-            <span style="color: var(--success-light);">残り枠: <strong>${geminiRemain.toLocaleString()} 回</strong> (${geminiRemainPct}%)</span>
+        ` : `
+          <div class="notice" style="margin: 12px 0;">
+            <span data-icon="alert"></span>
+            <div>
+              <strong>Gemini APIキーが未設定です</strong>
+              <p style="margin-top: 4px; font-size: 13px;">画面右上の「⚙️ 設定」アイコンから無料の API キーを入力してください。（※キー未設定時はデモデータで動作します）</p>
+            </div>
           </div>
-        </div>
-
-        <div class="capacity-reset-pill">
-          <span data-icon="clock"></span>
-          <span>次回リセット: <strong>${esc(reset.formattedTargetJST || '毎日 16:00 JST')}</strong>（${esc(reset.remainingText || '')}で1,500回全快）</span>
-        </div>
+        `}
 
         <div class="usage-actions-row" style="margin-top: 6px;">
           <a class="btn btn-sm btn-ghost" href="${esc(gemini.officialUrls.dashboard)}" target="_blank" rel="noopener" style="border: 1px solid var(--border-strong);">
@@ -1845,7 +1857,9 @@ function renderUsageDashboard(data, container) {
               <small style="color: var(--text-3);">${esc(tavily.plan || 'Researcher')} プラン</small>
             </div>
           </div>
-          <span class="cap-status-badge ok">🟢 残り ${tavilyRemainPct}%</span>
+          <span class="cap-status-badge ${tavily.ok ? 'ok' : 'off'}">
+            ${tavily.ok ? `🟢 残り ${tavilyRemainPct}%` : '⚪ 未設定 (DuckDuckGo使用中)'}
+          </span>
         </div>
 
         ${tavily.ok ? `
@@ -1882,9 +1896,12 @@ function renderUsageDashboard(data, container) {
             <span>更新タイミング: <strong>${esc(tavily.renewalNotice || '毎月のアカウント更新日（月次リセット）')}</strong></span>
           </div>
         ` : `
-          <div class="notice" style="margin: 8px 0;">
+          <div class="notice" style="margin: 12px 0;">
             <span data-icon="info"></span>
-            <span>${esc(tavily.message || tavily.error || 'Tavily APIキーが設定されていません。DuckDuckGoが自動使用されます。')}</span>
+            <div>
+              <strong>Tavily APIキーは未設定です（現在 DuckDuckGo を使用中）</strong>
+              <p style="margin-top: 4px; font-size: 13px;">現在は完全無料の DuckDuckGo で検索を実行しています。月1,000回まで無料の Tavily API キーを設定すると、ディープ推論の安定性と検索精度がさらに向上します。</p>
+            </div>
           </div>
         `}
 
