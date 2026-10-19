@@ -36,11 +36,16 @@ Node.js やコマンドの知識は一切不要です。ダウンロードして
 
 1. **GitHub Releases からダウンロード**:
    - [**GitHub Releases（最新版ダウンロード）**](https://github.com/yuuki16dev/research_system/releases) にアクセスします。
-   - `ResearchStudio.exe`（または `ResearchStudio-win.zip`）をクリックしてダウンロードします。
+   - `ResearchStudio-win.zip`（または `ResearchStudio.exe`）をクリックしてダウンロードします。
 2. **ダブルクリックで起動**:
-   - ダウンロードした `ResearchStudio.exe` をダブルクリックします。
+   - ダウンロードした zip を右クリックして「すべて展開」し、フォルダ内の **`ResearchStudio.exe`** をダブルクリックします。
    - 自動的にブラウザが立ち上がり、**`http://localhost:3939`** にアクセスされます。
    - （※ 設定や履歴は `.exe` と同じ場所に自動作成される `data/` フォルダに安全に保存されます）
+
+> 💡 **初回起動時に「Windows によって PC が保護されました」と表示される場合**:
+> 個人開発・オープンソースのため高額な企業署名を省略しており、Windows SmartScreen の警告画面（青い画面）が表示される場合があります。
+> **「詳細情報」** をクリック ➔ **「実行」** ボタンを押すことで問題なく起動できます。（※ 初回のみ。ウィルス等の有害なコードは一切含まれておりません）
+> もし社内規定等で警告解除が難しい場合は、後述の **パターン 2（Node.js版 / `start.bat`）** をご利用ください（警告なく起動します）。
 
 ---
 
@@ -87,9 +92,31 @@ Node.js やコマンドの知識は一切不要です。ダウンロードして
 
 ## 🛑 停止方法
 
-- **Windows**: フォルダ内の **`stop.bat`** をダブルクリック
+- **Windows**: フォルダ内の **`stop.bat`** をダブルクリック（または黒い画面で `Ctrl + C`）
 - **Mac / Linux**: `./stop.sh` を実行
 - **npm コマンド**: `npm run stop`
+
+---
+
+## 🔄 アプリのアップデート（更新）手順
+
+機能追加やバグ修正の新しいバージョンがリリースされた場合、**これまでの調査履歴やAPIキー設定を引き継いだまま**以下の手順で簡単に更新できます。
+
+### パターン 1：ワンクリック版（.exe）の更新
+1. [GitHub Releases](https://github.com/yuuki16dev/research_system/releases) から最新の `ResearchStudio-win.zip` をダウンロードします。
+2. 解凍して出てきた新しい **`ResearchStudio.exe`** を、お使いのフォルダに**上書き保存（置き換え）**します。
+3. （※ フォルダ内の `data/` フォルダはそのまま残るため、設定や履歴データはすべて引き継がれます）
+4. あとは `ResearchStudio.exe` を起動すればアップデート完了です。
+
+### パターン 2：Node.js版（ソースコード）の更新
+- **Git をお使いの場合**:
+  ```bash
+  git pull
+  npm install
+  npm start
+  ```
+- **ZIP でダウンロードしてお使いの場合**:
+  新しい ZIP を展開後、古いフォルダの **`data/` フォルダ**（および `.env`）を新しいフォルダへそのままコピーしてください。
 
 ---
 
