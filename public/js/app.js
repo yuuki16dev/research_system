@@ -563,6 +563,36 @@ function finishSuccess(resultData) {
   loadRecentHistory();
 }
 
+function diagnoseError(msg = '') {
+  const m = String(msg).toLowerCase();
+  if (m.includes('切断') || m.includes('failed to fetch') || m.includes('network') || m.includes('econnrefused')) {
+    return {
+      title: 'サーバーとの接続が切断されました',
+      cause: 'サーバー（Node.js / ResearchStudio.exe）が停止したか、黒い起動画面が閉じられた可能性があります。',
+      action: 'start.bat または ResearchStudio.exe を再起動してから、もう一度お試しください。'
+    };
+  }
+  if (m.includes('duckduckgo') || m.includes('anomaly') || m.includes('captcha') || m.includes('challenge')) {
+    return {
+      title: 'DuckDuckGo の一時的なアクセス制限',
+      cause: '短時間に複数クエリを実行したため、DuckDuckGo の Bot 対策によって一時的に通信が制限されました。',
+      action: '画面右上の「⚙️ 設定」から完全無料の「Tavily APIキー」を設定すると、制限なく高速・確実に検索できるようになります。'
+    };
+  }
+  if (m.includes('gemini') || m.includes('api_key') || m.includes('quota') || m.includes('resourceexhausted') || m.includes('403')) {
+    return {
+      title: 'Google Gemini API のエラー',
+      cause: 'APIキーが未設定・無効、または利用可能リクエスト数の上限に達した可能性があります。',
+      action: 'Google AI Studio (aistudio.google.com) で無料のAPIキーを発行し、右上の「⚙️ 設定」で入力してください。'
+    };
+  }
+  return {
+    title: 'リサーチ処理中にエラーが発生しました',
+    cause: msg || '通信またはAI処理中に予期せぬエラーが発生しました。',
+    action: '少し時間をおいて再度実行するか、画面右上の「⚙️ 設定」から接続テストをお試しください。'
+  };
+}
+
 function finishError(msg) {
   clearInterval(appState.timerInterval);
   if (appState.activeUnsub) {
@@ -572,6 +602,8 @@ function finishError(msg) {
   appState.activeJobId = null;
   setRunningState(false);
 
+  const diag = diagnoseError(msg);
+
   const progressSection = $('#progress-section');
   progressSection.classList.remove('is-done');
   progressSection.classList.add('is-error');
@@ -579,7 +611,15 @@ function finishError(msg) {
   const errorBanner = $('#progress-error-banner');
   const errorDesc = $('#progress-error-desc');
   if (errorBanner) {
-    if (errorDesc) errorDesc.textContent = msg || 'AIの応答構文または通信処理中にエラーが発生しました。';
+    if (errorDesc) {
+      errorDesc.innerHTML = `
+        <div style="font-size: 15px; font-weight: 700; margin-bottom: 6px; color: var(--danger-light);">${esc(diag.title)}</div>
+        <div style="margin-bottom: 6px; color: var(--text-2); font-size: 13px;"><strong>【原因】</strong> ${esc(diag.cause)}</div>
+        <div style="color: var(--accent-light); font-size: 13px; background: rgba(59, 130, 246, 0.08); padding: 8px 12px; border-radius: 6px; border-left: 3px solid var(--accent);">
+          <strong>💡【解決方法】</strong> ${esc(diag.action)}
+        </div>
+      `;
+    }
     errorBanner.style.display = 'flex';
     hydrateIcons(errorBanner);
   }
@@ -594,14 +634,15 @@ function finishError(msg) {
       <span class="log-time">${time}</span>
       <span class="log-icon">${icon('alert')}</span>
       <div class="log-msg">
-        <strong style="color: var(--danger);">${esc(msg || 'リサーチ処理中にエラーが発生しました')}</strong>
+        <strong style="color: var(--danger);">${esc(diag.title)}: ${esc(msg || 'リサーチ処理中にエラーが発生しました')}</strong>
+        <div style="font-size: 11px; color: var(--text-3); margin-top: 2px;">💡 対処法: ${esc(diag.action)}</div>
       </div>
     `;
     logList.appendChild(li);
     li.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
-  toast(msg || 'リサーチ中にエラーが発生しました', 'error');
+  toast(diag.title, 'error');
 }
 
 // ==========================================================================
