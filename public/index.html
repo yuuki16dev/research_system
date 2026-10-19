@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Research Studio — テーマを入れるだけのAIリサーチ自動化</title>
+  <meta name="description" content="Research Studio は、テーマを入力するだけでWeb検索・専門サイト巡回・AI分析を行い、Claude連携プロンプト・商用PDFレポート・Excel・Markdownをワンクリックで出力するリサーチ自動化ダッシュボードです。" />
+  <meta name="theme-color" content="#070a14" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/styles.css" />
+  <link rel="stylesheet" href="/css/print.css" />
+  <script>
+    // テーマのちらつき防止
+    (function () {
+      try {
+        var t = localStorage.getItem('rs-theme');
+        if (t) document.documentElement.setAttribute('data-theme', t);
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body>
+  <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
+  <div class="grain" aria-hidden="true"></div>
+
+  <div class="app" id="app">
+    <!-- ============================================================ HEADER -->
+    <header class="topbar glass" id="topbar">
+      <a class="brand" href="/" id="brand-link" aria-label="Research Studio ホーム">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" fill="none"><defs><linearGradient id="bm" x1="0" y1="0" x2="32" y2="32"><stop stop-color="#8b7bff"/><stop offset="1" stop-color="#22d3ee"/></linearGradient></defs><rect x="1" y="1" width="30" height="30" rx="9" fill="url(#bm)"/><circle cx="14" cy="14" r="6.2" stroke="#fff" stroke-width="2.4"/><path d="m18.6 18.6 5.4 5.4" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><circle cx="14" cy="14" r="2" fill="#fff"/></svg>
+        </span>
+        <span class="brand-text"><strong>Research Studio</strong><small>AI Research Automation</small></span>
+      </a>
+
+      <div class="status-pill" id="status-pill" title="接続ステータス">
+        <i class="dot"></i><span id="status-text">接続中…</span>
+      </div>
+
+      <nav class="topbar-actions" aria-label="グローバル">
+        <button class="btn btn-danger btn-sm" id="btn-topbar-cancel" type="button" title="実行中のリサーチを中止" style="display: none;"><span data-icon="stop"></span><span class="label">調査を中止</span></button>
+        <button class="btn btn-ghost" id="btn-history" type="button" title="リサーチ履歴"><span data-icon="history"></span><span class="label">履歴</span></button>
+        <button class="btn btn-ghost" id="btn-mobile" type="button" title="スマホ連携"><span data-icon="smartphone"></span><span class="label">スマホ連携</span></button>
+        <button class="btn btn-ghost" id="btn-usage" type="button" title="API利用状況 &amp; クォータ"><span data-icon="chart"></span><span class="label">クォータ</span></button>
+        <button class="btn btn-ghost" id="btn-settings" type="button" title="API設定"><span data-icon="key"></span><span class="label">設定</span></button>
+        <button class="btn btn-ghost btn-icon" id="btn-theme" type="button" title="テーマ切替 (ライト/ダーク)" aria-label="ライト/ダーク切替"><span data-icon="sun" class="only-dark"></span><span data-icon="moon" class="only-light"></span></button>
+      </nav>
+    </header>
+
+    <main id="main">
+      <!-- ============================================================ HERO -->
+      <section class="hero" id="hero">
+        <div class="hero-badge"><span data-icon="sparkles"></span><span>Gemini × Web検索 × 自動レポート</span></div>
+        <h1 class="hero-title">知りたいテーマを入れるだけで、<br class="sp-only" /><span class="grad-text">プロのリサーチが即座に完成。</span></h1>
+        <p class="lead">Web全体・専門サイトをAIが横断分析し、エグゼクティブ要約・比較表・商用PDFまで自動生成します。</p>
+      </section>
+
+      <!-- =================================================== CONTROL PANEL -->
+      <section class="panel glass control search-hero-card" id="control-panel" aria-labelledby="control-title">
+        <h2 class="visually-hidden" id="control-title">リサーチ条件の入力</h2>
+        <form id="research-form" autocomplete="off" novalidate>
+          <!-- リサーチ目的プリセット（1クリック設定） -->
+          <div class="purpose-preset-bar" id="purpose-presets-bar" role="radiogroup" aria-label="リサーチの目的">
+            <span class="purpose-label"><span data-icon="sparkles"></span>調査の目的:</span>
+            <div class="purpose-chips" id="purpose-chips">
+              <button type="button" class="purpose-chip active" data-purpose="general" title="全体像・動向・事例・価格をバランスよく網羅">🌟 総合リサーチ</button>
+              <button type="button" class="purpose-chip" data-purpose="compare" title="主要競合の料金・機能・強み弱みを徹底比較">⚔️ 競合・料金比較</button>
+              <button type="button" class="purpose-chip" data-purpose="business" title="市場規模・CAGR・マネタイズ・参入機会を分析">💡 新規事業・市場規模</button>
+              <button type="button" class="purpose-chip" data-purpose="tool" title="料金プラン・無料制限・API・実際の不満点を検証">🛠️ ツール選定・制限</button>
+              <button type="button" class="purpose-chip" data-purpose="risk" title="法的規制・セキュリティ・失敗事例・落とし穴を調査">⚠️ リスク・落とし穴</button>
+              <button type="button" class="purpose-chip" data-purpose="trend" title="直近数ヶ月の最新速報・大型アプデ・2026年動向">📈 最新トレンド・速報</button>
+            </div>
+            <input type="hidden" name="purpose" id="purpose-input" value="general" />
+          </div>
+
+          <!-- メイン検索入力ボックス -->
+          <div class="search-main-box">
+            <div class="search-input-wrap">
+              <span class="search-icon-decor" data-icon="search" aria-hidden="true"></span>
+              <textarea id="theme-input" name="theme" rows="2" maxlength="300" placeholder="何について調べますか？（例: 個人開発ツールのマネタイズ事例と価格設定、生成AIの業務活用...）" required></textarea>
+            </div>
+            
+            <div class="search-bottom-bar">
+              <!-- モード切り替え（クイック vs ディープ） -->
+              <div class="depth-segmented" role="radiogroup" aria-label="調査の深さ">
+                <label class="depth-seg-opt" for="depth-quick">
+                  <input type="radio" name="depth" id="depth-quick" value="quick" checked />
+                  <span class="depth-seg-btn">
+                    <span data-icon="zap"></span>
+                    <span class="d-label">クイック</span>
+                    <span class="d-time">約35秒</span>
+                  </span>
+                </label>
+                <label class="depth-seg-opt" for="depth-deep">
+                  <input type="radio" name="depth" id="depth-deep" value="deep" />
+                  <span class="depth-seg-btn depth-seg-deep">
+                    <span data-icon="layers"></span>
+                    <span class="d-label">ディープ推論</span>
+                    <span class="d-time">深層思考・約60〜90秒</span>
+                  </span>
+                </label>
+              </div>
+
+              <!-- 右側：アクションボタンとショートカット -->
+              <div class="search-actions-wrap">
+                <span class="kbd-hint pc-only"><kbd>Ctrl</kbd>+<kbd>Enter</kbd></span>
+                <button type="button" class="btn btn-danger btn-lg" id="btn-form-stop" style="display: none;">
+                  <span data-icon="stop"></span><span>調査を中止</span>
+                </button>
+                <button type="submit" class="btn btn-primary btn-lg btn-start-glow" id="btn-start">
+                  <span data-icon="search"></span><span>リサーチ開始</span><span data-icon="arrow-right" class="btn-arrow"></span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- おすすめテーマ・チップ -->
+          <div class="search-chips-row">
+            <span class="chips-label"><span data-icon="sparkles"></span>おすすめテーマ:</span>
+            <div class="chips" id="example-chips" aria-label="テーマ例">
+              <button type="button" class="chip" data-example="個人開発ツールのマネタイズ事例と価格設定">💰 個人開発マネタイズ</button>
+              <button type="button" class="chip" data-example="生成AIを活用した中小企業の業務効率化事例">🤖 生成AI × 業務効率化</button>
+              <button type="button" class="chip" data-example="2026年のショート動画マーケティングのトレンド">📱 ショート動画トレンド</button>
+              <button type="button" class="chip" data-example="リモートワーク向けSaaSの料金プラン比較">🧾 SaaS料金比較</button>
+            </div>
+          </div>
+
+          <!-- プログレッシブ・ディスクロージャー（段階的詳細オプション開閉） -->
+          <div class="advanced-filter-drawer">
+            <button type="button" class="btn-filter-toggle" id="btn-toggle-options" aria-expanded="false" aria-controls="options-accordion">
+              <div class="bft-left">
+                <span data-icon="sliders"></span>
+                <span class="bft-title">詳細オプション（調査範囲・期間）</span>
+                <span class="bft-summary" id="options-summary-tag">Web全体 · 直近1年</span>
+              </div>
+              <span class="bft-arrow" data-icon="chevron-down"></span>
+            </button>
+
+            <div class="options-accordion" id="options-accordion" hidden>
+              <div class="options-grid">
+                <fieldset class="option-group">
+                  <legend class="field-label"><span data-icon="layers"></span>調査対象の範囲</legend>
+                  <div class="scope-tabs" role="radiogroup" aria-label="調査対象の範囲">
+                    <label class="scope-tab" for="scope-web">
+                      <input type="radio" name="scope" id="scope-web" value="web" checked />
+                      <span class="scope-icon"><span data-icon="globe"></span></span>
+                      <span class="scope-text"><strong>Web全体</strong><small>総合検索</small></span>
+                    </label>
+                    <label class="scope-tab" for="scope-sns">
+                      <input type="radio" name="scope" id="scope-sns" value="sns" />
+                      <span class="scope-icon"><span data-icon="trending"></span></span>
+                      <span class="scope-text"><strong>SNS・トレンド</strong><small>X / Reddit 等</small></span>
+                    </label>
+                    <label class="scope-tab" for="scope-sites">
+                      <input type="radio" name="scope" id="scope-sites" value="sites" />
+                      <span class="scope-icon"><span data-icon="link"></span></span>
+                      <span class="scope-text"><strong>特定サイト</strong><small>専門サイト巡回</small></span>
+                    </label>
+                  </div>
+                  <div class="sites-field" id="sites-field" hidden>
+                    <input type="text" id="sites-input" name="sites" class="input" placeholder="zenn.dev, qiita.com（任意）" maxlength="300" />
+                    <p class="field-hint"><span data-icon="sparkles"></span>空欄の場合、テーマに応じた有力専門サイトをAIが自動特定して調査します</p>
+                  </div>
+                </fieldset>
+
+                <fieldset class="option-group period-group">
+                  <div class="period-header">
+                    <legend class="field-label"><span data-icon="calendar"></span>情報の鮮度・対象期間</legend>
+                    <span class="period-rec-tag"><span data-icon="sparkles"></span>最新情報を優先（デフォルト）</span>
+                  </div>
+                  <div class="period-tabs" role="radiogroup" aria-label="情報の鮮度・対象期間">
+                    <label class="period-tab" for="period-year">
+                      <input type="radio" name="period" id="period-year" value="year" checked />
+                      <span class="period-tag-head">
+                        <span class="period-emoji">⚡</span>
+                        <strong>直近1年</strong>
+                        <span class="badge-rec">推奨</span>
+                      </span>
+                      <small>最新動向 (2025〜2026)</small>
+                    </label>
+
+                    <label class="period-tab" for="period-month">
+                      <input type="radio" name="period" id="period-month" value="month" />
+                      <span class="period-tag-head">
+                        <span class="period-emoji">🔥</span>
+                        <strong>直近1ヶ月</strong>
+                      </span>
+                      <small>速報・最新ニュース</small>
+                    </label>
+
+                    <label class="period-tab" for="period-3years">
+                      <input type="radio" name="period" id="period-3years" value="3years" />
+                      <span class="period-tag-head">
+                        <span class="period-emoji">📅</span>
+                        <strong>直近3年</strong>
+                      </span>
+                      <small>ここ数年の変遷</small>
+                    </label>
+
+                    <label class="period-tab" for="period-all">
+                      <input type="radio" name="period" id="period-all" value="all" />
+                      <span class="period-tag-head">
+                        <span class="period-emoji">🌐</span>
+                        <strong>全期間</strong>
+                      </span>
+                      <small>歴史・過去事例</small>
+                    </label>
+
+                    <label class="period-tab" for="period-custom">
+                      <input type="radio" name="period" id="period-custom" value="custom" />
+                      <span class="period-tag-head">
+                        <span class="period-emoji">⏳</span>
+                        <strong>年代指定</strong>
+                      </span>
+                      <small>過去を自由指定</small>
+                    </label>
+                  </div>
+
+                  <div class="custom-period-box" id="custom-period-box" hidden>
+                    <div class="cp-inner">
+                      <div class="cp-inputs">
+                        <div class="cp-range-field">
+                          <label for="custom-period-start" class="cp-label">開始年</label>
+                          <select id="custom-period-start" class="input input-sm">
+                            <option value="2015">2015年</option>
+                            <option value="2018">2018年</option>
+                            <option value="2019">2019年</option>
+                            <option value="2020" selected>2020年</option>
+                            <option value="2021">2021年</option>
+                            <option value="2022">2022年</option>
+                            <option value="2023">2023年</option>
+                            <option value="2024">2024年</option>
+                            <option value="2025">2025年</option>
+                          </select>
+                        </div>
+                        <span class="cp-sep">〜</span>
+                        <div class="cp-range-field">
+                          <label for="custom-period-end" class="cp-label">終了年</label>
+                          <select id="custom-period-end" class="input input-sm">
+                            <option value="2018">2018年</option>
+                            <option value="2019">2019年</option>
+                            <option value="2020">2020年</option>
+                            <option value="2021">2021年</option>
+                            <option value="2022">2022年</option>
+                            <option value="2023" selected>2023年</option>
+                            <option value="2024">2024年</option>
+                            <option value="2025">2025年</option>
+                            <option value="2026">2026年</option>
+                          </select>
+                        </div>
+                        <div class="cp-free-field">
+                          <label for="custom-period-text" class="cp-label">自由入力（例: 2022年以前、2010年代）</label>
+                          <input type="text" id="custom-period-text" class="input input-sm" placeholder="2020〜2023年" maxlength="60" />
+                        </div>
+                      </div>
+                      <div class="cp-preset-chips">
+                        <span class="cp-preset-label">クイック選択:</span>
+                        <button type="button" class="chip chip-sm" data-cp-preset="2020〜2023年">2020〜2023年</button>
+                        <button type="button" class="chip chip-sm" data-cp-preset="2022年以前">2022年以前</button>
+                        <button type="button" class="chip chip-sm" data-cp-preset="2015〜2020年">2015〜2020年</button>
+                      </div>
+                    </div>
+                  </div>
+                </fieldset>
+
+                <fieldset class="option-group context-group">
+                  <legend class="field-label"><span data-icon="file-text"></span>手元の参考資料・前提メモ（任意）</legend>
+                  <textarea id="reference-context-input" name="referenceContext" class="input input-textarea-sm" rows="2" maxlength="3000" placeholder="手持ちの機能リスト、自社サービス概要、比較したい特定URLや前提条件を貼り付けると、Web情報と掛け合わせて分析します"></textarea>
+                  <p class="field-hint"><span data-icon="sparkles"></span>手元のテキスト資料とWeb最新情報をAIが突き合わせてハイブリッド分析します</p>
+                </fieldset>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-footer-hint">
+            <p class="mode-hint" id="mode-hint"><span data-icon="info"></span><span>ステータスを確認しています…</span></p>
+            <span class="counter" id="theme-count">0 / 300</span>
+          </div>
+        </form>
+      </section>
+
+      <!-- ======================================================== PROGRESS -->
+      <section class="panel glass progress-panel" id="progress-section" hidden aria-live="polite" aria-labelledby="progress-title">
+        <div class="progress-head">
+          <div class="progress-title-wrap">
+            <span class="pulse-orb" aria-hidden="true"></span>
+            <div>
+              <h2 id="progress-title">リサーチを実行中</h2>
+              <p class="progress-theme" id="progress-theme"></p>
+            </div>
+          </div>
+          <div class="progress-meta">
+            <span class="elapsed" id="progress-elapsed">0:00</span>
+            <button type="button" class="btn btn-danger btn-sm" id="btn-cancel"><span data-icon="stop"></span><span>調査を中止する</span></button>
+          </div>
+        </div>
+
+        <ol class="stepper" id="stepper">
+          <li data-stage="plan"><span class="step-dot"></span><span class="step-label">計画</span></li>
+          <li data-stage="search"><span class="step-dot"></span><span class="step-label">検索</span></li>
+          <li data-stage="analyze"><span class="step-dot"></span><span class="step-label">解析</span></li>
+          <li data-stage="synthesize"><span class="step-dot"></span><span class="step-label">統合</span></li>
+          <li data-stage="done"><span class="step-dot"></span><span class="step-label">完了</span></li>
+        </ol>
+
+        <div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progress-bar">
+          <div class="progress-fill" id="progress-fill"></div>
+          <span class="progress-pct" id="progress-pct">0%</span>
+        </div>
+
+        <div class="log-wrap">
+          <div class="log-head"><span data-icon="list"></span>ステップログ<span class="log-count" id="log-count">0</span></div>
+          <ul class="log" id="log"></ul>
+        </div>
+
+        <div class="progress-aborted" id="progress-aborted-banner" style="display: none;">
+          <div class="aborted-text">
+            <span data-icon="alert"></span>
+            <div>
+              <strong>リサーチを途中で中止しました</strong>
+              <p>取得途中の処理を中断しました。条件を変更してすぐに再実行できます。</p>
+            </div>
+          </div>
+          <div class="aborted-actions">
+            <button type="button" class="btn btn-ghost btn-sm" id="btn-dismiss-progress">閉じる</button>
+            <button type="button" class="btn btn-primary btn-sm" id="btn-retry-progress"><span data-icon="refresh"></span>再実行する</button>
+          </div>
+        </div>
+
+        <div class="progress-aborted" id="progress-error-banner" style="display: none; border-color: rgba(239, 68, 68, 0.4); background: var(--danger-subtle);">
+          <div class="aborted-text">
+            <span data-icon="alert" style="color: var(--danger-light);"></span>
+            <div>
+              <strong id="progress-error-title" style="color: var(--danger-light);">リサーチ中にエラーが発生しました</strong>
+              <p id="progress-error-desc" style="color: var(--text-2);">エラー内容の詳細</p>
+            </div>
+          </div>
+          <div class="aborted-actions">
+            <button type="button" class="btn btn-ghost btn-sm" id="btn-dismiss-error">閉じる</button>
+            <button type="button" class="btn btn-primary btn-sm" id="btn-retry-error"><span data-icon="refresh"></span>再試行する</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================= RESULTS -->
+      <section class="results" id="results-section" hidden aria-labelledby="results-heading">
+        <h2 class="visually-hidden" id="results-heading">リサーチ結果</h2>
+        <div class="export-bar glass" id="export-bar">
+          <div class="export-info">
+            <span class="mode-tag" id="result-mode-tag">DEMO</span>
+            <strong id="result-title-mini">—</strong>
+          </div>
+          <div class="export-actions-grouped">
+            <div class="export-primary-group">
+              <button type="button" class="btn btn-primary btn-sm btn-export-highlight" id="btn-pdf" title="デザイン済み商用レポートPDFをプレビュー・出力">
+                <span data-icon="file-text"></span><span>PDFで保存</span>
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-xlsx" title="Excel (.xlsx) 出力">
+                <span data-icon="sheet"></span><span>Excel出力</span>
+              </button>
+              <button type="button" class="btn btn-deepdive btn-sm" id="btn-open-deepdive" title="このレポートをAIとWeb検索でさらに深掘り質問">
+                <span data-icon="sparkles"></span><span>深掘り質問</span>
+              </button>
+            </div>
+
+            <div class="export-secondary-group">
+              <div class="quick-outputs-group" title="社内提出・成果物向けワンクリックコピー">
+                <button type="button" class="btn btn-ghost btn-sm btn-quick-output" id="btn-copy-slack" title="Slack/Teams報告用1分要約をクリップボードにコピー">
+                  <span data-icon="copy"></span><span class="label">Slack要約</span>
+                </button>
+                <button type="button" class="btn btn-ghost btn-sm btn-quick-output" id="btn-copy-slides" title="プレゼン・スライド骨子（Markdown/Marp形式）をコピー">
+                  <span data-icon="layers"></span><span class="label">スライド骨子</span>
+                </button>
+                <button type="button" class="btn btn-ghost btn-sm btn-quick-output" id="btn-copy-email" title="上長・役員向け稟議/報告メール文面をコピー">
+                  <span data-icon="file-text"></span><span class="label">報告メール</span>
+                </button>
+              </div>
+
+              <div class="claude-group">
+                <label class="visually-hidden" for="prompt-type">出力形式</label>
+                <select id="prompt-type" class="select-mini" title="Claude/GPTに依頼する出力形式">
+                  <option value="article">記事</option>
+                  <option value="report">レポート</option>
+                  <option value="script">動画台本</option>
+                  <option value="sns">SNS投稿</option>
+                  <option value="custom">★ カスタム</option>
+                </select>
+                <button type="button" class="btn btn-ghost btn-sm btn-claude" id="btn-copy-prompt" title="プロンプトをクリップボードにコピー">
+                  <span data-icon="copy"></span><span class="label">プロンプト</span>
+                </button>
+                <button type="button" class="btn btn-ghost btn-icon btn-sm" id="btn-edit-prompt-template" title="プロンプトテンプレートを編集" aria-label="テンプレート編集">
+                  <span data-icon="sparkles"></span>
+                </button>
+              </div>
+              <button type="button" class="btn btn-ghost btn-sm" id="btn-md" title="Markdownをコピー＆保存">
+                <span data-icon="hash"></span><span>MD</span>
+              </button>
+              <button type="button" class="btn btn-ghost btn-sm" id="btn-compare" title="別のレポートと並べて比較">
+                <span data-icon="chart"></span><span>比較</span>
+              </button>
+              <button type="button" class="btn btn-ghost btn-sm" id="btn-result-history" title="過去のリサーチ履歴を開く">
+                <span data-icon="history"></span><span>履歴</span>
+              </button>
+              <button type="button" class="btn btn-ghost btn-icon btn-sm" id="btn-new" title="新しいリサーチ" aria-label="新しいリサーチ">
+                <span data-icon="refresh"></span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="results-layout">
+          <aside class="toc" id="result-toc" aria-label="目次"></aside>
+          <article class="report" id="report"></article>
+        </div>
+      </section>
+
+      <!-- ============================================================ HOME -->
+      <section class="home" id="home-section">
+        <div class="home-recent" id="home-recent" hidden>
+          <div class="section-head">
+            <div class="sh-left">
+              <h2><span data-icon="history"></span>過去のリサーチ履歴</h2>
+              <span class="count-badge" id="history-total-badge">0件</span>
+            </div>
+            <div class="sh-actions">
+              <div class="history-tabs" role="tablist">
+                <button type="button" class="htab-btn active" id="tab-recent-view" data-view="recent">最新 6 件</button>
+                <button type="button" class="htab-btn" id="tab-all-view" data-view="all">すべての履歴を遡る</button>
+              </div>
+              <button type="button" class="btn btn-ghost btn-sm" id="btn-history-drawer-open"><span data-icon="sidebar"></span><span class="label">サイドバー</span></button>
+            </div>
+          </div>
+
+          <div class="home-history-search" id="home-history-search-bar" style="display: none;">
+            <div class="hsearch-wrap">
+              <span data-icon="search"></span>
+              <input type="search" class="input" id="home-history-filter" placeholder="過去の調査テーマやキーワードで絞り込む…" />
+              <button type="button" class="btn btn-ghost btn-sm" id="btn-clear-home-filter" style="display: none;">クリア</button>
+            </div>
+          </div>
+
+          <div class="recent-grid" id="recent-grid"></div>
+
+          <div class="history-more-wrap" id="history-more-wrap">
+            <button type="button" class="btn btn-secondary" id="btn-history-load-more">
+              <span data-icon="chevron-down"></span>過去の履歴をもっと遡る (<span id="history-remaining-count">0</span>件)
+            </button>
+          </div>
+        </div>
+
+        <div class="features">
+          <article class="feature glass">
+            <span class="feature-icon fi-1"><span data-icon="globe"></span></span>
+            <h3>自動巡回 &amp; 専門サイト特定</h3>
+            <p>Web全体・SNS・指定サイトを横断検索。空欄なら AI が一次情報の集まる専門サイトを自動で選定します。</p>
+          </article>
+          <article class="feature glass">
+            <span class="feature-icon fi-2"><span data-icon="cpu"></span></span>
+            <h3>AIによる構造化分析</h3>
+            <p>Gemini がソースを読み込み、サマリー・比較マトリクス・示唆を出典付きで構造化。信頼度もスコアリング。</p>
+          </article>
+          <article class="feature glass">
+            <span class="feature-icon fi-3"><span data-icon="download"></span></span>
+            <h3>ワンクリック出力</h3>
+            <p>Claude用プロンプト、表紙・目次付き商用PDF、Excel比較表、Notion向けMarkdown をすぐに書き出し。</p>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>Research Studio v0.1.0</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span>
+    </footer>
+  </div>
+
+  <!-- =============================================================== MODALS -->
+  <div class="modal" id="modal-settings" role="dialog" aria-modal="true" aria-labelledby="settings-title" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card glass">
+      <header class="modal-head">
+        <h2 id="settings-title"><span data-icon="key"></span>API設定</h2>
+        <div style="display: flex; gap: 8px; align-items: center; margin-left: auto;">
+          <button class="btn btn-ghost btn-sm" type="button" id="btn-open-usage-from-settings" title="現在のAPI利用料・クォータを確認"><span data-icon="chart"></span><span class="label">利用状況を見る</span></button>
+          <button class="btn btn-ghost btn-icon" type="button" data-close aria-label="閉じる"><span data-icon="x"></span></button>
+        </div>
+      </header>
+      <form id="settings-form" class="modal-body" autocomplete="off">
+        <div class="setting-block">
+          <div class="setting-title">
+            <strong>Google Gemini</strong><span class="chip-status" id="gemini-status">未設定</span>
+            <a class="ext-link" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">キーを取得 <span data-icon="external"></span></a>
+          </div>
+          <label class="field-label sm" for="gemini-key">APIキー</label>
+          <div class="input-group">
+            <input class="input" type="password" id="gemini-key" placeholder="AIza…（変更する場合のみ入力）" spellcheck="false" />
+            <button class="btn btn-ghost btn-icon" type="button" data-toggle-visibility="gemini-key" aria-label="表示切替"><span data-icon="eye"></span></button>
+            <button class="btn btn-ghost btn-sm" type="button" data-clear-key="geminiApiKey">削除</button>
+          </div>
+          <label class="field-label sm" for="gemini-model">モデル</label>
+          <input class="input" id="gemini-model" list="gemini-models" placeholder="gemini-3.8-flash" spellcheck="false" />
+          <datalist id="gemini-models">
+            <option value="gemini-3.8-flash"></option>
+            <option value="gemini-3.7-flash"></option>
+            <option value="gemini-3.5-flash"></option>
+            <option value="gemini-2.5-flash"></option>
+          </datalist>
+        </div>
+
+        <div class="setting-block">
+          <div class="setting-title">
+            <strong>Tavily Search</strong><span class="chip-status" id="tavily-status">未設定</span>
+            <a class="ext-link" href="https://app.tavily.com/" target="_blank" rel="noopener">キーを取得 <span data-icon="external"></span></a>
+          </div>
+          <label class="field-label sm" for="tavily-key">APIキー（任意・未設定時は DuckDuckGo）</label>
+          <div class="input-group">
+            <input class="input" type="password" id="tavily-key" placeholder="tvly-…（変更する場合のみ入力）" spellcheck="false" />
+            <button class="btn btn-ghost btn-icon" type="button" data-toggle-visibility="tavily-key" aria-label="表示切替"><span data-icon="eye"></span></button>
+            <button class="btn btn-ghost btn-sm" type="button" data-clear-key="tavilyApiKey">削除</button>
+          </div>
+          <label class="field-label sm" for="search-provider">検索プロバイダ</label>
+          <select class="input" id="search-provider">
+            <option value="auto">自動（Tavilyキーがあれば Tavily）</option>
+            <option value="tavily">Tavily</option>
+            <option value="duckduckgo">DuckDuckGo（無料・キー不要）</option>
+          </select>
+        </div>
+
+        <div class="setting-block">
+          <div class="setting-title"><strong>動作 &amp; レポート</strong></div>
+          <label class="switch-row" for="mode-mock">
+            <span><strong>DEMOモードを強制</strong><small>APIを使わずモックデータで動作（UI確認・デモ用）</small></span>
+            <input type="checkbox" id="mode-mock" class="switch" />
+          </label>
+          <label class="field-label sm" for="publisher">発行者名（PDF表紙に表示）</label>
+          <input class="input" id="publisher" maxlength="60" placeholder="Research Studio" />
+        </div>
+
+        <div class="test-result" id="test-result" hidden></div>
+
+        <p class="security-note"><span data-icon="shield"></span>APIキーはこのPCの <code>data/settings.json</code> にのみ保存され、ブラウザには返されません。</p>
+      </form>
+      <footer class="modal-foot">
+        <button class="btn btn-ghost" type="button" id="btn-test-api"><span data-icon="zap"></span>接続テスト</button>
+        <button class="btn btn-primary" type="submit" form="settings-form" id="btn-save-settings"><span data-icon="check"></span>保存</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- ========================================================= USAGE MODAL -->
+  <div class="modal" id="modal-usage" role="dialog" aria-modal="true" aria-labelledby="usage-title" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card glass modal-lg" id="usage-modal-card">
+      <header class="modal-head">
+        <h2 id="usage-title"><span data-icon="chart"></span>API利用状況・クォータ・更新時期</h2>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <button class="btn btn-ghost btn-sm" type="button" id="btn-refresh-usage" title="利用状況を再取得"><span data-icon="refresh"></span>更新</button>
+          <button class="btn btn-ghost btn-icon" type="button" data-close aria-label="閉じる"><span data-icon="x"></span></button>
+        </div>
+      </header>
+      <div class="modal-body usage-body" id="usage-body">
+        <div style="padding: 24px; text-align: center; color: var(--text-2);">利用状況を取得中…</div>
+      </div>
+      <footer class="modal-foot">
+        <button class="btn btn-ghost btn-sm" type="button" id="btn-open-settings-from-usage"><span data-icon="key"></span>API設定を開く</button>
+        <button class="btn btn-primary btn-sm" type="button" data-close>閉じる</button>
+      </footer>
+    </div>
+  </div>
+
+  <div class="modal" id="modal-mobile" role="dialog" aria-modal="true" aria-labelledby="mobile-title" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card glass modal-sm">
+      <header class="modal-head">
+        <h2 id="mobile-title"><span data-icon="smartphone"></span>スマホで開く</h2>
+        <button class="btn btn-ghost btn-icon" type="button" data-close aria-label="閉じる"><span data-icon="x"></span></button>
+      </header>
+      <div class="modal-body mobile-body">
+        <p class="muted">同じWi-Fiに接続したスマホのカメラで読み取ってください。</p>
+        <div class="qr-frame"><img id="qr-img" alt="接続用QRコード" width="220" height="220" /></div>
+        <div class="url-row">
+          <code id="mobile-url">—</code>
+          <button class="btn btn-ghost btn-sm" type="button" id="btn-copy-url"><span data-icon="copy"></span>コピー</button>
+        </div>
+        <div class="ip-list" id="ip-list"></div>
+        <p class="field-hint"><span data-icon="info"></span>開けない場合は Windows ファイアウォールで Node.js のプライベートネットワーク通信を許可してください。</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="drawer" id="drawer-history" role="dialog" aria-modal="true" aria-labelledby="history-title" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <aside class="drawer-panel glass">
+      <header class="drawer-head">
+        <div class="dh-title">
+          <h2 id="history-title"><span data-icon="history"></span>リサーチ履歴</h2>
+          <span class="count-badge" id="drawer-history-count">0件</span>
+        </div>
+        <button class="btn btn-ghost btn-icon" type="button" data-close aria-label="閉じる"><span data-icon="x"></span></button>
+      </header>
+      <div class="drawer-toolbar">
+        <div class="dsearch-wrap">
+          <span data-icon="search"></span>
+          <input type="search" class="input input-sm" id="history-filter" placeholder="タイトルやテーマで履歴を検索…" />
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm" id="btn-history-sort" title="並び替え切替">
+          <span data-icon="sort"></span><span id="history-sort-label">新しい順</span>
+        </button>
+      </div>
+      <div class="drawer-body" id="drawer-history-body">
+        <ul class="history-list" id="history-list"></ul>
+      </div>
+    </aside>
+  </div>
+
+  <!-- =================================================== DEEP DIVE DRAWER (SPLIT-VIEW CAPABLE) -->
+  <div class="drawer drawer-deepdive-split" id="drawer-deepdive" role="dialog" aria-modal="false" aria-labelledby="deepdive-title" hidden>
+    <div class="modal-backdrop dd-backdrop" data-close></div>
+    <aside class="drawer-panel glass drawer-deepdive-panel" id="deepdive-panel">
+      <header class="drawer-head">
+        <div class="dh-title">
+          <div class="dd-title-row">
+            <h2 id="deepdive-title"><span data-icon="sparkles"></span>深掘りアシスタント</h2>
+            <span class="dd-split-badge" id="dd-split-badge" title="レポート本文を見ながら同時に会話・調査できます">
+              <span class="pulse-orb" style="width: 6px; height: 6px;"></span>Side-by-Side
+            </span>
+          </div>
+          <small class="dd-theme-mini" id="dd-theme-title">—</small>
+        </div>
+        <div class="drawer-head-actions">
+          <button class="btn btn-ghost btn-icon btn-dd-expand" id="btn-toggle-dd-expand" type="button" title="パネル幅を広げる/標準に戻す" aria-label="幅切り替え">
+            <span data-icon="sidebar"></span>
+          </button>
+          <button class="btn btn-ghost btn-icon" type="button" data-close aria-label="閉じる" title="深掘りパネルを閉じる（Esc）"><span data-icon="x"></span></button>
+        </div>
+      </header>
+      <div class="deepdive-body" id="deepdive-body">
+        <div class="deepdive-intro">
+          <p><span data-icon="zap"></span><strong>ピンポイント高速調査 (約5〜8秒)</strong><br>レポートを閲覧しながら気になった点や疑問を入力してください。左側の文章をドラッグ選択して「引用質問」も可能です。</p>
+          <div class="dd-chips">
+            <button type="button" class="dd-chip" data-dd-query="具体的な料金プランや導入費用は？">💰 料金プラン・費用</button>
+            <button type="button" class="dd-chip" data-dd-query="競合サービスとの決定的な違い・比較は？">⚔️ 競合との違い</button>
+            <button type="button" class="dd-chip" data-dd-query="導入時の注意点・デメリット・リスクは？">⚠️ デメリット・リスク</button>
+            <button type="button" class="dd-chip" data-dd-query="今後のロードマップや2026年の最新動向は？">🚀 今後の動向</button>
+          </div>
+        </div>
+        <div class="deepdive-messages" id="deepdive-messages"></div>
+      </div>
+      <footer class="deepdive-footer">
+        <!-- 引用テキストプレビュー枠 -->
+        <div class="dd-quote-preview" id="dd-quote-preview" hidden>
+          <div class="dd-qp-head">
+            <span class="dd-qp-label"><span data-icon="sparkles"></span>レポートからの引用箇所</span>
+            <button type="button" class="btn-clear-quote" id="btn-clear-quote" title="引用を解除">
+              <span data-icon="x"></span>
+            </button>
+          </div>
+          <blockquote class="dd-qp-text" id="dd-qp-text"></blockquote>
+        </div>
+
+        <form id="form-deepdive" class="dd-input-form" autocomplete="off">
+          <input type="text" class="input dd-input" id="input-deepdive" placeholder="例: 〇〇サービスの料金体系をもっと詳しく…" maxlength="200" required />
+          <button type="submit" class="btn btn-primary btn-sm btn-dd-submit" id="btn-submit-deepdive">
+            <span data-icon="zap"></span><span>質問</span>
+          </button>
+        </form>
+      </footer>
+    </aside>
+  </div>
+
+  <!-- =================================================== PDF PREVIEW MODAL -->
+  <div class="modal" id="modal-pdf-preview" role="dialog" aria-modal="true" aria-labelledby="pdf-preview-title" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card glass modal-xl" id="pdf-preview-card">
+      <header class="modal-head">
+        <h2 id="pdf-preview-title"><span data-icon="file-text"></span>商用レポートPDF プレビュー</h2>
+        <div class="modal-head-tools">
+          <div class="zoom-controls">
+            <button type="button" class="btn btn-ghost btn-sm btn-icon" id="btn-zoom-out" title="縮小"><span data-icon="minus">-</span></button>
+            <span id="zoom-level-text">100%</span>
+            <button type="button" class="btn btn-ghost btn-sm btn-icon" id="btn-zoom-in" title="拡大"><span data-icon="plus">+</span></button>
+            <button type="button" class="btn btn-ghost btn-sm" id="btn-zoom-fit" title="幅に合わせる">フィット</button>
+          </div>
+          <button class="btn btn-primary btn-sm" type="button" id="btn-pdf-print-confirm"><span data-icon="download"></span>PDFをダウンロード</button>
+          <button class="btn btn-ghost btn-icon" type="button" data-close aria-label="閉じる"><span data-icon="x"></span></button>
+        </div>
+      </header>
+      <div class="modal-body pdf-preview-body" id="pdf-preview-body">
+        <div class="pdf-stage" id="pdf-stage">
+          <div class="pdf-stage-inner" id="pdf-stage-inner"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================================================== COMPARE MODAL -->
+  <div class="modal" id="modal-compare" role="dialog" aria-modal="true" aria-labelledby="compare-title" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card glass modal-xl" id="compare-modal-card">
+      <header class="modal-head">
+        <h2 id="compare-title"><span data-icon="chart"></span>レポート比較（A / B 分析）</h2>
+        <button class="btn btn-ghost btn-icon" type="button" data-close aria-label="閉じる"><span data-icon="x"></span></button>
+      </header>
+      <div class="compare-selector-bar">
+        <div class="cs-col">
+          <label for="compare-sel-a"><span class="badge badge-a">レポート A</span></label>
+          <select class="select" id="compare-sel-a"></select>
+        </div>
+        <button type="button" class="btn btn-ghost btn-icon" id="btn-compare-swap" title="AとBを入れ替え" aria-label="AとBを入れ替え"><span data-icon="refresh"></span></button>
+        <div class="cs-col">
+          <label for="compare-sel-b"><span class="badge badge-b">レポート B</span></label>
+          <select class="select" id="compare-sel-b"></select>
+        </div>
+      </div>
+      <div class="modal-body compare-body" id="compare-body">
+        <div id="compare-container"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================ PROMPT TEMPLATES MODAL -->
+  <div class="modal" id="modal-prompt-templates" role="dialog" aria-modal="true" aria-labelledby="prompt-templates-title" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card glass modal-lg">
+      <header class="modal-head">
+        <h2 id="prompt-templates-title"><span data-icon="sparkles"></span>Claude / GPT プロンプトテンプレート</h2>
+        <button class="btn btn-ghost btn-icon" type="button" data-close aria-label="閉じる"><span data-icon="x"></span></button>
+      </header>
+      <div class="modal-body prompt-template-body">
+        <div class="field">
+          <label class="field-label" for="preset-template-select">プリセットテンプレートを選択</label>
+          <select class="select" id="preset-template-select">
+            <option value="consultant">戦略コンサルタントの提案書ドラフト</option>
+            <option value="tech_blog">エンジニア向け技術解説ブログ (Qiita/Zenn風)</option>
+            <option value="exec_brief">経営層向け1分エグゼクティブブリーフ</option>
+            <option value="youtube">YouTube・動画解説スクリプト</option>
+            <option value="custom">独自のカスタム定義</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="field-label" for="custom-template-text">プロンプトテンプレート本文</label>
+          <textarea class="input template-textarea" id="custom-template-text" rows="12"></textarea>
+        </div>
+        <div class="template-placeholders">
+          <span class="muted">利用可能な差し込みタグ:</span>
+          <code>{theme}</code> <code>{title}</code> <code>{subtitle}</code> <code>{period}</code> <code>{summary}</code> <code>{keyPoints}</code> <code>{metrics}</code> <code>{table}</code> <code>{sections}</code> <code>{insights}</code> <code>{sources}</code>
+        </div>
+      </div>
+      <footer class="modal-foot">
+        <button class="btn btn-ghost" type="button" id="btn-reset-prompt-template">初期値に戻す</button>
+        <button class="btn btn-primary" type="button" id="btn-save-prompt-template"><span data-icon="check"></span>保存して適用</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- =============================== FLOATING SELECTION QUOTE TOOLTIP -->
+  <div class="selection-quote-tooltip" id="selection-quote-tooltip" hidden>
+    <button type="button" class="btn-quote-ask" id="btn-quote-ask">
+      <span class="btn-quote-icon"><span data-icon="sparkles"></span></span>
+      <span class="btn-quote-label">この文章を引用して深掘り質問</span>
+    </button>
+  </div>
+
+  <div class="toast-stack" id="toasts" aria-live="polite"></div>
+  <div id="print-root"></div>
+
+  <script src="/vendor/xlsx.full.min.js" defer></script>
+  <script src="/vendor/html2pdf.bundle.min.js" defer></script>
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>
