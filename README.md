@@ -24,38 +24,50 @@
 
 ---
 
-## 🚀 クイックスタート（誰でも3ステップで起動）
+## 🚀 選べる2つの導入方法（利用環境に合わせて選べます）
 
-### 前提条件
-- **[Node.js](https://nodejs.org/)** (v18.0.0 以上推奨)
+お使いのPC環境に合わせて、**「Node.js不要のワンクリック版」**または**「Node.js環境向けソースコード版」**のいずれかをお選びいただけます。
 
 ---
 
-### 1. リポジトリをクローン
-```bash
-git clone https://github.com/<your-username>/research_system.git
-cd research_system
-```
+### パターン 1：Node.js が入っていない場合（一般ユーザー向け・推奨 ⭐）
 
-### 2. 起動する（ワンクリック対応）
+Node.js やコマンドの知識は一切不要です。ダウンロードしてダブルクリックするだけで即座に使えます。
 
-#### 🪟 Windows の場合
-フォルダ内の **`start.bat`** をダブルクリックするだけ！  
-（初回のみ必要なパッケージのインストールが自動実行され、ブラウザが自動で立ち上がります）
+1. **GitHub Releases からダウンロード**:
+   - [**GitHub Releases（最新版ダウンロード）**](https://github.com/yuuki16dev/research_system/releases) にアクセスします。
+   - `ResearchStudio.exe`（または `ResearchStudio-win.zip`）をクリックしてダウンロードします。
+2. **ダブルクリックで起動**:
+   - ダウンロードした `ResearchStudio.exe` をダブルクリックします。
+   - 自動的にブラウザが立ち上がり、**`http://localhost:3939`** にアクセスされます。
+   - （※ 設定や履歴は `.exe` と同じ場所に自動作成される `data/` フォルダに安全に保存されます）
 
-#### 🍎 Mac / 🐧 Linux の場合
-```bash
-chmod +x start.sh stop.sh
-./start.sh
-```
+---
 
-#### または npm コマンドで起動
-```bash
-npm install
-npm start
-```
+### パターン 2：Node.js が入っている場合（開発者・ソースから動かしたい方向け）
 
-ブラウザで **`http://localhost:3939`** が開きます。
+リポジトリをダウンロード（またはクローン）して、最新のソースコードから起動します。
+
+1. **ダウンロード または クローン**:
+   - **GitHubからZIPで保存する場合**: 画面上部の緑色の「Code」ボタン → **「Download ZIP」** をクリックして解凍。
+   - **Git でクローンする場合**:
+     ```bash
+     git clone https://github.com/yuuki16dev/research_system.git
+     cd research_system
+     ```
+2. **起動する（ワンクリック対応）**:
+   - **🪟 Windows**: フォルダ内の **`start.bat`** をダブルクリックするだけ！（依存関係の確認・ブラウザ自動オープンまで全自動で行われます）
+   - **🍎 Mac / 🐧 Linux**:
+     ```bash
+     chmod +x start.sh stop.sh
+     ./start.sh
+     ```
+   - **npm コマンドで起動**:
+     ```bash
+     npm install
+     npm start
+     ```
+3. ブラウザで **`http://localhost:3939`** が開きます。
 
 ---
 
@@ -109,6 +121,17 @@ npm start
 
 - `.gitignore` により、個人のAPIキーや検索履歴が保存される `data/` フォルダ、および `.env` は**Git追跡から完全に除外**されています。
 - リポジトリをGitHubのパブリック（公開）にプッシュしても、ご自身のAPIキーやプライベートな調査データが誤って流出することはありません。
+
+---
+
+## 🛠️ スタンドアロン実行ファイル（.exe）のビルド
+
+Node.js不要のワンクリック配布用実行ファイル（`dist/ResearchStudio.exe`）を自分でビルドしたい場合は、以下のコマンドを実行します：
+
+```bash
+npm run build:exe
+```
+`dist/` フォルダ配下に Windows 用の `ResearchStudio.exe`（約50MB）が生成されます。これを zip 圧縮して GitHub Releases にアップロードすることで、誰でもワンクリックで使えるアプリとして配布できます。
 
 ---
 

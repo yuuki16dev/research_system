@@ -3,7 +3,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const DATA_DIR = path.join(__dirname, '..', 'data');
+const BASE_DIR = process.pkg ? path.dirname(process.execPath) : path.join(__dirname, '..');
+const DATA_DIR = path.join(BASE_DIR, 'data');
 const FILE = path.join(DATA_DIR, 'settings.json');
 
 const DEFAULTS = {
@@ -88,4 +89,4 @@ function publicView(s = load()) {
   };
 }
 
-module.exports = { load, save, publicView, effectiveMode, effectiveSearch, DATA_DIR };
+module.exports = { load, save, publicView, effectiveMode, effectiveSearch, DATA_DIR, BASE_DIR };

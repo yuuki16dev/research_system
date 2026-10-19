@@ -2,12 +2,23 @@
   "name": "research_system",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "server/index.js",
+  "bin": "server/index.js",
   "scripts": {
     "start": "node server/start.js",
     "stop": "node server/stop.js",
     "server": "node server/index.js",
-    "dev": "node server/start.js"
+    "dev": "node server/start.js",
+    "build:exe": "npx --yes pkg . --targets node18-win-x64 --output dist/ResearchStudio.exe"
+  },
+  "pkg": {
+    "assets": [
+      "public/**/*",
+      "node_modules/xlsx/dist/**/*"
+    ],
+    "targets": [
+      "node18-win-x64"
+    ]
   },
   "keywords": [],
   "author": "",

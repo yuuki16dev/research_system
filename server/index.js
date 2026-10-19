@@ -239,4 +239,19 @@ app.listen(PORT, HOST, () => {
   console.log(`  ★ 終了方法: [Ctrl + C] を押すか、このウィンドウを閉じてください`);
   console.log(`  ★ 停止用バッチ: stop.bat をダブルクリックでも停止できます`);
   console.log(`${line}\n`);
+
+  if (process.pkg || process.env.AUTO_OPEN === '1') {
+    try {
+      const { spawn } = require('child_process');
+      const url = `http://localhost:${PORT}`;
+      if (process.platform === 'win32') {
+        spawn('cmd', ['/c', 'start', '', url], { detached: true, stdio: 'ignore' });
+      } else if (process.platform === 'darwin') {
+        spawn('open', [url], { detached: true, stdio: 'ignore' });
+      } else {
+        spawn('xdg-open', [url], { detached: true, stdio: 'ignore' });
+      }
+    } catch {}
+  }
 });
+
