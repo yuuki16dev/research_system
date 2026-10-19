@@ -5,6 +5,23 @@ if (typeof dns.setDefaultResultOrder === 'function') {
   dns.setDefaultResultOrder('ipv4first');
 }
 
+// Node.js 18.x 互換用 AbortSignal.any ポリフィル
+if (typeof AbortSignal.any !== 'function') {
+  AbortSignal.any = function (signals) {
+    const controller = new AbortController();
+    for (const signal of signals) {
+      if (!signal) continue;
+      if (signal.aborted) {
+        controller.abort(signal.reason);
+        return controller.signal;
+      }
+      signal.addEventListener('abort', () => controller.abort(signal.reason), { once: true });
+    }
+    return controller.signal;
+  };
+}
+
+
 function delay(ms, signal) {
   return new Promise((resolve, reject) => {
     if (signal && signal.aborted) return reject(new Error('キャンセルされました'));

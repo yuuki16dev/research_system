@@ -2,6 +2,22 @@
 
 const { domainOf } = require('./util');
 
+// Node.js 18.x 互換用 AbortSignal.any ポリフィル
+if (typeof AbortSignal.any !== 'function') {
+  AbortSignal.any = function (signals) {
+    const controller = new AbortController();
+    for (const signal of signals) {
+      if (!signal) continue;
+      if (signal.aborted) {
+        controller.abort(signal.reason);
+        return controller.signal;
+      }
+      signal.addEventListener('abort', () => controller.abort(signal.reason), { once: true });
+    }
+    return controller.signal;
+  };
+}
+
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
 
