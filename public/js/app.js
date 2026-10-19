@@ -40,7 +40,10 @@ let appState = {
   activeUnsub: null,
   timerInterval: null,
   startTime: null,
+  isFinishing: false,
+  lastParams: null,
 };
+
 
 // ==========================================================================
 // 初期化
@@ -315,6 +318,8 @@ function bindFormControls() {
   const btnDismiss = $('#btn-dismiss-progress');
   if (btnDismiss) {
     btnDismiss.addEventListener('click', () => {
+      const banner = $('#progress-aborted-banner');
+      if (banner) banner.style.display = 'none';
       $('#progress-section').hidden = true;
       $('#control-panel').scrollIntoView({ behavior: 'smooth' });
     });
@@ -322,7 +327,13 @@ function bindFormControls() {
   const btnRetry = $('#btn-retry-progress');
   if (btnRetry) {
     btnRetry.addEventListener('click', () => {
-      form.requestSubmit();
+      const banner = $('#progress-aborted-banner');
+      if (banner) banner.style.display = 'none';
+      if (appState.lastParams) {
+        startResearch(appState.lastParams);
+      } else {
+        form.requestSubmit();
+      }
     });
   }
 
@@ -330,6 +341,8 @@ function bindFormControls() {
   const btnDismissErr = $('#btn-dismiss-error');
   if (btnDismissErr) {
     btnDismissErr.addEventListener('click', () => {
+      const banner = $('#progress-error-banner');
+      if (banner) banner.style.display = 'none';
       $('#progress-section').hidden = true;
       $('#control-panel').scrollIntoView({ behavior: 'smooth' });
     });
@@ -337,7 +350,13 @@ function bindFormControls() {
   const btnRetryErr = $('#btn-retry-error');
   if (btnRetryErr) {
     btnRetryErr.addEventListener('click', () => {
-      form.requestSubmit();
+      const banner = $('#progress-error-banner');
+      if (banner) banner.style.display = 'none';
+      if (appState.lastParams) {
+        startResearch(appState.lastParams);
+      } else {
+        form.requestSubmit();
+      }
     });
   }
 
@@ -380,21 +399,29 @@ function setRunningState(running) {
 }
 
 async function cancelCurrentResearch() {
-  if (!appState.activeJobId) return;
+  if (!appState.activeJobId && !appState.timerInterval) return;
   const jobId = appState.activeJobId;
-  try {
-    await api.cancelResearch(jobId);
-    toast('リサーチを中止しました', 'info');
-  } catch (err) {
-    console.warn('cancel error:', err);
-  }
   handleAborted();
+  if (jobId) {
+    try {
+      await api.cancelResearch(jobId);
+    } catch (err) {
+      console.warn('cancel error:', err);
+    }
+  }
 }
 
 function handleAborted() {
+  if (appState.isFinishing) return;
+  appState.isFinishing = true;
+
   clearInterval(appState.timerInterval);
+  appState.timerInterval = null;
+
   if (appState.activeUnsub) {
-    appState.activeUnsub();
+    try {
+      appState.activeUnsub();
+    } catch {}
     appState.activeUnsub = null;
   }
   appState.activeJobId = null;
@@ -404,30 +431,50 @@ function handleAborted() {
   progressSection.classList.remove('is-done');
   progressSection.classList.add('is-error');
 
+  const errorBanner = $('#progress-error-banner');
+  if (errorBanner) errorBanner.style.display = 'none';
+
   const abortedBanner = $('#progress-aborted-banner');
   if (abortedBanner) abortedBanner.style.display = 'flex';
   hydrateIcons(abortedBanner);
 
   // ログに中止メッセージ
   const logList = $('#log');
-  const li = document.createElement('li');
-  li.className = 'k-warn';
-  const time = new Date().toTimeString().slice(0, 8);
-  li.innerHTML = `
-    <span class="log-time">${time}</span>
-    <span class="log-icon">${icon('stop')}</span>
-    <div class="log-msg">
-      <strong style="color: var(--danger);">ユーザー操作により調査を中止しました</strong>
-    </div>
-  `;
-  logList.appendChild(li);
-  li.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  if (logList) {
+    const li = document.createElement('li');
+    li.className = 'k-warn';
+    const time = new Date().toTimeString().slice(0, 8);
+    li.innerHTML = `
+      <span class="log-time">${time}</span>
+      <span class="log-icon">${icon('stop')}</span>
+      <div class="log-msg">
+        <strong style="color: var(--danger);">ユーザー操作により調査を中止しました</strong>
+      </div>
+    `;
+    logList.appendChild(li);
+    li.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  toast('リサーチを中止しました', 'info');
 }
 
 // ==========================================================================
 // リサーチ実行 & リアルタイム進捗管理
 // ==========================================================================
 async function startResearch(params) {
+  // 前回のサブスクリプションやタイマーがあれば強制クリーンアップ
+  if (appState.activeUnsub) {
+    try {
+      appState.activeUnsub();
+    } catch {}
+    appState.activeUnsub = null;
+  }
+  clearInterval(appState.timerInterval);
+  appState.timerInterval = null;
+
+  appState.isFinishing = false;
+  appState.lastParams = params;
+
   const progressSection = $('#progress-section');
   const resultsSection = $('#results-section');
   const logList = $('#log');
@@ -449,6 +496,7 @@ async function startResearch(params) {
   progressSection.classList.remove('is-done', 'is-error');
   logList.innerHTML = '';
   logCount.textContent = '0';
+
   progressFill.style.width = '0%';
   progressPct.textContent = '0%';
   progressTheme.textContent = params.theme;
@@ -536,7 +584,18 @@ function updateStepper(stage) {
 }
 
 function finishSuccess(resultData) {
+  if (appState.isFinishing) return;
+  appState.isFinishing = true;
+
   clearInterval(appState.timerInterval);
+  appState.timerInterval = null;
+
+  if (appState.activeUnsub) {
+    try {
+      appState.activeUnsub();
+    } catch {}
+    appState.activeUnsub = null;
+  }
   appState.activeJobId = null;
   setRunningState(false);
 
@@ -594,9 +653,16 @@ function diagnoseError(msg = '') {
 }
 
 function finishError(msg) {
+  if (appState.isFinishing) return;
+  appState.isFinishing = true;
+
   clearInterval(appState.timerInterval);
+  appState.timerInterval = null;
+
   if (appState.activeUnsub) {
-    appState.activeUnsub();
+    try {
+      appState.activeUnsub();
+    } catch {}
     appState.activeUnsub = null;
   }
   appState.activeJobId = null;
@@ -608,7 +674,11 @@ function finishError(msg) {
   progressSection.classList.remove('is-done');
   progressSection.classList.add('is-error');
 
+  const abortedBanner = $('#progress-aborted-banner');
+  if (abortedBanner) abortedBanner.style.display = 'none';
+
   const errorBanner = $('#progress-error-banner');
+
   const errorDesc = $('#progress-error-desc');
   if (errorBanner) {
     if (errorDesc) {

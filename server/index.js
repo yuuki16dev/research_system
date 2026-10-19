@@ -170,7 +170,7 @@ app.get('/api/research/:id/events', (req, res) => {
 
   const onEvent = (e) => {
     send(e);
-    if (e.type === 'end') cleanup(true);
+    if (e.type === 'end' || e.type === 'error') cleanup(true);
   };
   const heartbeat = setInterval(() => res.write(': ping\n\n'), 15000);
   function cleanup(end) {

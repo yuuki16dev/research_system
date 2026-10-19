@@ -1495,6 +1495,15 @@ select.input option {
   background: var(--danger);
 }
 
+.progress-panel.is-error .progress-fill {
+  background: var(--danger);
+}
+
+.progress-panel.is-error .progress-pct {
+  color: var(--danger-light);
+}
+
+
 @keyframes orb {
   0% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.7); }
   70% { box-shadow: 0 0 0 10px rgba(99, 102, 241, 0); }

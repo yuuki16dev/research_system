@@ -40,28 +40,41 @@ export const api = {
   subscribe(jobId, handlers) {
     const es = new EventSource(`/api/research/${jobId}/events`);
     let finished = false;
+
+    const closeConnection = () => {
+      if (finished) return;
+      finished = true;
+      try {
+        es.close();
+      } catch {}
+    };
+
     es.onmessage = (m) => {
+      if (finished) return;
       let e;
       try {
         e = JSON.parse(m.data);
       } catch {
         return;
       }
-      if (e.type === 'end') {
-        finished = true;
-        es.close();
+      if (e.type === 'end' || e.type === 'error') {
+        closeConnection();
       }
       handlers.onEvent && handlers.onEvent(e);
     };
+
     es.onerror = () => {
       if (finished) return;
-      // EventSource は自動再接続する（サーバー側はバッファ済みイベントを再送）。
-      // 再接続不能な状態（CLOSED）になった場合のみエラー通知。
-      if (es.readyState === EventSource.CLOSED) handlers.onError && handlers.onError(new Error('サーバーとの接続が切断されました'));
+      // 接続が完全に切断された場合のみ1回だけ通知して閉じる
+      if (es.readyState === EventSource.CLOSED) {
+        closeConnection();
+        handlers.onError && handlers.onError(new Error('サーバーとの接続が切断されました'));
+      }
     };
+
     return () => {
-      finished = true;
-      es.close();
+      closeConnection();
     };
   },
+
 };
