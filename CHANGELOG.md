@@ -30,6 +30,12 @@
   - 引用プレビュー（`.dd-quote-preview`）に最大高さとスクロールを設け、長文引用時に入力フォームが画面外へ突き抜けて送信ボタンが押せなくなる問題を解消。
   - 小型スマートフォン（幅 320px〜440px）でのアクションボタン群のグリッド配置最適化。
 
+### 🚀 ランチャー起動安定化 & 導入フォールバック案内の強化 (Launcher Fix & Mutual Fallback)
+- **`start.bat` の構文パース破損および文字化けの根本解消**:
+  - バッチファイルのエンコーディングを BOM なし UTF-8 かつ CRLF 改行に厳格化し、先頭に `chcp 65001` を導入。Windows の `cmd.exe` でマルチバイト文字が原因で構文エラーを起こして誤って `:OLD_NODE` やエラー行にジャンプしてしまう不具合を完全解決。
+- **2つの導入方法（ワンクリック版 ⇄ Node.js版）の相互誘導強化**:
+  - [README.md](file:///c:/Users/ojkne/.gemini/antigravity-ide/scratch/research_system/README.md) および [start.bat](file:///c:/Users/ojkne/.gemini/antigravity-ide/scratch/research_system/start.bat) にて、「一方の方法で動作しない場合は、もう一方の方法（ワンクリック版または Node.js 版）へ切り替える」手順を明記。ユーザー環境やセキュリティ設定の差異による起動トラブルをスムーズに解決できるように案内を整備。
+
 ---
 
 ## [v1.1.4] - 2026-10-20

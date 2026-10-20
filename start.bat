@@ -1,4 +1,5 @@
 @echo off
+chcp 65001 >nul 2>nul
 setlocal
 cd /d "%~dp0"
 title Research Studio Launcher
@@ -15,7 +16,7 @@ where node >nul 2>nul
 if %ERRORLEVEL% NEQ 0 goto NO_NODE
 
 rem 2. Node.js のバージョン確認 (Node.js 18以上が必要)
-node -e "if (parseInt(process.versions.node) < 18) process.exit(1)" 2>nul
+node -e "if (parseInt(process.versions.node) < 18) process.exit(1)" >nul 2>nul
 if %ERRORLEVEL% NEQ 0 goto OLD_NODE
 
 rem 3. 初回起動時: node_modules が無ければ自動インストール
@@ -36,6 +37,11 @@ if %ERRORLEVEL% NEQ 0 (
     echo.
     echo ======================================================================
     echo   【エラー】Research Studio の起動中に問題が発生しました。
+    echo.
+    echo   もしこの方法で起動できない場合は、もう1つの方法である
+    echo   【Node.js不要のワンクリック版（ResearchStudio.exe）】をお試しください:
+    echo     https://github.com/yuuki16dev/research_system/releases
+    echo.
     echo   詳細なエラーログは以下に記録されています:
     echo     data\logs\error.log
     echo ======================================================================
@@ -49,16 +55,16 @@ echo ======================================================================
 echo   【環境エラー】お使いの PC に Node.js が見つかりませんでした
 echo ======================================================================
 echo.
-echo   Research Studio の実行には Node.js (v18以上) が必要です。
+echo   この起動方法（start.bat）には Node.js (v18以上) が必要です。
 echo.
 echo   次のいずれかの方法でご利用いただけます：
 echo.
-echo   【方法 1】Node.js をインストールせずに使う場合（最も簡単・推奨）
+echo   【推奨・最も簡単】Node.js を入れずに使う場合（もう1つの方法）
 echo     GitHub Releases ページからワンクリック版「ResearchStudio.exe」
 echo     をダウンロードしてください。Node.js 不要ですぐに使えます。
 echo     https://github.com/yuuki16dev/research_system/releases
 echo.
-echo   【方法 2】Node.js をインストールして使う場合
+echo   【通常】Node.js をインストールして使う場合
 echo     公式サイトから Node.js (LTS版 / v18以上) をインストールしてください。
 echo     https://nodejs.org/
 echo.
@@ -81,13 +87,13 @@ node -v 2>nul
 echo.
 echo   ※「v18以上」はアプリのバージョンではなく、実行に必要な Node.js のバージョンです。
 echo.
-echo   【解決方法 1】Node.js を最新版に更新する
-echo     公式サイトから最新の LTS 版（v20 または v22 推奨）をインストールしてください。
-echo     https://nodejs.org/
-echo.
-echo   【解決方法 2】Node.js の更新が不要なワンクリック版を使う
+echo   【解決方法 1】Node.js の更新が不要なワンクリック版を使う（推奨・もう1つの方法）
 echo     GitHub Releases からワンクリック版「ResearchStudio.exe」をご利用ください:
 echo     https://github.com/yuuki16dev/research_system/releases
+echo.
+echo   【解決方法 2】Node.js を最新版に更新する
+echo     公式サイトから最新の LTS 版（v20 または v22 推奨）をインストールしてください。
+echo     https://nodejs.org/
 echo.
 echo ======================================================================
 pause
@@ -97,8 +103,13 @@ goto :eof
 echo.
 echo ======================================================================
 echo   【エラー】ライブラリの自動インストール（npm install）に失敗しました。
-echo   インターネット接続環境を確認するか、以下のログをご確認ください。
-echo   data\logs\error.log
+echo.
+echo   インターネット接続環境を確認するか、以下のログをご確認ください:
+echo     data\logs\error.log
+echo.
+echo   もし環境要因で解決が難しい場合は、もう1つの方法である
+echo   【Node.js不要のワンクリック版（ResearchStudio.exe）】をお試しください:
+echo     https://github.com/yuuki16dev/research_system/releases
 echo ======================================================================
 pause
 goto :eof
