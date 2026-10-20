@@ -48,6 +48,17 @@
 - **2つの導入方法（ワンクリック版 ⇄ Node.js版）の相互誘導強化**:
   - [README.md](file:///c:/Users/ojkne/.gemini/antigravity-ide/scratch/research_system/README.md) および [start.bat](file:///c:/Users/ojkne/.gemini/antigravity-ide/scratch/research_system/start.bat) にて、「一方の方法で動作しない場合は、もう一方の方法（ワンクリック版または Node.js 版）へ切り替える」手順を明記。ユーザー環境やセキュリティ設定の差異による起動トラブルをスムーズに解決できるように案内を整備。
 
+### 🧪 全結合テストスイートの新設 & コードクリーンアップ (Integration Tests & Code Cleanup)
+- **包括的な結合テストスイート ([test/integration.test.js](file:///c:/Users/ojkne/.gemini/antigravity-ide/scratch/research_system/test/integration.test.js)) を新設**:
+  - Express バックエンドの全主要エンドポイント（`/api/info`, `/api/settings`, `/api/usage`, `/api/history`, `/api/research`, `/api/research/deep-dive`）を網羅した自動テストスイートを追加。単体テスト（16件）と合わせて全 22 件の自動テスト体制を確立。
+- **深掘り質問APIの型安全性向上**:
+  - `server/deepdive.js` において、`reportContext` がオブジェクトや null の場合でもクラッシュせず安全に文字列変換するフォールバック処理を導入。
+- **不要ファイルのクリーンアップ & ドキュメント整理**:
+  - `scratch/` 配下に残存していた開発用一時スクリプト・ダンプファイル群（8ファイル）を全削除。
+  - ルート直下の初期要件定義・改善提案書を [docs/](file:///c:/Users/ojkne/.gemini/antigravity-ide/scratch/research_system/docs/) ディレクトリへ移動・アーカイブし、リポジトリ構成を整流化。
+- **起動自己検証スクリプト ([scripts/verify-launch.js](file:///c:/Users/ojkne/.gemini/antigravity-ide/scratch/research_system/scripts/verify-launch.js)) の追加**:
+  - `start.bat` からの起動およびポート 3939 への疎通を即座に自動検証できるスクリプトを配備。
+
 ---
 
 ## [v1.1.4] - 2026-10-20

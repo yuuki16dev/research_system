@@ -70,6 +70,10 @@ async function runDeepDive({ theme, question, reportContext = '', period = 'year
     ? `\n【レポート内からの引用箇所】\n"${quote}"\n※ユーザーはレポート内の上記文章を特に注目・疑問視しています。この文脈を踏まえて回答してください。\n`
     : '';
 
+  const safeContext = typeof reportContext === 'string'
+    ? reportContext
+    : (reportContext ? JSON.stringify(reportContext) : '');
+
   const prompt = `あなたは優秀なリサーチアナリストです。リサーチテーマ「${theme}」に関するユーザーの深掘り質問に、以下の最新Web検索結果に基づいて回答してください。
 回答は冗長にならず、要点が即座に理解できるビジネス文書として出力してください。
 
@@ -80,7 +84,7 @@ ${theme}
 ${question}
 ${quoteSection}
 【関連コンテキスト（レポート要約）】
-${reportContext.slice(0, 400)}
+${safeContext.slice(0, 400)}
 
 【Web検索結果】
 ${snippetBlock}
