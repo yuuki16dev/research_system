@@ -137,7 +137,72 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
-  transition: background-color 0.25s var(--ease), color 0.25s var(--ease);
+}
+
+/* テーマ切り替え時の一括シルキートランジション */
+html.theme-transitioning,
+html.theme-transitioning *,
+html.theme-transitioning *::before,
+html.theme-transitioning *::after {
+  transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              fill 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              stroke 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  transition-delay: 0s !important;
+}
+
+/* View Transitions API (モダンブラウザ用クロスフェード) */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.32s;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* テーマ切替ボタン & スムーズ回転アイコン */
+#btn-theme {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: var(--radius);
+  transition: background 0.2s, transform 0.18s var(--spring);
+}
+#btn-theme .only-dark,
+#btn-theme .only-light {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  transition: transform 0.35s var(--spring), opacity 0.25s ease;
+}
+#btn-theme svg {
+  width: 20px;
+  height: 20px;
+}
+[data-theme='dark'] #btn-theme .only-dark {
+  opacity: 1;
+  transform: rotate(0deg) scale(1);
+  color: #fbbf24; /* 太陽のウォームゴールド */
+}
+[data-theme='dark'] #btn-theme .only-light {
+  opacity: 0;
+  transform: rotate(90deg) scale(0.3);
+}
+[data-theme='light'] #btn-theme .only-dark {
+  opacity: 0;
+  transform: rotate(-90deg) scale(0.3);
+}
+[data-theme='light'] #btn-theme .only-light {
+  opacity: 1;
+  transform: rotate(0deg) scale(1);
+  color: #6366f1; /* ナイトネイビー */
 }
 
 h1, h2, h3, h4, h5, h6 {

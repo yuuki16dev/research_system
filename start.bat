@@ -1,42 +1,28 @@
 @echo off
-chcp 65001 >nul
+setlocal
 cd /d "%~dp0"
 
 where node >nul 2>nul
-if errorlevel 1 (
-    echo ======================================================================
-    echo   【エラー】お使いの PC に Node.js が見つかりませんでした。
-    echo ======================================================================
-    echo.
-    echo   次のいずれかの方法でご利用いただけます：
-    echo.
-    echo   【方法 1】Node.js をインストールせずに使う場合（推奨）
-    echo     GitHub の Releases ページからワンクリック版「ResearchStudio.exe」
-    echo     をダウンロードしてください。Node.js 不要ですぐに使えます。
-    echo     https://github.com/yuuki16dev/research_system/releases
-    echo.
-    echo   【方法 2】Node.js をインストールして使う場合
-    echo     公式サイトから Node.js (LTS版推奨) をインストールしてください。
-    echo     https://nodejs.org/
-    echo     インストール後、もう一度この start.bat を開いてください。
-    echo.
-    echo ======================================================================
-    echo 何かキーを押すと終了します...
-    pause >nul
-    exit /b 1
-)
-
-if not exist node_modules (
-    echo ======================================================================
-    echo   [初回セットアップ] 必要なライブラリを自動インストールしています...
-    echo ======================================================================
-    call npm install
-)
+if %ERRORLEVEL% NEQ 0 goto NO_NODE
 
 node server/start.js
-if errorlevel 1 (
-    echo.
-    echo [エラー] サーバーの起動中に問題が発生しました。
-    pause
-)
+if %ERRORLEVEL% NEQ 0 pause
+goto :eof
 
+:NO_NODE
+cls
+echo ======================================================================
+echo   [ERROR] Node.js is not installed / Node.js が見つかりませんでした。
+echo ======================================================================
+echo.
+echo   [Option 1] Use standalone ResearchStudio.exe (No Node.js needed)
+echo   GitHub Releases からインストール不要版 ResearchStudio.exe をご利用ください。
+echo   https://github.com/yuuki16dev/research_system/releases
+echo.
+echo   [Option 2] Install Node.js LTS from official site
+echo   公式サイトから Node.js (LTS版) をインストールしてください。
+echo   https://nodejs.org/
+echo.
+echo ======================================================================
+pause
+goto :eof

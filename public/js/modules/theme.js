@@ -6,18 +6,44 @@ import { $, icon, hydrateIcons, toast, openModal, esc } from '../ui.js';
 import { api } from '../api.js';
 import { appState } from './state.js';
 
-/** テーマ切替 (Dark / Light) */
+/** テーマ切替 (Dark / Light) — シルキースムーズ遷移 */
 export function initTheme() {
   const btn = $('#btn-theme');
   if (!btn) return;
+
   btn.addEventListener('click', () => {
     const cur = document.documentElement.getAttribute('data-theme') || 'dark';
     const next = cur === 'dark' ? 'light' : 'dark';
-    document.documentElement.setAttribute('data-theme', next);
-    try {
-      localStorage.setItem('rs-theme', next);
-    } catch {}
-    toast(next === 'light' ? '☀️ ライトモードに切り替えました' : '🌙 ダークモードに切り替えました', 'info', 2000);
+
+    // クリックスプリングフィードバック
+    btn.style.transform = 'scale(0.88)';
+    setTimeout(() => {
+      btn.style.transform = '';
+    }, 160);
+
+    const applyTheme = () => {
+      document.documentElement.setAttribute('data-theme', next);
+      try {
+        localStorage.setItem('rs-theme', next);
+      } catch {}
+    };
+
+    // 1. モダンブラウザ対応: View Transitions API によるシルキーなクロスフェード
+    // @ts-ignore
+    if (document.startViewTransition && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      // @ts-ignore
+      document.startViewTransition(() => {
+        applyTheme();
+      });
+      return;
+    }
+
+    // 2. フォールバック: 全画面同期トランジション
+    document.documentElement.classList.add('theme-transitioning');
+    applyTheme();
+    setTimeout(() => {
+      document.documentElement.classList.remove('theme-transitioning');
+    }, 320);
   });
 }
 
