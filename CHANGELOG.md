@@ -14,6 +14,23 @@
 
 ---
 
+## [v1.1.3] - 2026-10-20
+
+### 🧩 アプリ全体の整合性改善 & バージョン表記の是正 (System Consistency & Version Coherence)
+- **`start.bat` / `start.sh` のバージョン表記の明確化**:
+  - 「v18以上」という表記がアプリのバージョンなのか実行環境（Node.js）のバージョンなのか判別しにくかった問題を是正。
+  - ランチャー先頭に「アプリ本体: Research Studio」「実行環境: Node.js (動作要件: v18以上)」を明確に分離表示し、環境エラー時も「検出された Node.js のバージョン」と「必要な Node.js のバージョン（v18以上）」をわかりやすく表示するように改善。
+- **アプリ全体でのバージョン表記の動的統一**:
+  - `server/index.js` の `/api/info` で `0.1.0` がハードコードされていた不具合を修正し、`package.json` のバージョン（`1.1.3`）を動的返却するように改修。
+  - フロントエンド画面左下のフッター（`public/index.html`）に初期バージョンのまま残っていた `v0.1.0` を修正し、API から受信したバージョンで自動同期される仕組み（`footer-version`）を導入。
+  - 「⚙️ 設定」モーダルのヘッダーにも現在のバージョンバッジ（`settings-version-badge`）を表示。
+  - `server/start.js` および `server/stop.js` のバナーにも動的バージョン表示を適用。
+  - `package-lock.json` のバージョン不整合を `1.1.3` に完全同期。
+- **整合性テストの自動化**:
+  - [test/consistency.test.js](file:///c:/Users/ojkne/.gemini/antigravity-ide/scratch/research_system/test/consistency.test.js) を新設。`package.json`、`package-lock.json`、`CHANGELOG.md`、HTML フッター、デフォルトポート（3939）の一致を自動テストで継続保証。
+
+---
+
 ## [v1.1.2] - 2026-10-20
 
 ### 📊 ロギング & 診断機能 (Logging & Diagnostics)
@@ -40,19 +57,6 @@
   - バッチファイル起動時に万が一エラーが発生しても、コマンドプロンプトが一瞬で消えてしまわないよう `pause`（キー入力待機）し、`data/logs/error.log` の確認を促すメッセージを表示。
 - **README へのトラブルシューティング & ログ確認手順の追記**:
   - 他端末で起動しない 5 つの典型パターン（ZIP未解凍、Node.js未導入/古い、初回依存関係未取得、ポート競合、誤検知）とその解決策を網羅。
-
-### 🧩 アプリ全体の整合性改善 & バージョン表記の是正 (System Consistency & Version Coherence)
-- **`start.bat` / `start.sh` のバージョン表記の明確化**:
-  - 「v18以上」という表記がアプリのバージョンなのか実行環境（Node.js）のバージョンなのか判別しにくかった問題を是正。
-  - ランチャー先頭に「アプリ本体: Research Studio」「実行環境: Node.js (動作要件: v18以上)」を明確に分離表示し、環境エラー時も「検出された Node.js のバージョン」と「必要な Node.js のバージョン（v18以上）」をわかりやすく表示するように改善。
-- **アプリ全体でのバージョン表記の動的統一**:
-  - `server/index.js` の `/api/info` で `0.1.0` がハードコードされていた不具合を修正し、`package.json` のバージョンを動的返却するように改修。
-  - フロントエンド画面左下のフッター（`public/index.html`）に初期バージョンのまま残っていた `v0.1.0` を修正し、API から受信したバージョンで自動同期される仕組み（`footer-version`）を導入。
-  - 「⚙️ 設定」モーダルのヘッダーにも現在のバージョンバッジ（`settings-version-badge`）を表示。
-  - `server/start.js` および `server/stop.js` のバナーにも動的バージョン表示を適用。
-  - `package-lock.json` のバージョン不整合（`1.1.1` のままだったもの）を `1.1.2` に完全同期。
-- **整合性テストの自動化**:
-  - [test/consistency.test.js](file:///c:/Users/ojkne/.gemini/antigravity-ide/scratch/research_system/test/consistency.test.js) を新設。`package.json`、`package-lock.json`、`CHANGELOG.md`、HTML フッター、デフォルトポート（3939）の一致を自動テストで継続保証。
 
 ---
 
