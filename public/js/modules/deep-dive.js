@@ -32,7 +32,12 @@ export function bindDeepDiveDrawer() {
 
   let activeSelectedText = '';
 
-  function openDeepDive(asSplit = true) {
+  // 画面幅がスプリットビュー（Side-by-Side）に十分か判定（タブレット・スマホではオーバーレイに切り替え）
+  function isSplitScreenSupported() {
+    return window.innerWidth >= 1024;
+  }
+
+  function openDeepDive(forceSplit = null) {
     if (!appState.currentResult) {
       toast('まずはリサーチを実行するか、履歴からレポートを選択してください', 'info');
       return;
@@ -41,12 +46,18 @@ export function bindDeepDiveDrawer() {
       themeMini.textContent = appState.currentResult.title || appState.currentResult.theme;
     }
 
-    if (asSplit) {
+    const shouldSplit = forceSplit !== null ? forceSplit : isSplitScreenSupported();
+
+    if (shouldSplit) {
+      // デスクトップ用 Side-by-Side スプリットビュー
+      document.body.classList.remove('has-deepdive-modal');
       document.body.classList.add('has-deepdive-split');
       if (drawerEl) drawerEl.hidden = false;
-      // スプリット時はスクロールを維持
       document.body.style.overflow = '';
     } else {
+      // タブレット・スマホ用 全画面/オーバーレイモーダルドロワー（背後との被りを完全に防ぐ）
+      document.body.classList.remove('has-deepdive-split');
+      document.body.classList.add('has-deepdive-modal');
       openModal('drawer-deepdive');
     }
 
@@ -55,11 +66,33 @@ export function bindDeepDiveDrawer() {
 
   function closeDeepDive() {
     document.body.classList.remove('has-deepdive-split');
+    document.body.classList.remove('has-deepdive-modal');
     document.body.classList.remove('dd-expanded');
     if (drawerEl) drawerEl.hidden = true;
+    closeModal('drawer-deepdive');
     clearQuote();
     hideSelectionTooltip();
   }
+
+  // 画面リサイズ時にスプリットとオーバーレイを動的同期（UI被り・崩れを防止）
+  let resizeTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      if (drawerEl && !drawerEl.hidden) {
+        if (isSplitScreenSupported()) {
+          // デスクトップ幅になったらスプリットに昇格
+          document.body.classList.remove('has-deepdive-modal');
+          document.body.classList.add('has-deepdive-split');
+          document.body.style.overflow = '';
+        } else {
+          // 画面が狭くなったらオーバーレイに切り替え（レポートとの重なり被りを即時解消）
+          document.body.classList.remove('has-deepdive-split');
+          document.body.classList.add('has-deepdive-modal');
+        }
+      }
+    }, 100);
+  });
 
   // 引用の設定とクリア
   function setQuote(text) {
@@ -104,13 +137,13 @@ export function bindDeepDiveDrawer() {
   }
 
   if (btnOpen) {
-    btnOpen.addEventListener('click', () => openDeepDive(true));
+    btnOpen.addEventListener('click', () => openDeepDive());
   }
 
   // レポート内セクションの「深掘り」ボタンからの発火をリッスン
   document.addEventListener('open-deepdive-prompt', (e) => {
     const { heading, query } = e.detail || {};
-    openDeepDive(true);
+    openDeepDive();
     if (themeMini && appState.currentResult) {
       themeMini.textContent = `${appState.currentResult.title || appState.currentResult.theme} — [${heading || '項目深掘り'}]`;
     }
@@ -149,6 +182,7 @@ export function bindDeepDiveDrawer() {
   function hideSelectionTooltip() {
     if (selectionTooltip) {
       selectionTooltip.hidden = true;
+      selectionTooltip.classList.remove('tooltip-below');
       activeSelectedText = '';
     }
   }
@@ -173,7 +207,7 @@ export function bindDeepDiveDrawer() {
       return;
     }
 
-    // ツールチップ位置の計算
+    // ツールチップ位置の計算（端末画面端でのクランプ＆画面上端での上下反転でUI被り・見切れを完全防止）
     try {
       const range = selection.getRangeAt(0);
       const rect = range.getBoundingClientRect();
@@ -181,12 +215,36 @@ export function bindDeepDiveDrawer() {
 
       activeSelectedText = text;
       if (selectionTooltip) {
-        const top = rect.top + window.scrollY;
-        const left = rect.left + rect.width / 2 + window.scrollX;
-        selectionTooltip.style.top = `${top}px`;
-        selectionTooltip.style.left = `${left}px`;
         selectionTooltip.hidden = false;
         hydrateIcons(selectionTooltip);
+
+        // ツールチップの概算サイズとセーフティ余白
+        const tooltipW = selectionTooltip.offsetWidth || 250;
+        const padding = 12;
+
+        // 水平位置のクランプ（左端・右端からのはみ出しを確実に防止）
+        const centerX = rect.left + rect.width / 2;
+        const minX = padding + tooltipW / 2;
+        const maxX = window.innerWidth - padding - tooltipW / 2;
+        const clampedX = Math.max(minX, Math.min(maxX, centerX));
+
+        // 垂直位置（画面上端のトップバーや見出しと被る場合は下側に反転表示）
+        const spaceAbove = rect.top;
+        const isNearTop = spaceAbove < 80;
+
+        if (isNearTop) {
+          // テキスト下側に出現（被り防止）
+          const top = rect.bottom + window.scrollY + 8;
+          selectionTooltip.style.top = `${top}px`;
+          selectionTooltip.style.left = `${clampedX + window.scrollX}px`;
+          selectionTooltip.classList.add('tooltip-below');
+        } else {
+          // テキスト上側に出現
+          const top = rect.top + window.scrollY - 8;
+          selectionTooltip.style.top = `${top}px`;
+          selectionTooltip.style.left = `${clampedX + window.scrollX}px`;
+          selectionTooltip.classList.remove('tooltip-below');
+        }
       }
     } catch {
       hideSelectionTooltip();
@@ -195,6 +253,10 @@ export function bindDeepDiveDrawer() {
 
   document.addEventListener('mouseup', () => {
     setTimeout(handleTextSelection, 30);
+  });
+
+  document.addEventListener('touchend', () => {
+    setTimeout(handleTextSelection, 50);
   });
 
   document.addEventListener('keyup', (e) => {
@@ -220,7 +282,7 @@ export function bindDeepDiveDrawer() {
       if (!textToQuote) return;
 
       setQuote(textToQuote);
-      openDeepDive(true);
+      openDeepDive();
       toast('選択した文章を引用しました。質問を入力してください', 'info', 2200);
     });
   }
