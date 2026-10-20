@@ -32,6 +32,16 @@ function createJob(params, runner, { onResult } = {}) {
     const e = { ...evt, ts: Date.now() };
     job.events.push(e);
     job.emitter.emit('event', e);
+
+    // 進行状況をリアルタイムにコンソールへ出力（デバッグ・進捗可視化）
+    if (evt.type === 'log') {
+      const icon = evt.kind === 'error' ? '❌' : evt.kind === 'warn' ? '⚠️' : evt.kind === 'done' ? '✅' : 'ℹ️';
+      console.log(`[リサーチ] ${icon} ${evt.message}${evt.detail ? ` (${evt.detail})` : ''}`);
+    } else if (evt.type === 'progress') {
+      console.log(`[リサーチ進捗 ${evt.value}%] ${evt.stage || ''}`);
+    } else if (evt.type === 'error') {
+      console.error(`[リサーチエラー] ${evt.message}`);
+    }
   };
   jobs.set(id, job);
 

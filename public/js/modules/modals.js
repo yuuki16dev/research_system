@@ -447,7 +447,14 @@ export function bindSettingsModal() {
           const logData = await api.getLogs();
           if (logsPathLabel) logsPathLabel.textContent = logData.errorLogFile || 'data/logs/error.log';
           if (logsTextarea) {
-            logsTextarea.value = logData.recentErrors || '（記録されているエラーはありません。正常に動作しています）';
+            if (logData.recentErrors) {
+              logsTextarea.value = logData.recentErrors;
+            } else if (logData.liveLogs && logData.liveLogs.length) {
+              const liveText = logData.liveLogs.map((l) => `[${l.time}] [${l.level}] ${l.message}`).join('\n');
+              logsTextarea.value = `（記録されているエラーはありません。正常に動作しています）\n\n【直近の動作状況】:\n${liveText}`;
+            } else {
+              logsTextarea.value = '（記録されているエラーはありません。正常に動作しています）';
+            }
             logsTextarea.scrollTop = logsTextarea.scrollHeight;
           }
         } catch (e) {

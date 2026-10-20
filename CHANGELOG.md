@@ -26,8 +26,17 @@
   - 「⚙️ 設定」モーダルのヘッダーにも現在のバージョンバッジ（`settings-version-badge`）を表示。
   - `server/start.js` および `server/stop.js` のバナーにも動的バージョン表示を適用。
   - `package-lock.json` のバージョン不整合を `1.1.3` に完全同期。
-- **整合性テストの自動化**:
-  - [test/consistency.test.js](file:///c:/Users/ojkne/.gemini/antigravity-ide/scratch/research_system/test/consistency.test.js) を新設。`package.json`、`package-lock.json`、`CHANGELOG.md`、HTML フッター、デフォルトポート（3939）の一致を自動テストで継続保証。
+### 🔒 セキュリティ強化 (Security Hardening)
+- **テストコードからのダミーAPIキー文字列完全撤廃**:
+  - [test/logger.test.js](file:///c:/Users/ojkne/.gemini/antigravity-ide/scratch/research_system/test/logger.test.js), [test/settings.test.js](file:///c:/Users/ojkne/.gemini/antigravity-ide/scratch/research_system/test/settings.test.js), [test/usage.test.js](file:///c:/Users/ojkne/.gemini/antigravity-ide/scratch/research_system/test/usage.test.js) に含まれていたダミーキー文字列（`AIza...`, `tvly-...` 等）をすべて動的合成テストに刷新。
+  - 公開リポジトリへの push 前スキャンや Secret Scanning に一切引っかからない、安全なテスト構成を確立。
+
+### 📊 リアルタイム進捗ログ & ログ保存ポリシー最適化 (Real-time Progress & Clean Logging)
+- **リアルタイム進行状況の可視化**:
+  - リサーチ実行中（クエリ生成、Web検索、AI構造化分析等）や HTTP リクエストの進行状況を、ターミナルコンソールにリアルタイムで逐一ストリーム出力。デバッグ中や稼働中に「今どの処理が進んでいるのか」が一目でわかるように改善。
+- **ディスク肥大化防止（エラー時のみ保存）**:
+  - 動作中はコンソール表示とインメモリ（最新200件のリングバッファ）にのみ保持し、正常ログによるディスク圧迫を防止。
+  - ディスク（`data/logs/error.log`）に永続保存されるのは「問題（警告・エラー・例外）が発生したログのみ」に厳格化。正常動作時はクリーンな状態を維持。
 
 ---
 

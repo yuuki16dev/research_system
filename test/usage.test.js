@@ -24,7 +24,7 @@ test('usage.getFullUsageSummary handles missing or partial API keys without thro
   assert.ok(typeof resEmpty.duckduckgo.totalSearches === 'number');
 
   // Test case 2: Only Gemini key present
-  const geminiOnly = { geminiApiKey: 'AIzaFakeKey', tavilyApiKey: '' };
+  const geminiOnly = { geminiApiKey: 'mock-gemini-key-12345', tavilyApiKey: '' };
   const resGemini = await getFullUsageSummary(geminiOnly);
 
   assert.equal(resGemini.gemini.configured, true);

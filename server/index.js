@@ -50,6 +50,27 @@ const app = express();
 app.disable('x-powered-by');
 app.use(express.json({ limit: '10mb' }));
 
+// リアルタイム HTTP リクエストログ（静的ファイル等はスキップ）
+app.use((req, res, next) => {
+  if (
+    req.path === '/api/info' ||
+    req.path === '/api/logs' ||
+    req.path.startsWith('/vendor') ||
+    req.path.endsWith('.css') ||
+    req.path.endsWith('.js') ||
+    req.path.endsWith('.svg') ||
+    req.path.endsWith('.ico')
+  ) {
+    return next();
+  }
+  const t0 = Date.now();
+  res.on('finish', () => {
+    const elapsed = Date.now() - t0;
+    console.log(`[HTTP] ${req.method} ${req.path} -> ${res.statusCode} (${elapsed}ms)`);
+  });
+  next();
+});
+
 /* ------------------------------------------------------------- static */
 app.use('/vendor', express.static(path.join(ROOT, 'node_modules', 'xlsx', 'dist')));
 app.use(express.static(path.join(ROOT, 'public'), { extensions: ['html'] }));
@@ -57,7 +78,7 @@ app.use(express.static(path.join(ROOT, 'public'), { extensions: ['html'] }));
 /* --------------------------------------------------------------- info */
 let currentPort = PORT;
 
-let pkgVer = '1.1.2';
+let pkgVer = '1.1.3';
 try {
   pkgVer = require('../package.json').version || pkgVer;
 } catch {}
@@ -150,6 +171,7 @@ app.post('/api/research', (req, res) => {
   const referenceContext = String(b.referenceContext || '').trim().slice(0, 3000);
   if (theme.length < 2) return res.status(400).json({ error: 'テーマを2文字以上で入力してください' });
 
+  console.log(`[リサーチ受付] テーマ: "${theme}" (スコープ: ${scope}, 深度: ${depth})`);
   const params = { theme, scope, depth, sites, period, customPeriod, purpose, referenceContext, forceMock: !!b.forceMock };
   const job = createJob(params, (j) => runResearch(j, settings.load()), {
     onResult: (result) => {
@@ -202,6 +224,7 @@ app.post('/api/research/:id/cancel', (req, res) => {
 app.post('/api/research/deep-dive', async (req, res) => {
   const { theme, question, reportContext, period, quote } = req.body || {};
   if (!theme || !question) return res.status(400).json({ error: 'theme と question は必須です' });
+  console.log(`[深掘り対話] 質問: "${question.slice(0, 35)}..." を受信`);
   try {
     const result = await deepdive.runDeepDive({ theme, question, reportContext, period, quote });
     res.json(result);
@@ -214,6 +237,7 @@ app.post('/api/research/deep-dive', async (req, res) => {
 app.post('/api/export/pdf', async (req, res) => {
   const { html, filename } = req.body || {};
   if (!html) return res.status(400).json({ error: 'html は必須です' });
+  console.log(`[PDF出力] ファイル名: "${filename || 'Research_Report.pdf'}" の生成開始`);
 
   try {
     const pdfPath = await pdf.generatePdfFromHtml(html);
@@ -254,8 +278,8 @@ app.get('/api/logs', (req, res) => {
   res.json({
     logsDir: logger.LOGS_DIR,
     errorLogFile: logger.ERROR_LOG,
-    appLogFile: logger.APP_LOG,
     recentErrors: logger.getRecentErrorLog(100),
+    liveLogs: logger.getRecentLiveLogs(50),
   });
 });
 
