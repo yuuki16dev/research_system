@@ -50,3 +50,56 @@ test('port consistency: default ports in start.js and stop.js match expected 393
   assert.ok(stopJs.includes('3939'), 'server/stop.js must reference default port 3939');
   assert.ok(indexJs.includes('3939'), 'server/index.js must reference default port 3939');
 });
+
+test('gitattributes: enforces CRLF for .bat and LF for .sh', () => {
+  const gitattributesPath = path.join(ROOT, '.gitattributes');
+  assert.ok(fs.existsSync(gitattributesPath), '.gitattributes file must exist at repository root');
+  const content = fs.readFileSync(gitattributesPath, 'utf8');
+  assert.match(content, /\*\.bat\s+text\s+eol=crlf/i, '.gitattributes must specify eol=crlf for *.bat');
+  assert.match(content, /\*\.cmd\s+text\s+eol=crlf/i, '.gitattributes must specify eol=crlf for *.cmd');
+  assert.match(content, /\*\.sh\s+text\s+eol=lf/i, '.gitattributes must specify eol=lf for *.sh');
+});
+
+test('batch file integrity: start.bat and stop.bat must have CRLF, no BOM, and chcp 65001', () => {
+  const batFiles = ['start.bat', 'stop.bat'];
+
+  for (const file of batFiles) {
+    const filePath = path.join(ROOT, file);
+    assert.ok(fs.existsSync(filePath), `${file} must exist`);
+
+    const buf = fs.readFileSync(filePath);
+    // 1. BOM check: UTF-8 BOM is EF BB BF
+    const hasBom = buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf;
+    assert.strictEqual(hasBom, false, `${file} must NOT contain UTF-8 BOM (causes cmd.exe syntax errors)`);
+
+    // 2. CRLF check: cmd.exe requires strict CRLF line endings
+    const str = buf.toString('utf8');
+    const soloLf = (str.replace(/\r\n/g, '').match(/\n/g) || []).length;
+    assert.strictEqual(
+      soloLf,
+      0,
+      `${file} contains ${soloLf} solo LF (\\n) line endings! cmd.exe requires strict CRLF (\\r\\n).`
+    );
+
+    // 3. For start.bat, check code page 65001 for UTF-8 display
+    if (file === 'start.bat') {
+      assert.ok(
+        str.includes('chcp 65001'),
+        'start.bat must include chcp 65001 to prevent Japanese text mojibake'
+      );
+
+      // Verify all goto targets exist as labels (:LABEL)
+      const gotoMatches = str.matchAll(/goto\s+([A-Za-z0-9_]+)/gi);
+      for (const m of gotoMatches) {
+        const target = m[1];
+        if (target.toLowerCase() === ':eof' || target.toLowerCase() === 'eof') continue;
+        const labelRegex = new RegExp(`^\\s*:${target}\\b`, 'm');
+        assert.ok(
+          labelRegex.test(str),
+          `start.bat jumps to label "${target}" via goto, but label ":${target}" is missing!`
+        );
+      }
+    }
+  }
+});
+

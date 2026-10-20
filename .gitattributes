@@ -1,0 +1,19 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Windows batch files MUST ALWAYS have CRLF line endings (cmd.exe requires CRLF)
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Shell scripts must always use LF
+*.sh text eol=lf
+
+# Explicit binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.exe binary
+*.zip binary

@@ -77,6 +77,25 @@ try {
 } catch {}
 
 async function main() {
+  const nodeMajor = parseInt((process.versions.node || '0').split('.')[0], 10);
+  if (nodeMajor < 18) {
+    console.log('\n' + '═'.repeat(60));
+    console.log('  【環境エラー】Node.js のバージョンが要件を満たしていません');
+    console.log('═'.repeat(60));
+    console.log(`\n  現在の Node.js バージョン : v${process.versions.node}`);
+    console.log('  アプリの動作に必要な環境 : Node.js v18 以上\n');
+    console.log('  ※「v18以上」はアプリのバージョンではなく、実行に必要な Node.js のバージョンです。\n');
+    console.log('  【解決方法 1】Node.js不要のワンクリック版を使う（推奨・もう1つの方法）');
+    console.log('    GitHub Releases から「ResearchStudio.exe」をダウンロードしてください:');
+    console.log('    https://github.com/yuuki16dev/research_system/releases\n');
+    console.log('  【解決方法 2】Node.js を最新版（LTS版）に更新する');
+    console.log('    公式サイトから最新の Node.js をインストールしてください:');
+    console.log('    https://nodejs.org/\n');
+    console.log('═'.repeat(60) + '\n');
+    pauseAndExit(1);
+    return;
+  }
+
   console.log('\n' + '═'.repeat(56));
   console.log(`  ◆ Research Studio v${pkgVer} 起動マネージャー`);
   console.log('═'.repeat(56) + '\n');

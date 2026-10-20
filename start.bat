@@ -5,9 +5,8 @@ cd /d "%~dp0"
 title Research Studio Launcher
 
 echo ======================================================================
-echo   ◆ Research Studio  起動ランチャー
-echo   アプリ本体 : Research Studio
-echo   実行環境   : Node.js (動作要件: v18以上)
+echo   Research Studio Launcher
+echo   アプリ名 : Research Studio
 echo ======================================================================
 echo.
 
@@ -15,11 +14,7 @@ rem 1. Node.js のインストール確認
 where node >nul 2>nul
 if %ERRORLEVEL% NEQ 0 goto NO_NODE
 
-rem 2. Node.js のバージョン確認 (Node.js 18以上が必要)
-node -e "if (parseInt(process.versions.node) < 18) process.exit(1)" >nul 2>nul
-if %ERRORLEVEL% NEQ 0 goto OLD_NODE
-
-rem 3. 初回起動時: node_modules が無ければ自動インストール
+rem 2. 初回起動時: node_modules が無ければ自動インストール
 if not exist node_modules (
     echo ======================================================================
     echo   [初回セットアップ] 必要なライブラリを自動インストールしています...
@@ -31,7 +26,7 @@ if not exist node_modules (
     echo.
 )
 
-rem 4. サーバーマネージャー起動
+rem 3. サーバーマネージャー起動（バージョン確認・ポート確認・ブラウザ起動）
 node server/start.js
 if %ERRORLEVEL% NEQ 0 (
     echo.
@@ -66,33 +61,6 @@ echo     https://github.com/yuuki16dev/research_system/releases
 echo.
 echo   【通常】Node.js をインストールして使う場合
 echo     公式サイトから Node.js (LTS版 / v18以上) をインストールしてください。
-echo     https://nodejs.org/
-echo.
-echo ======================================================================
-pause
-goto :eof
-
-:OLD_NODE
-cls
-echo ======================================================================
-echo   【環境エラー】Node.js のバージョンが要件を満たしていません
-echo ======================================================================
-echo.
-echo   お使いの PC の Node.js バージョンが古いため起動できません。
-echo.
-echo   ・アプリ本体  : Research Studio
-echo   ・必要環境    : Node.js (バージョン 18 以上)
-echo   ・検出環境    : 
-node -v 2>nul
-echo.
-echo   ※「v18以上」はアプリのバージョンではなく、実行に必要な Node.js のバージョンです。
-echo.
-echo   【解決方法 1】Node.js の更新が不要なワンクリック版を使う（推奨・もう1つの方法）
-echo     GitHub Releases からワンクリック版「ResearchStudio.exe」をご利用ください:
-echo     https://github.com/yuuki16dev/research_system/releases
-echo.
-echo   【解決方法 2】Node.js を最新版に更新する
-echo     公式サイトから最新の LTS 版（v20 または v22 推奨）をインストールしてください。
 echo     https://nodejs.org/
 echo.
 echo ======================================================================
