@@ -1,12 +1,20 @@
 @echo off
 setlocal
 cd /d "%~dp0"
+title Research Studio Launcher
+
+echo ======================================================================
+echo   ◆ Research Studio  起動ランチャー
+echo   アプリ本体 : Research Studio
+echo   実行環境   : Node.js (動作要件: v18以上)
+echo ======================================================================
+echo.
 
 rem 1. Node.js のインストール確認
 where node >nul 2>nul
 if %ERRORLEVEL% NEQ 0 goto NO_NODE
 
-rem 2. Node.js のバージョン確認 (18以上が必要)
+rem 2. Node.js のバージョン確認 (Node.js 18以上が必要)
 node -e "if (parseInt(process.versions.node) < 18) process.exit(1)" 2>nul
 if %ERRORLEVEL% NEQ 0 goto OLD_NODE
 
@@ -38,8 +46,10 @@ goto :eof
 :NO_NODE
 cls
 echo ======================================================================
-echo   【エラー】お使いの PC に Node.js が見つかりませんでした。
+echo   【環境エラー】お使いの PC に Node.js が見つかりませんでした
 echo ======================================================================
+echo.
+echo   Research Studio の実行には Node.js (v18以上) が必要です。
 echo.
 echo   次のいずれかの方法でご利用いただけます：
 echo.
@@ -59,15 +69,25 @@ goto :eof
 :OLD_NODE
 cls
 echo ======================================================================
-echo   【エラー】お使いの Node.js のバージョンが古すぎます。
-echo   Research Studio の実行には Node.js v18 以上が必要です。
+echo   【環境エラー】Node.js のバージョンが要件を満たしていません
 echo ======================================================================
 echo.
-echo   公式サイトから最新の LTS 版（v20 または v22 推奨）をインストールしてください。
-echo   https://nodejs.org/
+echo   お使いの PC の Node.js バージョンが古いため起動できません。
 echo.
-echo   または、Node.js の更新が不要なワンクリック版「ResearchStudio.exe」をご利用ください:
-echo   https://github.com/yuuki16dev/research_system/releases
+echo   ・アプリ本体  : Research Studio
+echo   ・必要環境    : Node.js (バージョン 18 以上)
+echo   ・検出環境    : 
+node -v 2>nul
+echo.
+echo   ※「v18以上」はアプリのバージョンではなく、実行に必要な Node.js のバージョンです。
+echo.
+echo   【解決方法 1】Node.js を最新版に更新する
+echo     公式サイトから最新の LTS 版（v20 または v22 推奨）をインストールしてください。
+echo     https://nodejs.org/
+echo.
+echo   【解決方法 2】Node.js の更新が不要なワンクリック版を使う
+echo     GitHub Releases からワンクリック版「ResearchStudio.exe」をご利用ください:
+echo     https://github.com/yuuki16dev/research_system/releases
 echo.
 echo ======================================================================
 pause
@@ -78,6 +98,7 @@ echo.
 echo ======================================================================
 echo   【エラー】ライブラリの自動インストール（npm install）に失敗しました。
 echo   インターネット接続環境を確認するか、以下のログをご確認ください。
+echo   data\logs\error.log
 echo ======================================================================
 pause
 goto :eof

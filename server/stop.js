@@ -2,10 +2,15 @@
 
 const { execSync } = require('child_process');
 
-const PORT = 3939;
+const DEFAULT_PORT = 3939;
+
+let pkgVer = '1.1.2';
+try {
+  pkgVer = require('../package.json').version || pkgVer;
+} catch {}
 
 console.log('\n' + '═'.repeat(56));
-console.log('  ◆ Research Studio 停止マネージャー');
+console.log(`  ◆ Research Studio v${pkgVer} 停止マネージャー`);
 console.log('═'.repeat(56) + '\n');
 
 function killPort(port) {
@@ -51,5 +56,5 @@ function killPort(port) {
   }
 }
 
-killPort(PORT);
+killPort(Number(process.env.PORT) || DEFAULT_PORT);
 console.log('');

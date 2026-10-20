@@ -55,11 +55,18 @@ app.use('/vendor', express.static(path.join(ROOT, 'node_modules', 'xlsx', 'dist'
 app.use(express.static(path.join(ROOT, 'public'), { extensions: ['html'] }));
 
 /* --------------------------------------------------------------- info */
-function lanAddresses() {
+let currentPort = PORT;
+
+let pkgVer = '1.1.2';
+try {
+  pkgVer = require('../package.json').version || pkgVer;
+} catch {}
+
+function lanAddresses(port = currentPort) {
   const out = [];
   for (const [name, list] of Object.entries(os.networkInterfaces())) {
     for (const a of list || []) {
-      if (a.family === 'IPv4' && !a.internal) out.push({ name, address: a.address, url: `http://${a.address}:${PORT}` });
+      if (a.family === 'IPv4' && !a.internal) out.push({ name, address: a.address, url: `http://${a.address}:${port}` });
     }
   }
   // 一般的な家庭LAN（192.168.x.x）を優先
@@ -67,7 +74,7 @@ function lanAddresses() {
 }
 
 app.get('/api/info', (req, res) => {
-  res.json({ app: 'Research Studio', version: '0.1.0', port: PORT, lan: lanAddresses(), settings: settings.publicView() });
+  res.json({ app: 'Research Studio', version: pkgVer, port: currentPort, lan: lanAddresses(currentPort), settings: settings.publicView() });
 });
 
 app.get('/api/qr', async (req, res) => {
@@ -259,21 +266,15 @@ app.use((err, req, res, _next) => {
   res.status(err.status || 500).json({ error: err.message || 'Internal Server Error' });
 });
 
-let currentPort = PORT;
-
 function startServer(port, host, retries = 5) {
   const server = app.listen(port, host, () => {
     currentPort = port;
     const s = settings.publicView();
-    let pkgVer = '1.1.1';
-    try {
-      pkgVer = require('../package.json').version || pkgVer;
-    } catch {}
 
     const line = '─'.repeat(56);
     console.log(`\n${line}\n  ◆ Research Studio  v${pkgVer}\n${line}`);
     console.log(`  ローカル     : http://localhost:${port}`);
-    lanAddresses().forEach((a) => console.log(`  スマホ (LAN) : http://${a.address}:${port}   [${a.name}]`));
+    lanAddresses(port).forEach((a) => console.log(`  スマホ (LAN) : http://${a.address}:${port}   [${a.name}]`));
     console.log(`  モード       : ${s.effectiveMode === 'live' ? 'LIVE (Gemini)' : 'DEMO (モックデータ)'}`);
     console.log(`  検索         : ${s.effectiveSearch}`);
     console.log(`  ログ保存先   : ${logger.LOGS_DIR}`);

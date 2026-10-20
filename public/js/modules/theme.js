@@ -61,6 +61,16 @@ export async function refreshAppInfo() {
     if (fMode) {
       fMode.textContent = info.settings.effectiveMode === 'live' ? 'LIVE (Gemini API)' : 'DEMO (モックデータ)';
     }
+
+    const fVer = $('#footer-version');
+    if (fVer && info.version) {
+      fVer.textContent = `Research Studio v${info.version}`;
+    }
+
+    const sBadge = $('#settings-version-badge');
+    if (sBadge && info.version) {
+      sBadge.textContent = `v${info.version}`;
+    }
   } catch (e) {
     const pill = $('#status-pill');
     if (pill) pill.className = 'status-pill offline';

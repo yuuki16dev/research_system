@@ -71,9 +71,14 @@ function pauseAndExit(code = 1) {
   }
 }
 
+let pkgVer = '1.1.2';
+try {
+  pkgVer = require('../package.json').version || pkgVer;
+} catch {}
+
 async function main() {
   console.log('\n' + '═'.repeat(56));
-  console.log('  ◆ Research Studio 起動マネージャー');
+  console.log(`  ◆ Research Studio v${pkgVer} 起動マネージャー`);
   console.log('═'.repeat(56) + '\n');
 
   const inUse = await isPortInUse(DEFAULT_PORT);
