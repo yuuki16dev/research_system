@@ -9,7 +9,7 @@
     "stop": "node server/stop.js",
     "server": "node server/index.js",
     "dev": "node server/start.js",
-    "test": "node --test test/**/*.test.js",
+    "test": "node --test",
     "build:exe": "npx --yes pkg . --targets node18-win-x64 --output dist/ResearchStudio.exe"
   },
   "pkg": {

@@ -18,17 +18,18 @@ jobs:
   build-and-release:
     name: Build Windows Executable & Create Release
     runs-on: windows-latest
+    defaults:
+      run:
+        shell: powershell
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.inputs.tag_name || github.ref }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
           cache: 'npm'
 
       - name: Install dependencies
@@ -41,12 +42,10 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path dist
           npm run build:exe
-        shell: powershell
 
       - name: Compress into ZIP
         run: |
           Compress-Archive -Path dist/ResearchStudio.exe -DestinationPath dist/ResearchStudio-win.zip -Force
-        shell: powershell
 
       - name: Create GitHub Release and Upload Assets
         uses: softprops/action-gh-release@v2
