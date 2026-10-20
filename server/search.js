@@ -1,3 +1,4 @@
+// @ts-check
 'use strict';
 
 const { domainOf } = require('./util');
@@ -246,4 +247,12 @@ async function fetchPage(url, { signal, maxChars = 4000, timeoutMs = 6000 } = {}
   return { title, text: text.slice(0, maxChars) };
 }
 
-module.exports = { run, fetchPage, tavilySearch, ddgSearch };
+module.exports = {
+  run,
+  fetchPage,
+  tavilySearch,
+  ddgSearch,
+  unwrapDdgUrl,
+  stripTags,
+  decodeEntities,
+};

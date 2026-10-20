@@ -9,10 +9,23 @@
 
 ---
 
-## [未リリース / 次期バージョン候補: v1.0.2]
-- 現在、Stage 1（バックエンドの型チェック・単体テスト導入・堅牢化）を作業中。
+## [未リリース / 次期バージョン候補: v1.1.0]
+- Stage 2（フロントエンド app.js / styles.css の ES Modules モジュール分割・God File 解体）を予定。
 
 ---
+
+## [v1.0.2] - 2026-10-20
+
+### 🧪 テスト & 堅牢化 (Testing & Hardening)
+- **Node.js 組み込みテスト（`node:test`）の導入**:
+  - 外部テストフレームワーク（Jest等）を追加することなく、ゼロ依存のまま Node.js 18+ 標準のテストランナーを採用。
+  - `npm test` コマンドでいつでも全単体テストを即座に実行可能に。
+  - APIキーのマスク・安全な公開ビュー（`test/settings.test.js`）、日次クォータ計算と利用状況の集計（`test/usage.test.js`）、検索クエリ・HTMLエンティティ・DuckDuckGoリダイレクトURL解決（`test/search.test.js`）を網羅する 9 件の自動テストを実装。
+- **静的型チェック（`// @ts-check`）の導入**:
+  - `server/settings.js`, `server/search.js`, `server/usage.js` に型チェック宣言を追加し、関数の未インポートや型不整合を実行前・コーディング中に検知可能に改善。
+- **エクスポートとインターフェースの整理**:
+  - テストおよびモジュール間連携のため、`unwrapDdgUrl`, `stripTags`, `decodeEntities`, `getNextQuotaReset` などのコアユーティリティを明示的にエクスポート。
+
 
 ## [v1.0.1] - 2026-10-20
 
