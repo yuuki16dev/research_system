@@ -377,6 +377,11 @@ export async function startResearch(params) {
   // スクロール
   progressSection.scrollIntoView({ behavior: 'smooth' });
 
+  let currentStage = 'plan';
+  let currentProgressVal = 0;
+  let lastProgressTime = Date.now();
+  updateReassuranceGuidance(0, 'plan', params.depth);
+
   // タイマー開始
   clearInterval(appState.timerInterval);
   appState.startTime = Date.now();
@@ -385,6 +390,19 @@ export async function startResearch(params) {
     const m = Math.floor(sec / 60);
     const s = sec % 60;
     progressElapsed.textContent = `${m}:${String(s).padStart(2, '0')}`;
+
+    // 時間経過に応じた安心メッセージの自動更新
+    updateReassuranceGuidance(sec, currentStage, params.depth);
+
+    // 長時間プログレスバーが止まっている場合の微細な前進アニメーション（固まった印象を完全に防止）
+    const now = Date.now();
+    if (now - lastProgressTime > 1600 && currentStage !== 'done') {
+      if (currentProgressVal < 96) {
+        currentProgressVal = Math.min(96, currentProgressVal + 0.35);
+        progressFill.style.width = `${currentProgressVal}%`;
+        progressPct.textContent = `${Math.round(currentProgressVal)}%`;
+      }
+    }
   }, 1000);
 
   // ジョブの開始
@@ -414,13 +432,19 @@ export async function startResearch(params) {
           li.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         } else if (evt.type === 'progress') {
           const val = Math.min(100, Math.max(0, evt.value));
-          progressFill.style.width = `${val}%`;
-          progressPct.textContent = `${Math.round(val)}%`;
+          currentProgressVal = Math.max(currentProgressVal, val);
+          lastProgressTime = Date.now();
+          progressFill.style.width = `${currentProgressVal}%`;
+          progressPct.textContent = `${Math.round(currentProgressVal)}%`;
 
-          // ステッパーの更新
+          currentStage = evt.stage || currentStage;
           updateStepper(evt.stage);
+
+          const sec = Math.floor((Date.now() - appState.startTime) / 1000);
+          updateReassuranceGuidance(sec, currentStage, params.depth);
         } else if (evt.type === 'result') {
           appState.currentResult = evt.data;
+          updateReassuranceGuidance(0, 'done', params.depth);
           finishSuccess(evt.data);
         } else if (evt.type === 'error') {
           if (evt.message && (evt.message.includes('キャンセル') || evt.message.includes('中止'))) {
@@ -437,6 +461,81 @@ export async function startResearch(params) {
   } catch (err) {
     finishError(err.message);
   }
+}
+
+function updateReassuranceGuidance(sec, stage, depth) {
+  const card = $('#progress-reassurance');
+  const iconEl = $('#reassurance-icon');
+  const titleEl = $('#reassurance-title');
+  const descEl = $('#reassurance-desc');
+  const statusEl = $('#reassurance-status-text');
+  if (!card || !titleEl || !descEl || !statusEl) return;
+
+  const isDeep = depth === 'deep';
+  const timeEstimate = isDeep ? '目安 45〜90秒' : '目安 15〜35秒';
+
+  if (stage === 'plan') {
+    if (iconEl) iconEl.innerHTML = icon('sparkles');
+    titleEl.textContent = '調査計画を立案中…';
+    descEl.textContent = 'テーマの論点を分解し、最適な検索キーワードをAIが立案しています。';
+    statusEl.textContent = timeEstimate;
+    card.classList.remove('is-waiting');
+  } else if (stage === 'search') {
+    if (sec < 9) {
+      if (iconEl) iconEl.innerHTML = icon('search');
+      titleEl.textContent = 'Web検索を実行中…';
+      descEl.textContent = '複数の検索クエリで最新のWeb情報や専門サイトを探索しています。';
+      statusEl.textContent = '情報収集中';
+      card.classList.remove('is-waiting');
+    } else {
+      if (iconEl) iconEl.innerHTML = icon('clock');
+      titleEl.textContent = '多数のWebサイトを横断巡回中…';
+      descEl.textContent = '信頼性の高い最新情報を丁寧に探索・収集しています。少々お時間がかかっていますが、このままお待ちください（フリーズではありません）。';
+      statusEl.textContent = 'じっくり巡回中';
+      card.classList.add('is-waiting');
+    }
+  } else if (stage === 'analyze') {
+    if (sec < 20) {
+      if (iconEl) iconEl.innerHTML = icon('file-text');
+      titleEl.textContent = '収集ソースの本文を解析中…';
+      descEl.textContent = 'Webページの本文テキストを抽出し、ノイズを除去して重要事実を照合しています。';
+      statusEl.textContent = '本文精査中';
+      card.classList.remove('is-waiting');
+    } else {
+      if (iconEl) iconEl.innerHTML = icon('shield');
+      titleEl.textContent = '複数ソースのファクトチェック中…';
+      descEl.textContent = '収集した複数の情報源を突き合わせ、情報の正確性と整合性を確認しています。そのままお待ちください。';
+      statusEl.textContent = 'ファクトチェック中';
+      card.classList.add('is-waiting');
+    }
+  } else if (stage === 'synthesize') {
+    if (sec < 25) {
+      if (iconEl) iconEl.innerHTML = icon('cpu');
+      titleEl.textContent = 'Gemini AI がレポートを構造化執筆中…';
+      descEl.textContent = 'エグゼクティブサマリー、重要指標、比較表、主要示唆を生成しています。';
+      statusEl.textContent = 'AI執筆中';
+      card.classList.remove('is-waiting');
+    } else if (sec < 50) {
+      if (iconEl) iconEl.innerHTML = icon('sparkles');
+      titleEl.textContent = '深層推論と多角分析を統合中…';
+      descEl.textContent = '膨大な情報源を突き合わせ、高品質な商用レポートに仕上げています（通常30〜60秒程度かかります。着実に進んでいますのでこのままお待ちください）。';
+      statusEl.textContent = '深層推論中';
+      card.classList.add('is-waiting');
+    } else {
+      if (iconEl) iconEl.innerHTML = icon('check');
+      titleEl.textContent = '最終チェックとレポート整形中…';
+      descEl.textContent = '長文の構造化データを厳密に検証しています。まもなく完了しますので、画面を閉じずにお待ちください。';
+      statusEl.textContent = 'まもなく完了';
+      card.classList.add('is-waiting');
+    }
+  } else if (stage === 'done') {
+    if (iconEl) iconEl.innerHTML = icon('check');
+    titleEl.textContent = 'リサーチ完了！';
+    descEl.textContent = 'レポートが完成しました。下記の結果をご確認ください。';
+    statusEl.textContent = '完了';
+    card.classList.remove('is-waiting');
+  }
+  hydrateIcons(card);
 }
 
 function updateStepper(stage) {

@@ -17,12 +17,26 @@ function sleep(ms, signal) {
   });
 }
 
-/** 長時間のAI待ちの間、プログレスを漸近的に進める */
+/** 長時間のAI待ちの間、プログレスを漸近的に進めつつ途中経過ログを定期送出 */
 function rampProgress(ctx, from, to, stage) {
   let v = from;
+  let ticks = 0;
   const timer = setInterval(() => {
+    ticks++;
     v += (to - v) * 0.08;
     ctx.progress(Math.round(v * 10) / 10, stage);
+
+    // 待ち時間が長引いている場合、一定間隔で進行中アナウンスログを送信（初心者の不安・フリーズ誤認を防止）
+    if (ticks === 12) {
+      // 約8秒後
+      ctx.log('Gemini AI が収集情報を照合し、多角的な構造化レポートを執筆しています…', 'ai');
+    } else if (ticks === 25) {
+      // 約18秒後
+      ctx.log('エグゼクティブ要約・重要指標・比較表の生成を継続中（じっくり精査しています）…', 'ai');
+    } else if (ticks === 45) {
+      // 約32秒後
+      ctx.log('長文レポートのファクトチェック・出典番号の照合を実施中（まもなく完了します）…', 'ai');
+    }
   }, 700);
   return () => clearInterval(timer);
 }
