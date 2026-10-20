@@ -9,10 +9,29 @@
 
 ---
 
-## [未リリース / 次期バージョン候補: v1.1.0]
-- Stage 2（フロントエンド app.js / styles.css の ES Modules モジュール分割・God File 解体）を予定。
+## [未リリース / 次期バージョン候補: v1.2.0]
+- Stage 3（過去レポートの全文検索・タグ付け機能、オフライン復帰UI、UX拡張）を予定。
 
 ---
+
+## [v1.1.0] - 2026-10-20
+
+### 🏗️ アーキテクチャ刷新 (Architectural Modernization)
+- **フロントエンドの「God File（神ファイル）」完全解体・ES Modules 化**:
+  - これまで 2,566 行に及んでいた巨大モノリス [public/js/app.js](file:///c:/Users/ojkne/.gemini/antigravity-ide/scratch/research_system/public/js/app.js) を、わずか **44 行** のクリーンなエントリーポイントにスリム化。
+  - Webpack や Vite などの外部ビルドツールに一切依存せず、モダンブラウザ標準の `<script type="module">` を活用してゼロ依存のまま責務別に 8 つの専門モジュールへ分割：
+    1. `public/js/modules/state.js` (47行): グローバルステートとタイマー/接続ライフサイクルの安全管理
+    2. `public/js/modules/theme.js` (75行): テーマ切替（ダーク/ライト）と接続ステータス表示
+    3. `public/js/modules/research.js` (588行): フォーム入力、リサーチ実行ライフサイクル、リアルタイムSSE購読、エラー診断カード
+    4. `public/js/modules/deep-dive.js` (419行): 右ペインのスプリットビュー深掘り対話、テキスト選択引用ツールチップ
+    5. `public/js/modules/history.js` (337行): 履歴ドロワー、ホームカード一覧、無制限遡り、削除
+    6. `public/js/modules/modals.js` (497行): API設定、スマホ連携QR、A/B比較、プロンプトテンプレート
+    7. `public/js/modules/usage-modal.js` (458行): トークン消費モニタリング、残量メーター、日次クォータ計算
+    8. `public/js/modules/export-handlers.js` (193行): Markdown, Excel, PDF, 即戦力文面コピー
+- **保守性と堅牢性の劇的向上**:
+  - 各モジュールの責務が明確になり、「設定画面の修正が原因でチャットが壊れる」といった結合リスクを完全に排除。
+  - `public/package.json`（`"type": "module"`）を配置し、エディタ環境およびNode.js環境での構文チェックと型安全性を確立。
+
 
 ## [v1.0.2] - 2026-10-20
 
