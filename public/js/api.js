@@ -31,6 +31,7 @@ export const api = {
   patchHistory: (id, patch) => request('PATCH', `/api/history/${id}`, patch),
   deepDive: (body) => request('POST', '/api/research/deep-dive', body),
   usage: () => request('GET', '/api/usage'),
+  getLogs: () => request('GET', '/api/logs'),
   qrUrl: (text) => `/api/qr?text=${encodeURIComponent(text)}`,
 
   /**

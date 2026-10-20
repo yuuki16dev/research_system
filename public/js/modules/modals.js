@@ -423,6 +423,52 @@ export function bindSettingsModal() {
       toast(`保存エラー: ${err.message}`, 'error');
     }
   });
+
+  // 診断・エラーログのプレビュー
+  const btnViewLogs = $('#btn-view-logs');
+  const logsPreview = $('#logs-preview');
+  const logsTextarea = $('#logs-textarea');
+  const logsPathLabel = $('#logs-path-label');
+  const btnCopyLogs = $('#btn-copy-error-log');
+
+  if (btnViewLogs && logsPreview) {
+    btnViewLogs.addEventListener('click', async () => {
+      const isVisible = logsPreview.style.display !== 'none';
+      if (isVisible) {
+        logsPreview.style.display = 'none';
+        btnViewLogs.innerHTML = '<span data-icon="file-text"></span>ログを確認';
+        hydrateIcons(btnViewLogs);
+      } else {
+        logsPreview.style.display = 'block';
+        btnViewLogs.innerHTML = '<span data-icon="x"></span>ログを閉じる';
+        hydrateIcons(btnViewLogs);
+        if (logsTextarea) logsTextarea.value = 'ログを読み込み中…';
+        try {
+          const logData = await api.getLogs();
+          if (logsPathLabel) logsPathLabel.textContent = logData.errorLogFile || 'data/logs/error.log';
+          if (logsTextarea) {
+            logsTextarea.value = logData.recentErrors || '（記録されているエラーはありません。正常に動作しています）';
+            logsTextarea.scrollTop = logsTextarea.scrollHeight;
+          }
+        } catch (e) {
+          if (logsTextarea) logsTextarea.value = `ログの取得に失敗しました: ${e.message}`;
+        }
+      }
+    });
+  }
+
+  if (btnCopyLogs && logsTextarea) {
+    btnCopyLogs.addEventListener('click', async () => {
+      const text = logsTextarea.value;
+      if (!text || text.includes('正常に動作しています')) {
+        toast('コピーするエラーログはありません', 'info');
+        return;
+      }
+      const ok = await copyText(text);
+      if (ok) toast('エラーログをクリップボードにコピーしました！', 'success');
+      else toast('コピーに失敗しました', 'error');
+    });
+  }
 }
 
 export async function loadSettingsIntoForm() {

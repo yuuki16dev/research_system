@@ -10,6 +10,14 @@ if ! command -v node &> /dev/null; then
     exit 1
 fi
 
+if ! node -e "if (parseInt(process.versions.node) < 18) process.exit(1)" 2>/dev/null; then
+    echo "======================================================================"
+    echo "  【エラー】Node.js のバージョンが古すぎます。"
+    echo "  Research Studio には Node.js v18 以上が必要です。"
+    echo "======================================================================"
+    exit 1
+fi
+
 if [ ! -d "node_modules" ]; then
     echo "========================================================"
     echo "  [初回準備] 必要なパッケージをインストールしています..."

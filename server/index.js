@@ -1,5 +1,8 @@
 'use strict';
 
+const logger = require('./logger');
+logger.initLogger();
+
 const dns = require('dns');
 if (typeof dns.setDefaultResultOrder === 'function') {
   dns.setDefaultResultOrder('ipv4first');
@@ -239,6 +242,16 @@ app.get('/api/memory', (req, res) => res.json(memory.load()));
 app.delete('/api/memory/:domain', (req, res) => res.json({ ok: memory.remove(req.params.domain) }));
 app.post('/api/memory/clear', (req, res) => res.json({ ok: memory.clear() }));
 
+/* --------------------------------------------------------------- logs */
+app.get('/api/logs', (req, res) => {
+  res.json({
+    logsDir: logger.LOGS_DIR,
+    errorLogFile: logger.ERROR_LOG,
+    appLogFile: logger.APP_LOG,
+    recentErrors: logger.getRecentErrorLog(100),
+  });
+});
+
 /* -------------------------------------------------------------- errors */
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not Found' }));
 app.use((err, req, res, _next) => {
@@ -246,31 +259,55 @@ app.use((err, req, res, _next) => {
   res.status(err.status || 500).json({ error: err.message || 'Internal Server Error' });
 });
 
-app.listen(PORT, HOST, () => {
-  const s = settings.publicView();
-  const line = '─'.repeat(56);
-  console.log(`\n${line}\n  ◆ Research Studio  v0.1.0\n${line}`);
-  console.log(`  ローカル     : http://localhost:${PORT}`);
-  lanAddresses().forEach((a) => console.log(`  スマホ (LAN) : ${a.url}   [${a.name}]`));
-  console.log(`  モード       : ${s.effectiveMode === 'live' ? 'LIVE (Gemini)' : 'DEMO (モックデータ)'}`);
-  console.log(`  検索         : ${s.effectiveSearch}`);
-  console.log(`${line}`);
-  console.log(`  ★ 終了方法: [Ctrl + C] を押すか、このウィンドウを閉じてください`);
-  console.log(`  ★ 停止用バッチ: stop.bat をダブルクリックでも停止できます`);
-  console.log(`${line}\n`);
+let currentPort = PORT;
 
-  if (process.pkg || process.env.AUTO_OPEN === '1') {
+function startServer(port, host, retries = 5) {
+  const server = app.listen(port, host, () => {
+    currentPort = port;
+    const s = settings.publicView();
+    let pkgVer = '1.1.1';
     try {
-      const { spawn } = require('child_process');
-      const url = `http://localhost:${PORT}`;
-      if (process.platform === 'win32') {
-        spawn('cmd', ['/c', 'start', '', url], { detached: true, stdio: 'ignore' });
-      } else if (process.platform === 'darwin') {
-        spawn('open', [url], { detached: true, stdio: 'ignore' });
-      } else {
-        spawn('xdg-open', [url], { detached: true, stdio: 'ignore' });
-      }
+      pkgVer = require('../package.json').version || pkgVer;
     } catch {}
-  }
-});
+
+    const line = '─'.repeat(56);
+    console.log(`\n${line}\n  ◆ Research Studio  v${pkgVer}\n${line}`);
+    console.log(`  ローカル     : http://localhost:${port}`);
+    lanAddresses().forEach((a) => console.log(`  スマホ (LAN) : http://${a.address}:${port}   [${a.name}]`));
+    console.log(`  モード       : ${s.effectiveMode === 'live' ? 'LIVE (Gemini)' : 'DEMO (モックデータ)'}`);
+    console.log(`  検索         : ${s.effectiveSearch}`);
+    console.log(`  ログ保存先   : ${logger.LOGS_DIR}`);
+    console.log(`${line}`);
+    console.log(`  ★ 終了方法: [Ctrl + C] を押すか、このウィンドウを閉じてください`);
+    console.log(`  ★ 停止用バッチ: stop.bat をダブルクリックでも停止できます`);
+    console.log(`${line}\n`);
+
+    if (process.pkg || process.env.AUTO_OPEN === '1') {
+      try {
+        const { spawn } = require('child_process');
+        const url = `http://localhost:${port}`;
+        if (process.platform === 'win32') {
+          spawn('cmd', ['/c', 'start', '', url], { detached: true, stdio: 'ignore' });
+        } else if (process.platform === 'darwin') {
+          spawn('open', [url], { detached: true, stdio: 'ignore' });
+        } else {
+          spawn('xdg-open', [url], { detached: true, stdio: 'ignore' });
+        }
+      } catch {}
+    }
+  });
+
+  server.on('error', (err) => {
+    // @ts-ignore
+    if (err.code === 'EADDRINUSE' && retries > 0) {
+      console.warn(`[警告] ポート ${port} は既に使用されています。次のポート ${port + 1} を試行します...`);
+      startServer(port + 1, host, retries - 1);
+    } else {
+      console.error('[致命的エラー] サーバーの起動に失敗しました:', err);
+      process.exit(1);
+    }
+  });
+}
+
+startServer(PORT, HOST);
 

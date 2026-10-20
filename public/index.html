@@ -540,6 +540,20 @@
 
         <div class="test-result" id="test-result" hidden></div>
 
+        <div class="setting-block" style="border-top: 1px dashed var(--border); padding-top: 12px; margin-top: 16px;">
+          <div class="setting-title" style="margin-bottom: 6px;">
+            <strong>システム診断 &amp; エラーログ</strong>
+            <button class="btn btn-ghost btn-sm" type="button" id="btn-view-logs"><span data-icon="file-text"></span>ログを確認</button>
+          </div>
+          <div id="logs-preview" style="display: none; margin-top: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <small style="color: var(--text-3);" id="logs-path-label">data/logs/error.log</small>
+              <button class="btn btn-ghost btn-sm" type="button" id="btn-copy-error-log"><span data-icon="copy"></span>ログをコピー</button>
+            </div>
+            <textarea class="input" id="logs-textarea" rows="6" readonly style="font-family: var(--mono); font-size: 11px; line-height: 1.5; white-space: pre;" placeholder="エラーログはありません"></textarea>
+          </div>
+        </div>
+
         <p class="security-note"><span data-icon="shield"></span>APIキーはこのPCの <code>data/settings.json</code> にのみ保存され、ブラウザには返されません。</p>
       </form>
       <footer class="modal-foot">

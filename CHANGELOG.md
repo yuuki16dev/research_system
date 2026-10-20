@@ -14,6 +14,35 @@
 
 ---
 
+## [v1.1.2] - 2026-10-20
+
+### 📊 ロギング & 診断機能 (Logging & Diagnostics)
+- **包括的なエラーログ・動作ログの自動ファイル永続化**:
+  - [server/logger.js](file:///c:/Users/ojkne/.gemini/antigravity-ide/scratch/research_system/server/logger.js) を新設。サーバー起動時からすべての動作を `data/logs/app.log`、警告・エラーを `data/logs/error.log` に自動記録。
+  - `console.log`, `console.warn`, `console.error` をインターセプトし、ミリ秒精度のタイムスタンプ付きでファイルへ書き込み。
+  - 未処理の例外（`uncaughtException`）や非同期例外（`unhandledRejection`）を確実に捕捉し、プロセス終了直前でもスタックトレースをディスクに同期保存。
+  - セキュリティ配慮: Gemini API キー (`AIza...`) や Tavily API キー (`tvly-...`) などの秘密情報を検知し、ログ書き込み前に自動マスキングするフィルターを実装。
+  - 新設の単体テスト [test/logger.test.js](file:///c:/Users/ojkne/.gemini/antigravity-ide/scratch/research_system/test/logger.test.js) によりマスキング安全性を検証。
+- **UIからの簡単ログ確認 & クリップボードコピー機能**:
+  - 画面右上の「⚙️ 設定」モーダル内に「📋 システム診断 & エラーログ」セクションを追加。
+  - 直近のエラーログをブラウザ上で直接閲覧でき、「ログをコピー」ボタンでワンクリックで開発者や共有相手に共有可能に。
+  - サーバーに `/api/logs` エンドポイントを新設し、最新ログを JSON 形式で安全に取得可能に。
+
+### 🛡️ 他端末での起動トラブルシューティング & 堅牢化 (Cross-Device Startup Hardening)
+- **`start.bat` / `start.sh` での依存関係（`node_modules`）自動インストール**:
+  - 他の人が GitHub からリポジトリをダウンロード（ZIP解凍）した直後は `node_modules` が存在せず、`Cannot find module 'express'` で即座にクラッシュしていた最大の原因を解消。
+  - 初回起動時に `node_modules` が存在しない場合は自動で `npm install` をバックグラウンド実行してから起動するよう制御を改善。
+- **Node.js バージョンの事前検査**:
+  - Node.js がインストールされていない場合、および Node.js のバージョンが 18 未満の古い環境の場合に、エラーメッセージを分かりやすく表示して停止するバリデーションを追加。
+- **ポート競合（3939）時の自動フォールバック起動**:
+  - ポート 3939 が他のアプリで使用されていた場合でも即死せず、3940, 3941… と空いているポートを自動探索して起動を継続するポートフォールバックを実装。
+- **エラー時のコンソール即死防止**:
+  - バッチファイル起動時に万が一エラーが発生しても、コマンドプロンプトが一瞬で消えてしまわないよう `pause`（キー入力待機）し、`data/logs/error.log` の確認を促すメッセージを表示。
+- **README へのトラブルシューティング & ログ確認手順の追記**:
+  - 他端末で起動しない 5 つの典型パターン（ZIP未解凍、Node.js未導入/古い、初回依存関係未取得、ポート競合、誤検知）とその解決策を網羅。
+
+---
+
 ## [v1.1.1] - 2026-10-20
 
 ### 🐛 バグ修正 (Bug Fixes)
