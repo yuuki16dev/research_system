@@ -239,6 +239,14 @@ test('style selector and custom style field consistency: DOM elements and CSS ru
   assert.ok(css.includes('.status-pill') && css.includes('white-space: nowrap'), 'status-pill must have white-space: nowrap to prevent awkward vertical text wrapping');
   assert.ok(css.includes('body.has-deepdive-split .results-layout') && css.includes('grid-template-columns: 1fr'), 'split results-layout must be 1fr to maximize readability');
   assert.ok(css.includes('body.has-deepdive-split .toc') && css.includes('display: none'), 'split TOC must be hidden to eliminate collision with export-bar buttons');
+
+  // 7. 通常時TOCの被り防止クリアランス ＆ スプリット時エクスポートバーのスリム化（可読区域最大化）アサーション
+  const tocMatch = css.match(/\.toc\s*\{([^}]+)\}/);
+  assert.ok(tocMatch, '.toc rule must exist');
+  assert.ok(tocMatch[1].includes('top: calc(14px + var(--topbar-h) + 98px)'), '.toc must have safe clearance (>95px) below .export-bar to prevent overlap');
+
+  assert.ok(css.includes('body.has-deepdive-split .export-bar') && css.includes('flex-direction: row'), 'split export-bar must be 1 row to prevent taking up vertical reading space');
+  assert.ok(css.includes('body.has-deepdive-split .export-bar') && css.includes('max-height: 48px'), 'split export-bar must cap height to <= 48px to preserve maximum reading area');
 });
 
 test('client-side ES modules syntax integrity: all public/js files must compile with node --check without SyntaxError or duplicate declarations', () => {

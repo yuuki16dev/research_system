@@ -2377,7 +2377,7 @@ select.input option {
 
 .toc {
   position: sticky;
-  top: calc(14px + var(--topbar-h) + 84px);
+  top: calc(14px + var(--topbar-h) + 98px);
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -6811,92 +6811,127 @@ body.dd-expanded {
     word-break: break-word !important;
   }
 
-  /* スプリット時はアクションバーを整流化し、背後透過や被りを完全防止 */
+  /* スプリット時はアクションバーをウルトラスリムな1行（44px）に圧縮し、可読領域を劇的に拡大 */
   body.has-deepdive-split .export-bar {
-    flex-direction: column !important;
-    align-items: stretch !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
     gap: 8px !important;
-    padding: 10px 14px !important;
+    padding: 6px 12px !important;
+    min-height: 44px !important;
+    max-height: 48px !important;
     background: #0f1629 !important;
     border: 1px solid var(--border-strong) !important;
-    box-shadow: 0 10px 30px -6px rgba(0, 0, 0, 0.6) !important;
+    box-shadow: 0 6px 20px -4px rgba(0, 0, 0, 0.5) !important;
     z-index: 60 !important;
+    overflow: hidden !important;
   }
 
   [data-theme='light'] body.has-deepdive-split .export-bar {
     background: #ffffff !important;
-    box-shadow: 0 10px 30px -6px rgba(0, 0, 0, 0.12) !important;
+    box-shadow: 0 4px 16px -4px rgba(0, 0, 0, 0.1) !important;
   }
 
   body.has-deepdive-split .export-info {
-    width: 100% !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
     display: flex !important;
     align-items: center !important;
     justify-content: flex-start !important;
-    gap: 10px !important;
-    padding-bottom: 8px !important;
-    border-bottom: 1px solid var(--border) !important;
+    gap: 8px !important;
+    padding-bottom: 0 !important;
+    border-bottom: none !important;
+  }
+
+  body.has-deepdive-split .export-info strong {
+    font-size: 13px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
   }
 
   body.has-deepdive-split .export-info .mode-tag {
-    font-size: 11.5px !important;
-    padding: 4px 10px !important;
+    font-size: 10.5px !important;
+    padding: 2px 6px !important;
     flex-shrink: 0 !important;
   }
 
   body.has-deepdive-split .export-actions-grouped {
-    width: 100% !important;
+    flex: 0 0 auto !important;
+    width: auto !important;
     display: flex !important;
-    flex-direction: column !important;
-    align-items: stretch !important;
-    gap: 8px !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 6px !important;
   }
 
   body.has-deepdive-split .export-primary-group {
     display: flex !important;
     align-items: center !important;
-    gap: 8px !important;
-    flex-wrap: wrap !important;
+    gap: 6px !important;
+    flex-wrap: nowrap !important;
+  }
+
+  /* スプリット時は既に深掘り画面が開いているため「深掘り質問」ボタンを非表示化して幅節約 */
+  body.has-deepdive-split #btn-open-deepdive {
+    display: none !important;
   }
 
   body.has-deepdive-split .btn-export-highlight,
   body.has-deepdive-split .btn-export,
   body.has-deepdive-split .export-primary-group .btn {
-    height: 36px !important;
-    padding: 0 14px !important;
-    font-size: 12.5px !important;
-    font-weight: 750 !important;
-    border-radius: 8px !important;
-    flex: 1 1 auto !important;
+    height: 32px !important;
+    padding: 0 10px !important;
+    font-size: 11.5px !important;
+    font-weight: 700 !important;
+    border-radius: 6px !important;
+    flex: 0 0 auto !important;
     justify-content: center !important;
   }
 
+  /* スプリット時のセカンダリボタン群は横スクロール可能または必要最小限に抑える */
   body.has-deepdive-split .export-secondary-group {
     display: flex !important;
     align-items: center !important;
-    gap: 6px !important;
-    border-left: none !important;
-    padding-left: 0 !important;
-    flex-wrap: wrap !important;
+    gap: 4px !important;
+    border-left: 1px solid var(--border) !important;
+    padding-left: 6px !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    max-width: 240px !important;
+    scrollbar-width: none !important;
+  }
+  body.has-deepdive-split .export-secondary-group::-webkit-scrollbar {
+    display: none !important;
   }
 
   body.has-deepdive-split .quick-outputs-group {
     display: flex !important;
     align-items: center !important;
-    gap: 6px !important;
-    flex-wrap: wrap !important;
+    gap: 4px !important;
+    flex-wrap: nowrap !important;
   }
 
   body.has-deepdive-split .btn-quick-output {
-    height: 32px !important;
-    padding: 0 10px !important;
-    font-size: 12px !important;
-    border-radius: 6px !important;
+    height: 30px !important;
+    padding: 0 8px !important;
+    font-size: 11px !important;
+    border-radius: 5px !important;
     white-space: nowrap !important;
   }
 
   body.has-deepdive-split .claude-group {
-    height: 32px !important;
+    height: 30px !important;
+  }
+  body.has-deepdive-split .claude-group .btn {
+    height: 26px !important;
+    padding: 0 6px !important;
+    font-size: 11px !important;
+  }
+  body.has-deepdive-split .select-mini {
+    height: 26px !important;
+    font-size: 11px !important;
+    padding: 0 4px !important;
   }
 }
 
