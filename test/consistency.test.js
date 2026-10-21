@@ -202,6 +202,24 @@ test('style selector and custom style field consistency: DOM elements and CSS ru
   assert.ok(isHiddenMatch, '.search-chips-row.is-hidden rule must be parsed');
   assert.ok(isHiddenMatch[1].includes('max-height: 0'), '.search-chips-row.is-hidden must have max-height: 0');
   assert.ok(isHiddenMatch[1].includes('opacity: 0'), '.search-chips-row.is-hidden must have opacity: 0');
+
+  // 4. ドロップダウンメニューのUI被り・見切れ防止アサーション（不透明度・max-height・上向き展開・文字省略）
+  assert.ok(!html.includes('class="style-dropdown-menu glass"'), 'style-dropdown-menu must not have glass class to avoid unwanted opacity collision');
+  
+  const menuCssMatch = css.match(/\.style-dropdown-menu\s*\{([^}]+)\}/);
+  assert.ok(menuCssMatch, '.style-dropdown-menu rule must exist');
+  assert.ok(menuCssMatch[1].includes('max-height:'), '.style-dropdown-menu must have max-height constraint');
+  assert.ok(menuCssMatch[1].includes('overflow-y: auto'), '.style-dropdown-menu must have overflow-y: auto for scrollability');
+  
+  const zIndexMatch = menuCssMatch[1].match(/z-index:\s*(\d+)/);
+  assert.ok(zIndexMatch, '.style-dropdown-menu must have z-index');
+  assert.ok(parseInt(zIndexMatch[1], 10) >= 500, '.style-dropdown-menu z-index must be >= 500 to stay above all background elements');
+
+  assert.ok(css.includes('.style-dropdown-menu.drop-up'), 'styles.css must support .style-dropdown-menu.drop-up for smart flip-up');
+  
+  const researchJs = fs.readFileSync(path.join(ROOT, 'public', 'js', 'modules', 'research.js'), 'utf8');
+  assert.ok(researchJs.includes('getBoundingClientRect'), 'research.js must check viewport position with getBoundingClientRect');
+  assert.ok(researchJs.includes('drop-up'), 'research.js must dynamically toggle drop-up class on space shortage');
 });
 
 test('client-side ES modules syntax integrity: all public/js files must compile with node --check without SyntaxError or duplicate declarations', () => {

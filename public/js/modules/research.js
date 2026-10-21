@@ -147,6 +147,21 @@ export function bindFormControls() {
 
   function openStyleDropdown() {
     if (!styleDropdownMenu) return;
+
+    // 画面下端までの空き領域を計算し、スペースが不足している場合は自動で上向き展開（.drop-up）
+    if (btnStyleSelector) {
+      const rect = btnStyleSelector.getBoundingClientRect();
+      const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+      const spaceBelow = viewportHeight - rect.bottom;
+      const estimatedMenuHeight = 290;
+
+      if (spaceBelow < estimatedMenuHeight && rect.top > estimatedMenuHeight) {
+        styleDropdownMenu.classList.add('drop-up');
+      } else {
+        styleDropdownMenu.classList.remove('drop-up');
+      }
+    }
+
     styleDropdownMenu.hidden = false;
     if (btnStyleSelector) btnStyleSelector.setAttribute('aria-expanded', 'true');
   }
@@ -154,6 +169,7 @@ export function bindFormControls() {
   function closeStyleDropdown() {
     if (!styleDropdownMenu) return;
     styleDropdownMenu.hidden = true;
+    styleDropdownMenu.classList.remove('drop-up');
     if (btnStyleSelector) btnStyleSelector.setAttribute('aria-expanded', 'false');
   }
 
