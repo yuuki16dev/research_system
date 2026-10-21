@@ -16,7 +16,7 @@ export const appState = {
 
 /** 現在アクティブなリサーチジョブがあるか判定 */
 export function isResearchActive() {
-  return !!appState.activeJobId && !appState.isFinishing;
+  return (!!appState.activeJobId || !!appState.timerInterval) && !appState.isFinishing;
 }
 
 /** タイマーを安全に停止 */

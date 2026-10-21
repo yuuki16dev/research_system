@@ -16,11 +16,20 @@ export function bindFormControls() {
   const sitesField = $('#sites-field');
   const scopeRadios = $$('input[name="scope"]');
   const exampleChips = $$('#example-chips .chip');
+  const searchChipsRow = $('#search-chips-row');
 
-  // 文字数カウント & 自動拡張
+  // 入力欄の内容に応じておすすめテーマの表示/非表示を滑らかに切り替え
+  function syncChipsVisibility() {
+    if (!searchChipsRow) return;
+    const hasText = themeInput.value.trim().length > 0;
+    searchChipsRow.classList.toggle('is-hidden', hasText);
+  }
+
+  // 文字数カウント & 自動拡張 & チップ表示連動
   function updateCount() {
     const len = themeInput.value.length;
     themeCount.textContent = `${len} / 300`;
+    syncChipsVisibility();
   }
   themeInput.addEventListener('input', updateCount);
 
@@ -32,28 +41,149 @@ export function bindFormControls() {
     }
   });
 
-  // 目的別リサーチプリセットの選択 & 動的プレースホルダー連動
-  const purposeChips = $$('.purpose-preset-bar .purpose-chip, #purpose-presets-bar .purpose-chip');
+  // 現在年に応じた動的年度の反映（2027年以降も自動適応）
+  const currentYear = new Date().getFullYear();
+  const prevYear = currentYear - 1;
+
+  const periodYearSub = $('#period-year-subtext');
+  if (periodYearSub) {
+    periodYearSub.textContent = `最新動向 (${prevYear}〜${currentYear})`;
+  }
+
+  const chipTrend = $('#chip-example-trend');
+  if (chipTrend) {
+    chipTrend.dataset.example = `${currentYear}年のショート動画マーケティングのトレンド`;
+  }
+
+  const purposeTrend = $('#purpose-chip-trend');
+  if (purposeTrend) {
+    purposeTrend.title = `直近数ヶ月の最新速報・大型アプデ・${currentYear}年動向`;
+  }
+
+  const cpStartSelect = $('#custom-period-start');
+  const cpEndSelect = $('#custom-period-end');
+  if (cpStartSelect && cpEndSelect) {
+    for (let y = 2015; y <= currentYear; y++) {
+      if (!cpStartSelect.querySelector(`option[value="${y}"]`)) {
+        const opt = document.createElement('option');
+        opt.value = String(y);
+        opt.textContent = `${y}年`;
+        cpStartSelect.appendChild(opt);
+      }
+      if (!cpEndSelect.querySelector(`option[value="${y}"]`)) {
+        const opt = document.createElement('option');
+        opt.value = String(y);
+        opt.textContent = `${y}年`;
+        cpEndSelect.appendChild(opt);
+      }
+    }
+  }
+
+  // 出力スタイル・方向性セレクター（案A）
+  const btnStyleSelector = $('#btn-style-selector');
+  const styleDropdownMenu = $('#style-dropdown-menu');
+  const styleCurrentIcon = $('#style-current-icon');
+  const styleCurrentName = $('#style-current-name');
   const purposeInput = $('#purpose-input');
-  const purposePlaceholders = {
-    general: '知りたいテーマを自由に入力（例: 人工知能の次世代半導体市場の最新動向と主要企業の戦略）',
-    compare: '比較したい対象を並べて入力（例: Notion AI vs ChatGPT Team vs Claude Team の機能・料金・セキュリティ比較）',
-    business: '検討中の事業ドメインを入力（例: シニア向け健康管理SaaSの国内市場規模・主要プレイヤー・参入障壁）',
-    tool: '探しているツールカテゴリを入力（例: 中小企業向け経費精算・会計ソフトのおすすめ比較（機能・連携性・導入実績））',
-    risk: '検証したい技術や事業を入力（例: 生成AI実務導入における著作権・情報漏洩リスクとガイドライン対策）',
-    trend: '最新動向を知りたい分野を入力（例: 2026年の自律型AIエージェント（Agentic AI）の進化と実務適用）',
+  const customStyleField = $('#custom-style-field');
+  const customStyleInput = $('#custom-style-input');
+  const styleOptions = $$('.style-opt');
+
+  const STYLE_NAMES = {
+    business: { icon: '📊', name: 'ビジネス・戦略' },
+    tech: { icon: '💻', name: '技術・実装' },
+    brief: { icon: '⚡', name: '3分要約' },
+    decision: { icon: '🧭', name: '意思決定・比較' },
+    academic: { icon: '🎓', name: '学術サーベイ' },
+    custom: { icon: '✏️', name: 'カスタム自由' },
   };
 
-  purposeChips.forEach((chip) => {
-    chip.addEventListener('click', () => {
-      purposeChips.forEach((c) => c.classList.remove('active'));
-      chip.classList.add('active');
-      const p = chip.dataset.purpose || 'general';
-      if (purposeInput) purposeInput.value = p;
-      if (themeInput && !themeInput.value.trim() && purposePlaceholders[p]) {
-        themeInput.placeholder = purposePlaceholders[p];
-      }
+  const STYLE_PLACEHOLDERS = {
+    business: '何について調べますか？（例: 個人開発ツールのマネタイズ事例と価格設定、国内SaaS市場規模...）',
+    tech: '何について調べますか？（例: Rust vs Go のバックエンド性能比較、Next.js 15 Server Actions の実装例...）',
+    brief: '何について調べますか？（例: 2026年の自律型AIエージェントの現在地、新NISAの要点...）',
+    decision: '何について調べますか？（例: 個人開発におすすめの決済サービス Stripe vs LemonSqueezy vs PAY.JP...）',
+    academic: '何について調べますか？（例: Transformer の Attention 機構の数学的原理、強化学習の歴史的変遷...）',
+    custom: '希望のテーマと調査内容を自由に入力してください',
+  };
+
+  function selectStyle(styleKey) {
+    if (purposeInput) purposeInput.value = styleKey;
+    const meta = STYLE_NAMES[styleKey] || { icon: '📄', name: styleKey };
+    if (styleCurrentIcon) styleCurrentIcon.textContent = meta.icon;
+    if (styleCurrentName) styleCurrentName.textContent = meta.name;
+
+    styleOptions.forEach((opt) => {
+      const isSelected = opt.dataset.style === styleKey;
+      opt.classList.toggle('active', isSelected);
+      opt.setAttribute('aria-selected', isSelected ? 'true' : 'false');
     });
+
+    if (themeInput && !themeInput.value.trim() && STYLE_PLACEHOLDERS[styleKey]) {
+      themeInput.placeholder = STYLE_PLACEHOLDERS[styleKey];
+    }
+
+    if (customStyleField) {
+      if (styleKey === 'custom') {
+        customStyleField.hidden = false;
+        if (customStyleInput) customStyleInput.focus();
+      } else {
+        customStyleField.hidden = true;
+      }
+    }
+
+    closeStyleDropdown();
+  }
+
+  function toggleStyleDropdown() {
+    if (!styleDropdownMenu) return;
+    const isHidden = styleDropdownMenu.hidden;
+    if (isHidden) {
+      openStyleDropdown();
+    } else {
+      closeStyleDropdown();
+    }
+  }
+
+  function openStyleDropdown() {
+    if (!styleDropdownMenu) return;
+    styleDropdownMenu.hidden = false;
+    if (btnStyleSelector) btnStyleSelector.setAttribute('aria-expanded', 'true');
+  }
+
+  function closeStyleDropdown() {
+    if (!styleDropdownMenu) return;
+    styleDropdownMenu.hidden = true;
+    if (btnStyleSelector) btnStyleSelector.setAttribute('aria-expanded', 'false');
+  }
+
+  if (btnStyleSelector) {
+    btnStyleSelector.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleStyleDropdown();
+    });
+  }
+
+  styleOptions.forEach((opt) => {
+    opt.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const style = opt.dataset.style || 'business';
+      selectStyle(style);
+    });
+  });
+
+  document.addEventListener('click', (e) => {
+    if (styleDropdownMenu && !styleDropdownMenu.hidden) {
+      if (!styleDropdownMenu.contains(e.target) && !btnStyleSelector.contains(e.target)) {
+        closeStyleDropdown();
+      }
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && styleDropdownMenu && !styleDropdownMenu.hidden) {
+      closeStyleDropdown();
+    }
   });
 
   // サンプルチップクリック
@@ -172,10 +302,11 @@ export function bindFormControls() {
         `${cpStartSelect ? cpStartSelect.value : '2020'}〜${cpEndSelect ? cpEndSelect.value : '2023'}年`;
     }
 
-    const purpose = ($('#purpose-input') && $('#purpose-input').value) || 'general';
+    const purpose = ($('#purpose-input') && $('#purpose-input').value) || 'business';
+    const customPurpose = ($('#custom-style-input') && $('#custom-style-input').value.trim()) || '';
     const referenceContext = ($('#reference-context-input') && $('#reference-context-input').value.trim()) || '';
 
-    await startResearch({ theme, scope, depth, sites, period, customPeriod, purpose, referenceContext });
+    await startResearch({ theme, scope, depth, sites, period, customPeriod, purpose, customPurpose, referenceContext });
   });
 
   // 中止ボタンのバインド（プログレス内・フォーム内・トップバー内）
@@ -243,6 +374,7 @@ export function bindFormControls() {
   $('#btn-new').addEventListener('click', () => {
     $('#results-section').hidden = true;
     $('#control-panel').scrollIntoView({ behavior: 'smooth' });
+    syncChipsVisibility();
     themeInput.focus();
   });
 }

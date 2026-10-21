@@ -32,6 +32,7 @@ export const api = {
   deepDive: (body) => request('POST', '/api/research/deep-dive', body),
   usage: () => request('GET', '/api/usage'),
   getLogs: () => request('GET', '/api/logs'),
+  shutdown: () => request('POST', '/api/shutdown'),
   qrUrl: (text) => `/api/qr?text=${encodeURIComponent(text)}`,
 
   /**

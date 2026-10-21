@@ -134,6 +134,30 @@ test('integration: /api/research creates job, returns 202, and accepts cancel', 
   });
 });
 
+test('integration: /api/research accepts new styles (tech, brief, decision, academic, custom) and customPurpose', async () => {
+  await runWithServer(async (url) => {
+    const res = await fetch(`${url}/api/research`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        theme: '次世代Webフロントエンドの選定',
+        scope: 'web',
+        depth: 'quick',
+        period: 'year',
+        purpose: 'custom',
+        customPurpose: 'エンジニア目線でバンドルサイズとSSR性能に特化して比較',
+        forceMock: true,
+      }),
+    });
+    assert.strictEqual(res.status, 202);
+    const data = await res.json();
+    assert.ok(data.jobId, 'jobId must be returned for custom purpose request');
+
+    // キャンセルして後始末
+    await fetch(`${url}/api/research/${data.jobId}/cancel`, { method: 'POST' });
+  });
+});
+
 test('integration: /api/research/deep-dive handles question answering', async () => {
   await runWithServer(async (url) => {
     const res = await fetch(`${url}/api/research/deep-dive`, {
@@ -153,3 +177,54 @@ test('integration: /api/research/deep-dive handles question answering', async ()
     assert.ok(data.answer, 'deepdive answer must be returned');
   });
 });
+
+test('integration: double-launch prevention exits second process gracefully and points to existing instance', async () => {
+  await runWithServer(async (url) => {
+    // 既存のサーバーが稼働しているポート（3949）と同じポートで2つ目を起動
+    const testPort = '3949';
+    const child2 = spawn(process.execPath, [path.join(ROOT, 'server', 'index.js')], {
+      env: { ...process.env, PORT: testPort },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    let output = '';
+    child2.stdout.on('data', (d) => { output += d.toString(); });
+    child2.stderr.on('data', (d) => { output += d.toString(); });
+
+    const exitCode = await new Promise((resolve) => {
+      child2.on('exit', (code) => resolve(code));
+    });
+
+    assert.strictEqual(exitCode, 0, 'Second process should exit cleanly with code 0');
+    assert.ok(
+      output.includes('すでに起動しています'),
+      'Output should mention that Research Studio is already running'
+    );
+  });
+});
+
+test('integration: /api/lifecycle/leave accepts beacon request and cancels on subsequent requests', async () => {
+  await runWithServer(async (url) => {
+    // 離脱シグナルの送信 (sendBeacon 模倣)
+    const leaveRes = await fetch(`${url}/api/lifecycle/leave`, { method: 'POST' });
+    assert.strictEqual(leaveRes.status, 200);
+    const leaveData = await leaveRes.json();
+    assert.strictEqual(leaveData.ok, true);
+
+    // その後の通常アクセスにより自動終了タイマーがキャンセルされ正常にレスポンスすることを確認
+    const infoRes = await fetch(`${url}/api/info`);
+    assert.strictEqual(infoRes.status, 200);
+  });
+});
+
+test('integration: /api/shutdown accepts graceful shutdown request', async () => {
+  await runWithServer(async (url) => {
+    const res = await fetch(`${url}/api/shutdown`, { method: 'POST' });
+    assert.strictEqual(res.status, 200);
+    const data = await res.json();
+    assert.strictEqual(data.ok, true);
+    assert.ok(data.message.includes('shutting down'));
+  });
+});
+
+

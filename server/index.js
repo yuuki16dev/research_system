@@ -50,11 +50,24 @@ const app = express();
 app.disable('x-powered-by');
 app.use(express.json({ limit: '10mb' }));
 
+// 自動シャットダウン用タイマー（全ブラウザ切断時）
+let autoShutdownTimer = null;
+
+// 通常のアクセスがあった場合は自動終了タイマーをキャンセル
+app.use((req, res, next) => {
+  if (req.path !== '/api/lifecycle/leave' && autoShutdownTimer) {
+    clearTimeout(autoShutdownTimer);
+    autoShutdownTimer = null;
+  }
+  next();
+});
+
 // リアルタイム HTTP リクエストログ（静的ファイル等はスキップ）
 app.use((req, res, next) => {
   if (
     req.path === '/api/info' ||
     req.path === '/api/logs' ||
+    req.path === '/api/lifecycle/leave' ||
     req.path.startsWith('/vendor') ||
     req.path.endsWith('.css') ||
     req.path.endsWith('.js') ||
@@ -78,7 +91,7 @@ app.use(express.static(path.join(ROOT, 'public'), { extensions: ['html'] }));
 /* --------------------------------------------------------------- info */
 let currentPort = PORT;
 
-let pkgVer = '1.1.5';
+let pkgVer = '1.2.0';
 try {
   pkgVer = require('../package.json').version || pkgVer;
 } catch {}
@@ -106,6 +119,28 @@ app.get('/api/qr', async (req, res) => {
     res.type('image/svg+xml').send(svg);
   } catch (e) {
     res.status(500).json({ error: e.message });
+  }
+});
+
+/* -------------------------------------------------------- lifecycle & shutdown */
+app.all('/api/lifecycle/leave', (req, res) => {
+  // ブラウザが閉じられた瞬間の通知。5秒の猶予期間をおいて他タブ・再読み込みがなければ自動終了
+  if (!autoShutdownTimer && process.env.NODE_ENV !== 'test') {
+    autoShutdownTimer = setTimeout(() => {
+      console.log('\n[自動終了] すべてのブラウザ画面が閉じられたため、Research Studio を安全に終了します...');
+      process.exit(0);
+    }, 5000);
+  }
+  res.json({ ok: true });
+});
+
+app.post('/api/shutdown', (req, res) => {
+  console.log('\n[手動終了] WebUI よりシャットダウン指示を受信しました。サーバーを正常停止します...');
+  res.json({ ok: true, message: 'Research Studio is shutting down' });
+  if (process.env.NODE_ENV !== 'test') {
+    setTimeout(() => {
+      process.exit(0);
+    }, 400);
   }
 });
 
@@ -165,14 +200,16 @@ app.post('/api/research', (req, res) => {
   const scope = ['web', 'sns', 'sites'].includes(b.scope) ? b.scope : 'web';
   const depth = ['quick', 'deep'].includes(b.depth) ? b.depth : 'quick';
   const period = ['year', 'month', '3years', 'all', 'custom'].includes(b.period) ? b.period : 'year';
-  const purpose = ['general', 'compare', 'business', 'tool', 'risk', 'trend'].includes(b.purpose) ? b.purpose : 'general';
+  const validPurposes = ['business', 'tech', 'brief', 'decision', 'academic', 'custom', 'general', 'compare', 'tool', 'risk', 'trend'];
+  const purpose = validPurposes.includes(b.purpose) ? b.purpose : 'business';
+  const customPurpose = String(b.customPurpose || '').trim().slice(0, 500);
   const customPeriod = String(b.customPeriod || '').trim().slice(0, 100);
   const sites = String(b.sites || '').slice(0, 300);
   const referenceContext = String(b.referenceContext || '').trim().slice(0, 3000);
   if (theme.length < 2) return res.status(400).json({ error: 'テーマを2文字以上で入力してください' });
 
-  console.log(`[リサーチ受付] テーマ: "${theme}" (スコープ: ${scope}, 深度: ${depth})`);
-  const params = { theme, scope, depth, sites, period, customPeriod, purpose, referenceContext, forceMock: !!b.forceMock };
+  console.log(`[リサーチ受付] テーマ: "${theme}" (スコープ: ${scope}, 深度: ${depth}, スタイル: ${purpose})`);
+  const params = { theme, scope, depth, sites, period, customPeriod, purpose, customPurpose, referenceContext, forceMock: !!b.forceMock };
   const job = createJob(params, (j) => runResearch(j, settings.load()), {
     onResult: (result) => {
       history.save(result);
@@ -290,6 +327,33 @@ app.use((err, req, res, _next) => {
   res.status(err.status || 500).json({ error: err.message || 'Internal Server Error' });
 });
 
+function openBrowser(url) {
+  try {
+    const { spawn } = require('child_process');
+    if (process.platform === 'win32') {
+      spawn('cmd', ['/c', 'start', '', url], { detached: true, stdio: 'ignore' });
+    } else if (process.platform === 'darwin') {
+      spawn('open', [url], { detached: true, stdio: 'ignore' });
+    } else {
+      spawn('xdg-open', [url], { detached: true, stdio: 'ignore' });
+    }
+  } catch {}
+}
+
+/** 該当ポートで動いているのが Research Studio か確認 */
+async function checkIsResearchStudio(port) {
+  try {
+    const res = await fetch(`http://localhost:${port}/api/info`, {
+      signal: AbortSignal.timeout(1000),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return !!(data && data.app === 'Research Studio');
+    }
+  } catch {}
+  return false;
+}
+
 function startServer(port, host, retries = 5) {
   const server = app.listen(port, host, () => {
     currentPort = port;
@@ -308,31 +372,49 @@ function startServer(port, host, retries = 5) {
     console.log(`${line}\n`);
 
     if (process.pkg || process.env.AUTO_OPEN === '1') {
-      try {
-        const { spawn } = require('child_process');
-        const url = `http://localhost:${port}`;
-        if (process.platform === 'win32') {
-          spawn('cmd', ['/c', 'start', '', url], { detached: true, stdio: 'ignore' });
-        } else if (process.platform === 'darwin') {
-          spawn('open', [url], { detached: true, stdio: 'ignore' });
-        } else {
-          spawn('xdg-open', [url], { detached: true, stdio: 'ignore' });
-        }
-      } catch {}
+      openBrowser(`http://localhost:${port}`);
     }
   });
 
-  server.on('error', (err) => {
+  server.on('error', async (err) => {
     // @ts-ignore
-    if (err.code === 'EADDRINUSE' && retries > 0) {
-      console.warn(`[警告] ポート ${port} は既に使用されています。次のポート ${port + 1} を試行します...`);
-      startServer(port + 1, host, retries - 1);
-    } else {
-      console.error('[致命的エラー] サーバーの起動に失敗しました:', err);
-      process.exit(1);
+    if (err.code === 'EADDRINUSE') {
+      // すでに自アプリ（Research Studio）が動いている場合は既存画面を開いて二重起動を防止
+      const isOurApp = await checkIsResearchStudio(port);
+      if (isOurApp) {
+        console.log(`\n${'═'.repeat(56)}`);
+        console.log(`  [情報] Research Studio はすでに起動しています (ポート: ${port})`);
+        console.log(`  既存のブラウザ画面を開きます: http://localhost:${port}`);
+        console.log(`${'═'.repeat(56)}\n`);
+        openBrowser(`http://localhost:${port}`);
+        process.exit(0);
+      }
+
+      if (retries > 0) {
+        console.warn(`[警告] ポート ${port} は別のプログラムが使用しています。次のポート ${port + 1} を試行します...`);
+        startServer(port + 1, host, retries - 1);
+        return;
+      }
     }
+    console.error('[致命的エラー] サーバーの起動に失敗しました:', err);
+    process.exit(1);
   });
 }
 
-startServer(PORT, HOST);
+async function bootstrap() {
+  // 二重起動ガード: すでに起動中であれば重複起動せず既存ブラウザ画面を開いて終了
+  const alreadyRunning = await checkIsResearchStudio(PORT);
+  if (alreadyRunning) {
+    console.log(`\n${'═'.repeat(56)}`);
+    console.log(`  [情報] Research Studio はすでに起動しています (ポート: ${PORT})`);
+    console.log(`  既存のブラウザ画面を開きます: http://localhost:${PORT}`);
+    console.log(`${'═'.repeat(56)}\n`);
+    openBrowser(`http://localhost:${PORT}`);
+    process.exit(0);
+  }
+
+  startServer(PORT, HOST);
+}
+
+bootstrap();
 

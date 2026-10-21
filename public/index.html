@@ -47,6 +47,7 @@
         <button class="btn btn-ghost" id="btn-usage" type="button" title="API利用状況 &amp; クォータ"><span data-icon="chart"></span><span class="label">クォータ</span></button>
         <button class="btn btn-ghost" id="btn-settings" type="button" title="API設定"><span data-icon="key"></span><span class="label">設定</span></button>
         <button class="btn btn-ghost btn-icon" id="btn-theme" type="button" title="テーマ切替 (ライト/ダーク)" aria-label="ライト/ダーク切替"><span data-icon="sun" class="only-dark"></span><span data-icon="moon" class="only-light"></span></button>
+        <button class="btn btn-ghost btn-icon btn-shutdown" id="btn-power-shutdown" type="button" title="アプリを終了 (サーバー停止)" aria-label="アプリ終了"><span data-icon="power"></span></button>
       </nav>
     </header>
 
@@ -62,20 +63,6 @@
       <section class="panel glass control search-hero-card" id="control-panel" aria-labelledby="control-title">
         <h2 class="visually-hidden" id="control-title">リサーチ条件の入力</h2>
         <form id="research-form" autocomplete="off" novalidate>
-          <!-- リサーチ目的プリセット（1クリック設定） -->
-          <div class="purpose-preset-bar" id="purpose-presets-bar" role="radiogroup" aria-label="リサーチの目的">
-            <span class="purpose-label"><span data-icon="sparkles"></span>調査の目的:</span>
-            <div class="purpose-chips" id="purpose-chips">
-              <button type="button" class="purpose-chip active" data-purpose="general" title="全体像・動向・事例・価格をバランスよく網羅">🌟 総合リサーチ</button>
-              <button type="button" class="purpose-chip" data-purpose="compare" title="主要競合の料金・機能・強み弱みを徹底比較">⚔️ 競合・料金比較</button>
-              <button type="button" class="purpose-chip" data-purpose="business" title="市場規模・CAGR・マネタイズ・参入機会を分析">💡 新規事業・市場規模</button>
-              <button type="button" class="purpose-chip" data-purpose="tool" title="料金プラン・無料制限・API・実際の不満点を検証">🛠️ ツール選定・制限</button>
-              <button type="button" class="purpose-chip" data-purpose="risk" title="法的規制・セキュリティ・失敗事例・落とし穴を調査">⚠️ リスク・落とし穴</button>
-              <button type="button" class="purpose-chip" data-purpose="trend" title="直近数ヶ月の最新速報・大型アプデ・2026年動向">📈 最新トレンド・速報</button>
-            </div>
-            <input type="hidden" name="purpose" id="purpose-input" value="general" />
-          </div>
-
           <!-- メイン検索入力ボックス -->
           <div class="search-main-box">
             <div class="search-input-wrap">
@@ -84,24 +71,83 @@
             </div>
             
             <div class="search-bottom-bar">
-              <!-- モード切り替え（クイック vs ディープ） -->
-              <div class="depth-segmented" role="radiogroup" aria-label="調査の深さ">
-                <label class="depth-seg-opt" for="depth-quick">
-                  <input type="radio" name="depth" id="depth-quick" value="quick" checked />
-                  <span class="depth-seg-btn">
-                    <span data-icon="zap"></span>
-                    <span class="d-label">クイック</span>
-                    <span class="d-time">約35秒</span>
-                  </span>
-                </label>
-                <label class="depth-seg-opt" for="depth-deep">
-                  <input type="radio" name="depth" id="depth-deep" value="deep" />
-                  <span class="depth-seg-btn depth-seg-deep">
-                    <span data-icon="layers"></span>
-                    <span class="d-label">ディープ推論</span>
-                    <span class="d-time">深層思考・約60〜90秒</span>
-                  </span>
-                </label>
+              <!-- 左側：出力スタイル（方向性）＆ 調査の深さ -->
+              <div class="search-bottom-left">
+                <!-- 出力スタイル・方向性セレクター（案A） -->
+                <div class="style-selector-wrap" id="style-selector-wrap">
+                  <button type="button" class="btn-style-selector" id="btn-style-selector" aria-haspopup="listbox" aria-expanded="false" title="出力形式・方向性を選択">
+                    <span class="style-icon" id="style-current-icon">📊</span>
+                    <span class="style-name" id="style-current-name">ビジネス・戦略</span>
+                    <span data-icon="chevron-down" class="style-arrow"></span>
+                  </button>
+                  
+                  <div class="style-dropdown-menu glass" id="style-dropdown-menu" role="listbox" hidden>
+                    <button type="button" class="style-opt active" data-style="business" role="option" aria-selected="true">
+                      <span class="so-icon">📊</span>
+                      <div class="so-info">
+                        <strong>ビジネス・戦略資料（標準）</strong>
+                        <small>エグゼクティブサマリー・市場KPI・競合比較表</small>
+                      </div>
+                    </button>
+                    <button type="button" class="style-opt" data-style="tech" role="option">
+                      <span class="so-icon">💻</span>
+                      <div class="so-info">
+                        <strong>技術・エンジニアリング実装</strong>
+                        <small>アーキテクチャ・選定比較・コード例・落とし穴</small>
+                      </div>
+                    </button>
+                    <button type="button" class="style-opt" data-style="brief" role="option">
+                      <span class="so-icon">⚡</span>
+                      <div class="so-info">
+                        <strong>3分クイック要約・箇条書き</strong>
+                        <small>3行サマリー・要点トップ5・結論ファースト</small>
+                      </div>
+                    </button>
+                    <button type="button" class="style-opt" data-style="decision" role="option">
+                      <span class="so-icon">🧭</span>
+                      <div class="so-info">
+                        <strong>意思決定・比較導入ガイド</strong>
+                        <small>「結局どれを選ぶべき？」・タイプ別おすすめ・実態評判</small>
+                      </div>
+                    </button>
+                    <button type="button" class="style-opt" data-style="academic" role="option">
+                      <span class="so-icon">🎓</span>
+                      <div class="so-info">
+                        <strong>学術・体系的サーベイ</strong>
+                        <small>原理・メカニズム・歴史的変遷・未解決課題</small>
+                      </div>
+                    </button>
+                    <div class="style-dropdown-divider"></div>
+                    <button type="button" class="style-opt style-opt-custom" data-style="custom" role="option">
+                      <span class="so-icon">✏️</span>
+                      <div class="so-info">
+                        <strong>カスタム自由指定…</strong>
+                        <small>出力形式や強調したい観点を自分で指示</small>
+                      </div>
+                    </button>
+                  </div>
+                  <input type="hidden" name="purpose" id="purpose-input" value="business" />
+                </div>
+
+                <!-- モード切り替え（クイック vs ディープ） -->
+                <div class="depth-segmented" role="radiogroup" aria-label="調査の深さ">
+                  <label class="depth-seg-opt" for="depth-quick">
+                    <input type="radio" name="depth" id="depth-quick" value="quick" checked />
+                    <span class="depth-seg-btn">
+                      <span data-icon="zap"></span>
+                      <span class="d-label">クイック</span>
+                      <span class="d-time">約35秒</span>
+                    </span>
+                  </label>
+                  <label class="depth-seg-opt" for="depth-deep">
+                    <input type="radio" name="depth" id="depth-deep" value="deep" />
+                    <span class="depth-seg-btn depth-seg-deep">
+                      <span data-icon="layers"></span>
+                      <span class="d-label">ディープ推論</span>
+                      <span class="d-time">深層思考・約60〜90秒</span>
+                    </span>
+                  </label>
+                </div>
               </div>
 
               <!-- 右側：アクションボタンとショートカット -->
@@ -117,13 +163,21 @@
             </div>
           </div>
 
-          <!-- おすすめテーマ・チップ -->
-          <div class="search-chips-row">
+          <!-- カスタム自由指定入力欄（custom 選択時のみ展開） -->
+          <div class="custom-style-field" id="custom-style-field" hidden>
+            <div class="cs-field-inner glass">
+              <label for="custom-style-input" class="cs-label"><span data-icon="sparkles"></span>独自の出力指示（例: 初心者向けにやさしく解説、表を多めに、デメリット中心に...）</label>
+              <input type="text" id="custom-style-input" name="customPurpose" class="input input-sm" placeholder="希望の出力トーンや構造を自由に入力してください" maxlength="200" />
+            </div>
+          </div>
+
+          <!-- おすすめテーマ・チップ（未入力時のみ表示） -->
+          <div class="search-chips-row" id="search-chips-row">
             <span class="chips-label"><span data-icon="sparkles"></span>おすすめテーマ:</span>
             <div class="chips" id="example-chips" aria-label="テーマ例">
               <button type="button" class="chip" data-example="個人開発ツールのマネタイズ事例と価格設定">💰 個人開発マネタイズ</button>
               <button type="button" class="chip" data-example="生成AIを活用した中小企業の業務効率化事例">🤖 生成AI × 業務効率化</button>
-              <button type="button" class="chip" data-example="2026年のショート動画マーケティングのトレンド">📱 ショート動画トレンド</button>
+              <button type="button" class="chip" data-example="最新トレンド" id="chip-example-trend">📱 ショート動画トレンド</button>
               <button type="button" class="chip" data-example="リモートワーク向けSaaSの料金プラン比較">🧾 SaaS料金比較</button>
             </div>
           </div>
@@ -179,7 +233,7 @@
                         <strong>直近1年</strong>
                         <span class="badge-rec">推奨</span>
                       </span>
-                      <small>最新動向 (2025〜2026)</small>
+                      <small id="period-year-subtext">最新動向</small>
                     </label>
 
                     <label class="period-tab" for="period-month">
@@ -486,7 +540,7 @@
     </main>
 
     <footer class="footer">
-      <span id="footer-version">Research Studio v1.1.5</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span>
+      <span id="footer-version">Research Studio v1.2.0</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span>
     </footer>
   </div>
 
@@ -495,7 +549,7 @@
     <div class="modal-backdrop" data-close></div>
     <div class="modal-card glass">
       <header class="modal-head">
-        <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v1.1.5</small></h2>
+        <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v1.2.0</small></h2>
         <div style="display: flex; gap: 8px; align-items: center; margin-left: auto;">
           <button class="btn btn-ghost btn-sm" type="button" id="btn-open-usage-from-settings" title="現在のAPI利用料・クォータを確認"><span data-icon="chart"></span><span class="label">利用状況を見る</span></button>
           <button class="btn btn-ghost btn-icon" type="button" data-close aria-label="閉じる"><span data-icon="x"></span></button>
@@ -780,6 +834,47 @@
         <button class="btn btn-ghost" type="button" id="btn-reset-prompt-template">初期値に戻す</button>
         <button class="btn btn-primary" type="button" id="btn-save-prompt-template"><span data-icon="check"></span>保存して適用</button>
       </footer>
+    </div>
+  </div>
+
+  <!-- ============================================== MODAL: SHUTDOWN CONFIRM -->
+  <div class="modal" id="modal-shutdown" role="dialog" aria-modal="true" aria-labelledby="shutdown-modal-title" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card glass modal-sm">
+      <header class="modal-head">
+        <h2 class="modal-title" id="shutdown-modal-title"><span data-icon="power"></span>アプリの終了</h2>
+        <button class="icon-btn" data-close type="button" aria-label="閉じる"><span data-icon="x"></span></button>
+      </header>
+      <div class="modal-body shutdown-body" id="shutdown-body">
+        <div id="shutdown-normal-view">
+          <p class="shutdown-lead"><strong>Research Studio を終了しますか？</strong></p>
+          <p class="muted shutdown-desc">バックエンドサーバーと起動ウィンドウを停止します。<br>保存されたリサーチ履歴や設定は次回起動時にも引き継がれます。</p>
+        </div>
+        <div id="shutdown-busy-warning" class="shutdown-busy-box" hidden>
+          <div class="busy-alert-badge">
+            <span data-icon="alert"></span>
+            <strong>リサーチ実行中ガード</strong>
+          </div>
+          <p class="busy-alert-title">現在、AIによるリサーチ（調査分析）を実行中です！</p>
+          <p class="busy-alert-desc">今アプリを終了すると、現在取得・生成中のリサーチデータが中断され失われます。本当に終了しますか？</p>
+        </div>
+      </div>
+      <footer class="modal-foot shutdown-foot">
+        <button class="btn btn-ghost" type="button" data-close id="btn-shutdown-cancel">キャンセル</button>
+        <button class="btn btn-danger" type="button" id="btn-shutdown-confirm"><span data-icon="power"></span><span id="shutdown-btn-label">終了する</span></button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- ============================================== SHUTDOWN COMPLETED OVERLAY -->
+  <div class="shutdown-completed-overlay" id="shutdown-completed-overlay" hidden>
+    <div class="shutdown-completed-card glass">
+      <div class="shutdown-completed-icon"><span data-icon="power"></span></div>
+      <h2>Research Studio を終了しました</h2>
+      <p>サーバープロセスと起動ウィンドウを正常に停止しました。<br>このブラウザタブは安全に閉じて構いません。</p>
+      <div class="shutdown-completed-actions">
+        <button class="btn btn-secondary" type="button" id="btn-close-window">このタブを閉じる</button>
+      </div>
     </div>
   </div>
 

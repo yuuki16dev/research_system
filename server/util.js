@@ -21,12 +21,19 @@ const PERIOD_LABELS = {
 };
 
 const PURPOSE_LABELS = {
+  business: 'ビジネス・戦略資料（標準）',
+  tech: '技術・エンジニアリング実装',
+  brief: '3分クイック要約・箇条書き',
+  decision: '意思決定・比較導入ガイド',
+  academic: '学術・体系的サーベイ',
+  custom: 'カスタム自由指定',
   general: '総合リサーチ（標準）',
   compare: '競合比較・機能・価格',
-  business: '新規事業・市場調査・規模',
   tool: 'ツール選定・料金・制限',
   risk: 'リスク・法規制・落とし穴',
-  trend: '2026年最新トレンド・速報',
+  get trend() {
+    return `${new Date().getFullYear()}年最新トレンド・速報`;
+  },
 };
 
 const SNS_DOMAINS = ['x.com', 'twitter.com', 'reddit.com', 'togetter.com', 'news.ycombinator.com'];
@@ -148,8 +155,12 @@ function normalizeResult(raw = {}, meta = {}) {
     sites: arr(meta.sites),
     depth: meta.depth,
     depthLabel: DEPTH_LABELS[meta.depth] || meta.depth,
-    purpose: meta.purpose || 'general',
-    purposeLabel: PURPOSE_LABELS[meta.purpose] || '総合リサーチ',
+    purpose: meta.purpose || 'business',
+    purposeLabel:
+      meta.purpose === 'custom' && meta.customPurpose
+        ? `カスタム指定: ${meta.customPurpose}`
+        : (PURPOSE_LABELS[meta.purpose] || 'ビジネス・戦略資料'),
+    customPurpose: meta.customPurpose || '',
     referenceContext: meta.referenceContext || '',
     period: meta.period || 'year',
     periodLabel:

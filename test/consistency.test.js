@@ -103,3 +103,107 @@ test('batch file integrity: start.bat and stop.bat must have CRLF, no BOM, and c
   }
 });
 
+test('shutdown UI consistency: power button, modal elements, icon, and module must exist', () => {
+  const html = fs.readFileSync(path.join(ROOT, 'public', 'index.html'), 'utf8');
+  assert.ok(html.includes('id="btn-power-shutdown"'), 'public/index.html must have btn-power-shutdown');
+  assert.ok(html.includes('id="modal-shutdown"'), 'public/index.html must have modal-shutdown');
+  assert.ok(html.includes('id="shutdown-normal-view"'), 'public/index.html must have shutdown-normal-view');
+  assert.ok(html.includes('id="shutdown-busy-warning"'), 'public/index.html must have shutdown-busy-warning');
+  assert.ok(html.includes('id="shutdown-completed-overlay"'), 'public/index.html must have shutdown-completed-overlay');
+
+  const uiJs = fs.readFileSync(path.join(ROOT, 'public', 'js', 'ui.js'), 'utf8');
+  assert.ok(uiJs.includes('power:'), 'public/js/ui.js must have power icon SVG');
+
+  const shutdownJsPath = path.join(ROOT, 'public', 'js', 'modules', 'shutdown.js');
+  assert.ok(fs.existsSync(shutdownJsPath), 'public/js/modules/shutdown.js must exist');
+  const shutdownJs = fs.readFileSync(shutdownJsPath, 'utf8');
+  assert.ok(shutdownJs.includes('bindShutdownHandlers'), 'shutdown.js must export bindShutdownHandlers');
+  assert.ok(shutdownJs.includes('/api/lifecycle/leave'), 'shutdown.js must handle /api/lifecycle/leave beacon');
+  assert.ok(shutdownJs.includes('isResearchActive()'), 'shutdown.js must check isResearchActive for mis-click guard');
+
+  const apiJs = fs.readFileSync(path.join(ROOT, 'public', 'js', 'api.js'), 'utf8');
+  assert.ok(apiJs.includes('shutdown:'), 'public/js/api.js must have shutdown method');
+});
+
+test('dynamic year consistency: util labels and frontend dynamically adapt to current year', () => {
+  const currentYear = new Date().getFullYear();
+  const util = require('../server/util');
+  assert.equal(util.PURPOSE_LABELS.trend, `${currentYear}年最新トレンド・速報`, 'PURPOSE_LABELS.trend must dynamically reflect current year');
+
+  const pipeline = fs.readFileSync(path.join(ROOT, 'server', 'pipeline.js'), 'utf8');
+  assert.ok(pipeline.includes('${currentYear}年最新トレンド・速報'), 'pipeline.js must dynamically interpolate currentYear for trend purpose');
+
+  const researchJs = fs.readFileSync(path.join(ROOT, 'public', 'js', 'modules', 'research.js'), 'utf8');
+  assert.ok(researchJs.includes('periodYearSub.textContent = `最新動向 (${prevYear}〜${currentYear})`'), 'research.js must dynamically set period-year-subtext');
+  assert.ok(researchJs.includes('chipTrend.dataset.example = `${currentYear}年のショート動画マーケティングのトレンド`'), 'research.js must dynamically set example chip year');
+  assert.ok(researchJs.includes('for (let y = 2015; y <= currentYear; y++)'), 'research.js must dynamically populate custom period select options up to currentYear');
+});
+
+test('computed style collision assertion: search input icon and text padding must not overlap', () => {
+  const css = fs.readFileSync(path.join(ROOT, 'public', 'css', 'styles.css'), 'utf8');
+
+  // 1. .input-sm の padding に !important が付いていないことを検証（グローバル上書き破壊の防止）
+  const inputSmMatch = css.match(/\.input-sm\s*\{([^}]+)\}/);
+  assert.ok(inputSmMatch, '.input-sm rule must exist in styles.css');
+  assert.ok(
+    !inputSmMatch[1].includes('padding: 0 10px !important') && !inputSmMatch[1].includes('padding:0 10px!important'),
+    '.input-sm must not use !important on padding to prevent clobbering icon-padded inputs'
+  );
+
+  // 2. .dsearch-wrap .input の padding-left がアイコン幅（14px）+ left（10px）+ 余白（10px以上）= 34px 以上確保されていること
+  const dsearchMatch = css.match(/\.dsearch-wrap\s+\.input\s*\{([^}]+)\}/);
+  assert.ok(dsearchMatch, '.dsearch-wrap .input rule must exist');
+  const dsearchPad = dsearchMatch[1].match(/padding-left:\s*(\d+)px/);
+  assert.ok(dsearchPad, '.dsearch-wrap .input must have padding-left specified');
+  const dPadVal = parseInt(dsearchPad[1], 10);
+  assert.ok(
+    dPadVal >= 34,
+    `.dsearch-wrap .input padding-left (${dPadVal}px) must be >= 34px to prevent collision with search icon`
+  );
+
+  // 3. .hsearch-wrap .input の padding-left も十分なクリアランスがあること
+  const hsearchMatch = css.match(/\.hsearch-wrap\s+\.input\s*\{([^}]+)\}/);
+  assert.ok(hsearchMatch, '.hsearch-wrap .input rule must exist');
+  const hsearchPad = hsearchMatch[1].match(/padding-left:\s*(\d+)px/);
+  assert.ok(hsearchPad, '.hsearch-wrap .input must have padding-left specified');
+  const hPadVal = parseInt(hsearchPad[1], 10);
+  assert.ok(
+    hPadVal >= 34,
+    `.hsearch-wrap .input padding-left (${hPadVal}px) must be >= 34px to prevent collision with search icon`
+  );
+});
+
+test('style selector and custom style field consistency: DOM elements and CSS rules exist', () => {
+  const html = fs.readFileSync(path.join(ROOT, 'public', 'index.html'), 'utf8');
+  const css = fs.readFileSync(path.join(ROOT, 'public', 'css', 'styles.css'), 'utf8');
+
+  // 1. index.html に案Aのスタイルセレクターとカスタム入力欄が存在すること
+  assert.ok(html.includes('id="btn-style-selector"'), 'btn-style-selector must exist');
+  assert.ok(html.includes('id="style-dropdown-menu"'), 'style-dropdown-menu must exist');
+  assert.ok(html.includes('data-style="business"'), 'business style option must exist');
+  assert.ok(html.includes('data-style="tech"'), 'tech style option must exist');
+  assert.ok(html.includes('data-style="brief"'), 'brief style option must exist');
+  assert.ok(html.includes('data-style="decision"'), 'decision style option must exist');
+  assert.ok(html.includes('data-style="academic"'), 'academic style option must exist');
+  assert.ok(html.includes('data-style="custom"'), 'custom style option must exist');
+  assert.ok(html.includes('id="custom-style-field"'), 'custom-style-field must exist');
+  assert.ok(html.includes('id="custom-style-input"'), 'custom-style-input must exist');
+  assert.ok(html.includes('id="search-chips-row"'), 'search-chips-row must exist');
+
+  // 2. styles.css に必要なクラスとアニメーション・非表示スタイルが定義されていること
+  assert.ok(css.includes('.style-selector-wrap'), '.style-selector-wrap must exist in CSS');
+  assert.ok(css.includes('.btn-style-selector'), '.btn-style-selector must exist in CSS');
+  assert.ok(css.includes('.style-dropdown-menu'), '.style-dropdown-menu must exist in CSS');
+  assert.ok(css.includes('.custom-style-field'), '.custom-style-field must exist in CSS');
+  assert.ok(css.includes('.search-chips-row.is-hidden'), '.search-chips-row.is-hidden must exist in CSS');
+
+  // 3. .search-chips-row.is-hidden で非表示制御（max-height: 0, opacity: 0）が徹底されていること
+  const isHiddenMatch = css.match(/\.search-chips-row\.is-hidden\s*\{([^}]+)\}/);
+  assert.ok(isHiddenMatch, '.search-chips-row.is-hidden rule must be parsed');
+  assert.ok(isHiddenMatch[1].includes('max-height: 0'), '.search-chips-row.is-hidden must have max-height: 0');
+  assert.ok(isHiddenMatch[1].includes('opacity: 0'), '.search-chips-row.is-hidden must have opacity: 0');
+});
+
+
+
+

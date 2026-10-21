@@ -13,6 +13,7 @@ import { appState } from './state.js';
 export const deepDiveState = {
   history: [], // [{ question, answer, keyPoints, sources, added: boolean }]
   currentQuote: '', // 現在引用中のテキスト
+  isQuerying: false, // 深掘りAI問い合わせ実行中フラグ
 };
 
 export function bindDeepDiveDrawer() {
@@ -292,6 +293,7 @@ export function bindDeepDiveDrawer() {
   // =========================================================================
   async function submitDeepDiveQuery(question) {
     if (!appState.currentResult) return;
+    deepDiveState.isQuerying = true;
     const sentQuote = deepDiveState.currentQuote;
     if (input) input.value = '';
     if (submitBtn) submitBtn.disabled = true;
@@ -447,6 +449,7 @@ export function bindDeepDiveDrawer() {
       `;
       hydrateIcons(aiMsgEl);
     } finally {
+      deepDiveState.isQuerying = false;
       if (submitBtn) submitBtn.disabled = false;
       if (input) input.focus();
     }

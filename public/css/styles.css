@@ -790,6 +790,213 @@ svg.i {
   flex-wrap: wrap;
 }
 
+/* 左側グループ（スタイル選択 ＆ 深さ） */
+.search-bottom-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* 案A：出力スタイル・方向性セレクター */
+.style-selector-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.btn-style-selector {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 12px;
+  background: var(--surface-recessed);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s var(--ease);
+  user-select: none;
+}
+
+.btn-style-selector:hover {
+  background: var(--surface-elev);
+  border-color: var(--primary-light);
+  color: var(--text);
+  transform: translateY(-1px);
+}
+
+.btn-style-selector[aria-expanded="true"] {
+  background: var(--surface-elev);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+}
+
+.btn-style-selector .style-icon {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.btn-style-selector .style-name {
+  max-width: 140px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.btn-style-selector .style-arrow {
+  font-size: 11px;
+  color: var(--text-3);
+  transition: transform 0.2s var(--ease);
+}
+
+.btn-style-selector[aria-expanded="true"] .style-arrow {
+  transform: rotate(180deg);
+}
+
+/* スタイル ドロップダウンメニュー */
+.style-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 200;
+  min-width: 300px;
+  max-width: 380px;
+  padding: 6px;
+  border-radius: 14px;
+  background: var(--surface-elev);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 18px 42px -8px rgba(0, 0, 0, 0.5), 0 0 1px 1px rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  animation: dropdownPop 0.18s var(--ease);
+}
+
+[data-theme='light'] .style-dropdown-menu {
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 18px 42px -8px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+
+@keyframes dropdownPop {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.style-opt {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s var(--ease);
+  box-sizing: border-box;
+}
+
+.style-opt:hover {
+  background: var(--surface-recessed);
+  border-color: var(--border);
+}
+
+.style-opt.active {
+  background: rgba(99, 102, 241, 0.12);
+  border-color: rgba(99, 102, 241, 0.35);
+}
+
+.style-opt .so-icon {
+  font-size: 16px;
+  line-height: 1.3;
+  flex-shrink: 0;
+}
+
+.style-opt .so-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.style-opt .so-info strong {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.style-opt.active .so-info strong {
+  color: var(--primary-light);
+}
+
+[data-theme='light'] .style-opt.active .so-info strong {
+  color: var(--primary);
+}
+
+.style-opt .so-info small {
+  font-size: 11px;
+  color: var(--text-3);
+  line-height: 1.35;
+}
+
+.style-dropdown-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 3px 6px;
+}
+
+.style-opt-custom {
+  color: var(--primary-light);
+}
+
+/* カスタム自由指定入力フィールド */
+.custom-style-field {
+  margin-top: 10px;
+  animation: fadeInDown 0.22s var(--ease);
+}
+
+.cs-field-inner {
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  background: rgba(99, 102, 241, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cs-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 750;
+  color: var(--primary-light);
+}
+
+[data-theme='light'] .cs-label {
+  color: var(--primary);
+}
+
+.cs-field-inner input {
+  width: 100%;
+  border-radius: 8px;
+  box-sizing: border-box;
+}
+
 /* 調査モード セグメントトグル (Quick vs Deep) */
 .depth-segmented {
   display: inline-flex;
@@ -880,13 +1087,28 @@ svg.i {
   box-shadow: 0 8px 24px rgba(99, 102, 241, 0.65);
 }
 
-/* おすすめテーマ・チップ 行 */
+/* おすすめテーマ・チップ 行：空時のみ表示、文字入力時は滑らかに非表示 */
 .search-chips-row {
   display: flex;
   align-items: center;
   gap: 10px;
   margin-top: 16px;
   flex-wrap: wrap;
+  max-height: 120px;
+  opacity: 1;
+  overflow: hidden;
+  transition: max-height 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.22s ease, margin 0.28s ease, padding 0.28s ease;
+  pointer-events: auto;
+}
+
+.search-chips-row.is-hidden {
+  max-height: 0 !important;
+  opacity: 0 !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  pointer-events: none !important;
 }
 
 .chips-label {
@@ -1437,7 +1659,7 @@ select.input option {
 .input-sm {
   height: 38px !important;
   font-size: 13px !important;
-  padding: 0 10px !important;
+  padding: 0 10px;
 }
 
 .cp-preset-chips {
@@ -3139,7 +3361,7 @@ table.matrix {
 
 .hsearch-wrap .input {
   width: 100%;
-  padding-left: 36px;
+  padding-left: 36px !important;
   height: 38px;
   font-size: 13px;
   border-radius: 10px;
@@ -4391,7 +4613,7 @@ table.matrix {
 .dsearch-wrap .input {
   width: 100%;
   height: 34px;
-  padding-left: 32px;
+  padding-left: 36px !important;
   font-size: 12.5px;
   border-radius: 8px;
 }
@@ -7043,4 +7265,129 @@ body.dd-expanded {
   color: var(--primary);
   background: rgba(99, 102, 241, 0.08);
 }
+
+/* ==========================================================================
+   電源・シャットダウンボタン & モーダル & 終了画面
+   ========================================================================== */
+.btn-shutdown {
+  transition: all var(--transition);
+}
+
+.btn-shutdown:hover {
+  color: #f87171 !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+  background: rgba(239, 68, 68, 0.12) !important;
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.25);
+}
+
+.shutdown-body {
+  padding: 16px 20px;
+}
+
+.shutdown-lead {
+  font-size: 15px;
+  margin-bottom: 8px;
+  color: var(--text-1);
+}
+
+.shutdown-desc {
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 0;
+  color: var(--text-2);
+}
+
+.shutdown-busy-box {
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-top: 4px;
+}
+
+.busy-alert-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #f87171;
+  margin-bottom: 8px;
+}
+
+.busy-alert-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fca5a5;
+  margin: 0 0 6px 0;
+}
+
+.busy-alert-desc {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-2);
+  margin: 0;
+}
+
+/* 終了完了フルスクリーンオーバーレイ */
+.shutdown-completed-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(11, 15, 30, 0.94);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  animation: fadeIn 0.3s ease-out;
+}
+
+.shutdown-completed-card {
+  max-width: 440px;
+  width: 90%;
+  text-align: center;
+  padding: 36px 28px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+}
+
+.shutdown-completed-icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.shutdown-completed-icon svg {
+  width: 28px;
+  height: 28px;
+}
+
+.shutdown-completed-card h2 {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-1);
+  margin-bottom: 10px;
+}
+
+.shutdown-completed-card p {
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--text-2);
+  margin-bottom: 24px;
+}
+
+.shutdown-completed-actions {
+  display: flex;
+  justify-content: center;
+}
+
 

@@ -45,11 +45,13 @@ function searchUrl(domain, q) {
   return map[domain] || `https://www.google.com/search?q=site%3A${encodeURIComponent(domain)}+${e}`;
 }
 
+const CURRENT_YEAR = new Date().getFullYear();
+
 const POOLS = {
   web: [
     ['note.com', '{kw}で月10万円を達成するまでにやったこと全記録'],
     ['zenn.dev', '{kw}の実践ガイド：設計から運用まで'],
-    ['prtimes.jp', '【調査リリース】{kw}に関する実態調査 2026'],
+    ['prtimes.jp', `【調査リリース】{kw}に関する実態調査 ${CURRENT_YEAR}`],
     ['itmedia.co.jp', '{kw}の最新動向と国内事例を読み解く'],
     ['qiita.com', '{kw}を個人で始めるためのチェックリスト'],
     ['indiehackers.com', 'How indie makers approach {kw} (case studies)'],
@@ -330,7 +332,7 @@ function buildMock(p) {
 
   const queries = isMonetization
     ? [`${kw} 事例`, '個人開発 サブスク 価格 中央値', 'indie hacker pricing strategy', 'フリーミアム 転換率', '個人開発 値上げ 体験談', 'ライフタイムディール 個人開発']
-    : [`${kw}`, `${kw} 事例`, `${kw} 比較`, `${kw} 最新動向 2026`, `${kw} メリット デメリット`, `${kw} 失敗例`];
+    : [`${kw}`, `${kw} 事例`, `${kw} 比較`, `${kw} 最新動向 ${CURRENT_YEAR}`, `${kw} メリット デメリット`, `${kw} 失敗例`];
 
   const raw = isMonetization ? monetizationDataset(kw, deep) : genericDataset(kw, deep, rand);
   const sources = buildSources(p, kw, rand, sites.length ? sites : ['note.com']);
