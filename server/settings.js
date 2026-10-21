@@ -15,12 +15,17 @@ const DEFAULTS = {
   searchProvider: 'auto', // auto | tavily | duckduckgo
   mode: 'auto', // auto（キーがあればLIVE） | mock（常にデモ）
   publisher: 'Research Studio',
+  publisherTagline: 'RESEARCH & INTELLIGENCE REPORT',
+  author: '',
+  confidentiality: 'CONFIDENTIAL', // CONFIDENTIAL | INTERNAL | PUBLIC | NONE
+  disclaimer: '本レポートはAIによる自動リサーチ集計結果であり、意思決定の参考情報としてご活用ください。',
 };
 
 const ALLOWED = Object.keys(DEFAULTS);
 const ENUMS = {
   searchProvider: ['auto', 'tavily', 'duckduckgo'],
   mode: ['auto', 'mock'],
+  confidentiality: ['CONFIDENTIAL', 'INTERNAL', 'PUBLIC', 'NONE'],
 };
 
 function ensureDir() {
@@ -85,6 +90,10 @@ function publicView(s = load()) {
     searchProvider: s.searchProvider,
     mode: s.mode,
     publisher: s.publisher,
+    publisherTagline: s.publisherTagline,
+    author: s.author,
+    confidentiality: s.confidentiality,
+    disclaimer: s.disclaimer,
     effectiveMode: effectiveMode(s),
     effectiveSearch: effectiveSearch(s),
   };

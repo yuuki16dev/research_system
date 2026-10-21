@@ -185,6 +185,21 @@ function monetizationDataset(kw, deep) {
       { title: '初期価格は想定より高めに設定する', body: '値上げより値下げの方が容易であり、¥980 を下限の目安とする。既存ユーザーは旧価格据え置きで信頼を維持する。', priority: '高' },
       { title: 'AI機能は原価連動の従量枠を設ける', body: 'API原価が変動するAI機能は、基本料金＋クレジット制にすることで赤字リスクを回避できる。', priority: '中' },
     ],
+    chart: {
+      type: 'bar',
+      title: '収益モデル別 採用率(%)とLTV相対スコア比較',
+      labels: ['サブスク', '買い切り', 'フリーミアム', '従量課金', 'LTD'],
+      datasets: [
+        {
+          label: '採用率(%)',
+          data: [38, 24, 17, 9, 6],
+        },
+        {
+          label: 'LTV相対スコア (1-100)',
+          data: [92, 45, 78, 60, 30],
+        },
+      ],
+    },
   };
 
   if (deep) {
@@ -300,6 +315,33 @@ function genericDataset(kw, deep, rand) {
       { title: '一次情報のソースを定点観測する', body: '信頼度スコアの高いソースを中心に、定期的に情報をアップデートする仕組みを作る。', priority: '中' },
       { title: '複数アプローチの組み合わせを検討する', body: '単一手法に依存せず、強みの異なる手法を併用することでリスクを分散できる。', priority: '中' },
     ],
+    chart: deep
+      ? {
+          type: 'radar',
+          title: `「${kw}」主要アプローチ総合評価レーダー`,
+          labels: ['導入容易性', 'コスト優位性', '拡張性', '市場注目度', '将来発展性'],
+          datasets: [
+            {
+              label: rows[0][0],
+              data: [85, 75, 90, Math.min(100, Number(rows[0][5]) || 80), 85],
+            },
+            {
+              label: rows[1] ? rows[1][0] : '従来手法',
+              data: [65, 85, 60, Math.min(100, rows[1] ? Number(rows[1][5]) || 65 : 60), 70],
+            },
+          ],
+        }
+      : {
+          type: 'bar',
+          title: `「${kw}」主要アプローチ別 注目度スコア`,
+          labels: rows.slice(0, 5).map((r) => r[0]),
+          datasets: [
+            {
+              label: '注目度スコア (0-100)',
+              data: rows.slice(0, 5).map((r) => Number(r[5]) || Math.round(50 + rand() * 40)),
+            },
+          ],
+        },
   };
   if (deep) {
     raw.sections.push(

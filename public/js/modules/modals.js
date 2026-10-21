@@ -407,7 +407,11 @@ export function bindSettingsModal() {
       geminiModel: $('#gemini-model').value.trim(),
       searchProvider: $('#search-provider').value,
       mode: $('#mode-mock').checked ? 'mock' : 'auto',
-      publisher: $('#publisher').value.trim(),
+      publisher: $('#publisher').value.trim() || 'Research Studio',
+      publisherTagline: $('#publisher-tagline').value.trim() || 'RESEARCH & INTELLIGENCE REPORT',
+      author: $('#publisher-author').value.trim(),
+      confidentiality: $('#publisher-confidentiality').value || 'CONFIDENTIAL',
+      disclaimer: $('#publisher-disclaimer').value.trim(),
     };
     const gKey = $('#gemini-key').value.trim();
     const tKey = $('#tavily-key').value.trim();
@@ -491,6 +495,10 @@ export async function loadSettingsIntoForm() {
   $('#search-provider').value = s.searchProvider || 'auto';
   $('#mode-mock').checked = s.mode === 'mock';
   $('#publisher').value = s.publisher || 'Research Studio';
+  if ($('#publisher-tagline')) $('#publisher-tagline').value = s.publisherTagline || 'RESEARCH & INTELLIGENCE REPORT';
+  if ($('#publisher-author')) $('#publisher-author').value = s.author || '';
+  if ($('#publisher-confidentiality')) $('#publisher-confidentiality').value = s.confidentiality || 'CONFIDENTIAL';
+  if ($('#publisher-disclaimer')) $('#publisher-disclaimer').value = s.disclaimer !== undefined ? s.disclaimer : '本レポートはAIによる自動リサーチ集計結果であり、意思決定の参考情報としてご活用ください。';
   $('#test-result').hidden = true;
 }
 

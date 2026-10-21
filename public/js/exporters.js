@@ -3,6 +3,7 @@
 // ==========================================================================
 
 import { safeFilename, fmtDate, toast, esc, downloadBlob } from './ui.js';
+import { renderSvgChart } from './modules/charts.js';
 
 /**
  * 0. 即戦力出力：Slack/Teams用サマリー
@@ -773,7 +774,7 @@ function enhanceWorksheet(ws, { wrapCols = [], centerCols = [], rightCols = [], 
 /**
  * 3. Excel (.xlsx) 出力 (SheetJS) — プロフェッショナル・ダッシュボード帳票
  */
-export function exportExcel(data) {
+export function exportExcel(data, brand = {}) {
   if (!window.XLSX) {
     toast('Excel生成ライブラリ (SheetJS) が読み込まれていません', 'error');
     return;
@@ -781,22 +782,34 @@ export function exportExcel(data) {
   const XLSX = window.XLSX;
   const wb = XLSX.utils.book_new();
 
+  const publisher = (typeof brand === 'object' && brand.publisherName) ? brand.publisherName : (typeof brand === 'string' ? brand : 'Research Studio');
+  const tagline = (typeof brand === 'object' && brand.publisherTagline) ? brand.publisherTagline : '';
+  const author = (typeof brand === 'object' && brand.author) ? brand.author : '';
+  const confidentiality = (typeof brand === 'object' && brand.confidentiality) ? brand.confidentiality : '';
+  const disclaimer = (typeof brand === 'object' && brand.disclaimer) ? brand.disclaimer : '';
+
+  const headerTitle = `◆ ${publisher}${tagline ? ' — ' + tagline : ' — エグゼクティブ・リサーチレポート'}`;
+
   // ----------------------------------------------------
   // Sheet 1: 📊 エグゼクティブサマリー (Overview Dashboard)
   // ----------------------------------------------------
   const summaryAoa = [
-    ['◆ RESEARCH STUDIO — エグゼクティブ・リサーチレポート', ''],
+    [headerTitle, ''],
     ['', ''],
     ['リサーチテーマ', data.title || data.theme || '（無題）'],
     ['作成日時', fmtDate(data.createdAt)],
+  ];
+  if (author) summaryAoa.push(['レポート作成者', author]);
+  if (confidentiality) summaryAoa.push(['機密区分', confidentiality]);
+  summaryAoa.push(
     ['調査スタイル', data.styleLabel || data.style || '標準ビジネス'],
     ['調査スコープ / 深度', `${data.scopeLabel || data.scope || 'Web全体'} / ${data.depthLabel || data.depth || '通常'}`],
     ['参照ソース件数', `${data.sources ? data.sources.length : 0} 件`],
     ['', ''],
     ['【エグゼクティブ要約】', ''],
     ['サマリー本文', data.summary || '（サマリーなし）'],
-    ['', ''],
-  ];
+    ['', '']
+  );
 
   // 主要数値指標 (KPI)
   if (data.metrics && data.metrics.length) {
@@ -824,6 +837,12 @@ export function exportExcel(data) {
     data.insights.forEach((ins) => {
       summaryAoa.push([`[${ins.priority || '中'}]`, ins.title || '', ins.body || '']);
     });
+  }
+
+  // 免責事項
+  if (disclaimer) {
+    summaryAoa.push(['', '', '']);
+    summaryAoa.push(['【免責事項・取扱注意】', disclaimer, '']);
   }
 
   const wsSummary = XLSX.utils.aoa_to_sheet(summaryAoa);
@@ -938,8 +957,16 @@ export function exportExcel(data) {
 /**
  * 商用レポートPDFのHTMLマークアップを生成
  */
-export function buildPdfHtml(data, publisher = 'Research Studio') {
+export function buildPdfHtml(data, brand = 'Research Studio') {
   if (!data) return '';
+
+  const publisherName = (typeof brand === 'object' && brand.publisherName) ? brand.publisherName : (typeof brand === 'string' ? brand : 'Research Studio');
+  const publisherTagline = (typeof brand === 'object' && brand.publisherTagline) ? brand.publisherTagline : '';
+  const author = (typeof brand === 'object' && brand.author) ? brand.author : '';
+  const confidentiality = (typeof brand === 'object' && brand.confidentiality) ? brand.confidentiality : '';
+  const disclaimer = (typeof brand === 'object' && brand.disclaimer && brand.disclaimer.trim())
+    ? brand.disclaimer
+    : '本レポートは、最新のWeb検索・専門ドメイン巡回およびAI解析パイプラインによって収集・構造化された調査結果です。本文中の数値・事実は各出典番号に基づいて記載されています。';
 
   const createdStr = fmtDate(data.createdAt, false);
   const totalSources = data.sources ? data.sources.length : 0;
@@ -956,8 +983,10 @@ export function buildPdfHtml(data, publisher = 'Research Studio') {
     <div class="pr-cover-inner">
       <div class="pr-brand">
         <span class="pr-brand-mark">◆</span>
-        <span>${esc(publisher)}</span>
+        <span>${esc(publisherName)}</span>
+        ${publisherTagline ? `<small class="pr-brand-tagline">${esc(publisherTagline)}</small>` : ''}
       </div>
+      ${confidentiality ? `<div class="pr-confidential-badge">${esc(confidentiality)}</div>` : ''}
       <div class="pr-kicker">RESEARCH &amp; INTELLIGENCE REPORT</div>
       <h1 class="pr-title">${esc(data.title)}</h1>
       ${data.subtitle ? `<div class="pr-subtitle">${esc(data.subtitle)}</div>` : ''}
@@ -970,6 +999,7 @@ export function buildPdfHtml(data, publisher = 'Research Studio') {
 
       <dl class="pr-meta">
         <div><dt>DATE</dt><dd>${esc(createdStr)}</dd></div>
+        ${author ? `<div><dt>AUTHOR</dt><dd>${esc(author)}</dd></div>` : ''}
         <div><dt>PERIOD</dt><dd>${esc(data.periodLabel || '直近1年（最新推奨）')}</dd></div>
         <div><dt>SCOPE</dt><dd>${esc(data.scopeLabel)}</dd></div>
         <div><dt>DEPTH</dt><dd>${esc(data.depthLabel)}</dd></div>
@@ -984,6 +1014,9 @@ export function buildPdfHtml(data, publisher = 'Research Studio') {
   // 動的セクション定義（存在する項目のみ番号を付与）
   const sectionsList = [];
   sectionsList.push({ id: 'summary', title: 'エグゼクティブサマリー & 主要ハイライト', en: 'Executive Summary & Key Highlights' });
+  if (data.chart && data.chart.labels && data.chart.labels.length) {
+    sectionsList.push({ id: 'chart', title: 'データビジュアライゼーション・チャート分析', en: 'Visual Data Analysis & Charts' });
+  }
   if (dt && ((dt.dynamicsAndRootCauses && dt.dynamicsAndRootCauses.length) || dt.analystNote)) {
     sectionsList.push({ id: 'dynamics', title: '深層推論 & 構造的因果力学', en: 'Deep Reasoning & Root Cause Dynamics' });
   }
@@ -1029,7 +1062,7 @@ export function buildPdfHtml(data, publisher = 'Research Studio') {
         .join('')}
     </ol>
     <div class="pr-toc-note">
-      本レポートは、最新のWeb検索・専門ドメイン巡回およびAI解析パイプラインによって収集・構造化された調査結果です。本文中の数値・事実は各出典番号に基づいて記載されています。
+      ${esc(disclaimer)}
     </div>
   </section>
   `;
@@ -1069,6 +1102,19 @@ export function buildPdfHtml(data, publisher = 'Research Studio') {
     }
   </section>
   `;
+
+  // データビジュアライゼーション・チャート分析（Pure SVG ベクター埋め込み）
+  if (sectionsList.some((s) => s.id === 'chart')) {
+    html += `
+    <section class="pr-sec pr-break">
+      <h2 class="pr-h2"><span class="pr-num">${getSecNum('chart')}</span>データビジュアライゼーション・チャート分析 <span class="pr-deep-badge">PURE SVG</span></h2>
+      <div class="pr-chart-caption">${esc(data.chart.title || '主要指標の可視化チャート')}</div>
+      <div class="pr-chart-wrap">
+        ${renderSvgChart(data.chart)}
+      </div>
+    </section>
+    `;
+  }
 
   // 深層推論 & 構造的因果力学（ディープリサーチ時）
   if (sectionsList.some((s) => s.id === 'dynamics')) {
@@ -1333,7 +1379,8 @@ export function buildPdfHtml(data, publisher = 'Research Studio') {
           .join('')}
       </ul>
       <div class="pr-colophon">
-        発行元: ${esc(publisher)} · 発行日時: ${fmtDate(data.createdAt)} · モード: ${data.mode === 'live' ? 'Live Search' : 'Demo Verification'}
+        <div><strong>発行元:</strong> ${esc(publisherName)}${author ? ` · <strong>作成者:</strong> ${esc(author)}` : ''} · <strong>発行日時:</strong> ${fmtDate(data.createdAt)} · <strong>モード:</strong> ${data.mode === 'live' ? 'Live Search' : 'Demo Verification'}${confidentiality ? ` · <strong>機密区分:</strong> ${esc(confidentiality)}` : ''}</div>
+        <div style="margin-top: 1.5mm; font-size: 7.5pt; color: var(--c-ink-2);">${esc(disclaimer)}</div>
       </div>
     </section>
     `;
@@ -1346,9 +1393,9 @@ export function buildPdfHtml(data, publisher = 'Research Studio') {
 /**
  * 4. 商用レポートPDF出力（Node.js内蔵Edge/Chromeによる完全ベクターPDF直接ダウンロード）
  */
-export async function exportPDF(data, publisher = 'Research Studio') {
+export async function exportPDF(data, brand = 'Research Studio') {
   const filename = `【商用レポート】${safeFilename(data.title || data.theme)}.pdf`;
-  const htmlContent = buildPdfHtml(data, publisher);
+  const htmlContent = buildPdfHtml(data, brand);
 
   toast('📄 高品質商用PDFを生成中…（数秒かかります）', 'info', 4500);
 

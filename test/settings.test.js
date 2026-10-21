@@ -15,6 +15,10 @@ test('settings.publicView masks sensitive API keys without leaking plain text', 
     searchProvider: 'auto',
     mode: 'auto',
     publisher: 'Test Publisher',
+    publisherTagline: 'CUSTOM STRATEGY REPORT',
+    author: 'Taro Yamada',
+    confidentiality: 'INTERNAL',
+    disclaimer: '社外秘資料',
   };
 
   const view = settings.publicView(dummySettings);
@@ -26,6 +30,10 @@ test('settings.publicView masks sensitive API keys without leaking plain text', 
   assert.equal(view.tavilyApiKey.masked.includes(dummyT), false);
   assert.ok(view.geminiApiKey.masked.includes('••••••'));
   assert.equal(view.publisher, 'Test Publisher');
+  assert.equal(view.publisherTagline, 'CUSTOM STRATEGY REPORT');
+  assert.equal(view.author, 'Taro Yamada');
+  assert.equal(view.confidentiality, 'INTERNAL');
+  assert.equal(view.disclaimer, '社外秘資料');
 });
 
 test('settings.effectiveMode falls back to mock if Gemini key is empty', () => {

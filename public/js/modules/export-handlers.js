@@ -17,6 +17,17 @@ import { appState } from './state.js';
 
 let pdfPreviewZoom = 1.0;
 
+function getBrandConfig() {
+  const s = appState.settings || {};
+  return {
+    publisherName: s.publisher || 'Research Studio',
+    publisherTagline: s.publisherTagline || '',
+    author: s.author || '',
+    confidentiality: s.confidentiality || '',
+    disclaimer: s.disclaimer || '',
+  };
+}
+
 /** エクスポートボタン類のイベントバインド */
 export function bindExportActions(onOpenHistory) {
   // Claude用プロンプトのコピー
@@ -40,8 +51,7 @@ export function bindExportActions(onOpenHistory) {
   if (btnPdf) {
     btnPdf.addEventListener('click', () => {
       if (!appState.currentResult) return;
-      const pub = (appState.settings && appState.settings.publisher) || 'Research Studio';
-      openPdfPreview(appState.currentResult, pub);
+      openPdfPreview(appState.currentResult, getBrandConfig());
     });
   }
 
@@ -50,7 +60,7 @@ export function bindExportActions(onOpenHistory) {
   if (btnXlsx) {
     btnXlsx.addEventListener('click', () => {
       if (!appState.currentResult) return;
-      exportExcel(appState.currentResult);
+      exportExcel(appState.currentResult, getBrandConfig());
     });
   }
 
@@ -164,8 +174,7 @@ export function bindPdfPreviewModal() {
   if (btnConfirm) {
     btnConfirm.addEventListener('click', () => {
       if (!appState.currentResult) return;
-      const pub = (appState.settings && appState.settings.publisher) || 'Research Studio';
-      exportPDF(appState.currentResult, pub);
+      exportPDF(appState.currentResult, getBrandConfig());
     });
   }
 }

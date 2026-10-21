@@ -4,6 +4,7 @@
 
 import { esc, icon, fmtDate, hydrateIcons, toast, copyText } from './ui.js';
 import { tableToTSV } from './exporters.js';
+import { renderSvgChart } from './modules/charts.js';
 
 let currentReportSources = [];
 let currentSourcesMap = new Map();
@@ -233,6 +234,27 @@ export function renderReport(data, container) {
         : ''
     }
     `;
+  }
+
+  // 2.8 ビジュアル分析チャート (Pure SVG レーダー / 棒グラフ)
+  if (data.chart && data.chart.labels && data.chart.labels.length) {
+    const chartSvg = renderSvgChart(data.chart);
+    if (chartSvg) {
+      html += `
+      <section class="card glass rs-chart-section" id="sec-chart">
+        <div class="card-head">
+          <div class="ch-icon"><span data-icon="chart"></span></div>
+          <div class="ch-titles">
+            <h3>${esc(data.chart.title || 'データビジュアライゼーション')}</h3>
+            <p class="ch-sub">${data.chart.type === 'radar' ? '多角評価レーダーチャートによる多変量比較分析' : '重要指標の比較棒グラフ分析'}</p>
+          </div>
+        </div>
+        <div class="rs-chart-card">
+          ${chartSvg}
+        </div>
+      </section>
+      `;
+    }
   }
 
   // 3. 構造化比較表 (インタラクティブソート & リアルタイム検索 & ワンクリックTSVコピー)
@@ -624,6 +646,10 @@ function buildTOC(data) {
     if (data.deepThinking.tradeoffs && data.deepThinking.tradeoffs.length) {
       sections.push({ id: 'sec-deep-tradeoffs', label: '多角トレードオフ' });
     }
+  }
+
+  if (data.chart && data.chart.labels && data.chart.labels.length) {
+    sections.push({ id: 'sec-chart', label: 'ビジュアルチャート' });
   }
 
   if (data.table && data.table.rows && data.table.rows.length) {

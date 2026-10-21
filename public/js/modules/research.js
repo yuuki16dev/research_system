@@ -25,11 +25,20 @@ export function bindFormControls() {
     searchChipsRow.classList.toggle('is-hidden', hasText);
   }
 
-  // 文字数カウント & 自動拡張 & チップ表示連動
+  // URLダイレクト分析モードの検知
+  function syncUrlBadge() {
+    const badge = $('#url-mode-badge');
+    if (!badge) return;
+    const isUrl = /^https?:\/\/[^\s]+$/i.test(themeInput.value.trim());
+    badge.style.display = isUrl ? 'inline-flex' : 'none';
+  }
+
+  // 文字数カウント & 自動拡張 & チップ表示連動 & URLモード検知
   function updateCount() {
     const len = themeInput.value.length;
     themeCount.textContent = `${len} / 300`;
     syncChipsVisibility();
+    syncUrlBadge();
   }
   themeInput.addEventListener('input', updateCount);
 

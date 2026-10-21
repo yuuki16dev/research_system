@@ -162,11 +162,21 @@ async function runLive(p, s, ctx) {
     purposeInstruction = '【調査目的: 総合リサーチ】全体概要、主要な事例・数値・価格相場・課題・最新動向をバランスよく網羅する多角的クエリを作成してください。';
   }
 
+  const isUrl = /^https?:\/\/[^\s]+$/i.test(p.theme.trim());
+  let urlDomain = '';
+  let urlDirectInstruction = '';
+  if (isUrl) {
+    urlDomain = domainOf(p.theme);
+    urlDirectInstruction = `【重要: 特定URLダイレクト分析モード】入力テーマはWebサイト/プロダクトのURL「${p.theme}」（ドメイン: ${urlDomain}）です。このサービス・プロダクトの基本概要、特徴、機能、料金体系、競合ツール、実際の評判・口コミ、メリット・デメリットを網羅的に調査できるクエリを作成してください。`;
+    ctx.log(`🌐 特定URLダイレクト分析モード: ${urlDomain} の競合・特徴・評判を多角調査します`, 'plan');
+  }
+
   ctx.log(`AI多角クエリ展開（Sub-queries Planner）を実行中（目的: ${purpose} / 期間: ${dateParams.label}）…`, 'plan');
   const nQ = deep ? 7 : 4;
   const plan = await ai(
     `あなたはトップティア戦略コンサルタントのシニアリサーチャーです。次のテーマについて、人間が手作業で何時間もかけて複数回検索する作業を完全に代替するため、多角的で質の高いWeb検索サブクエリを${nQ}個作成してください。\n` +
       `テーマ: ${p.theme}\n調査範囲: ${SCOPE_LABELS[p.scope]}\n` +
+      `${urlDirectInstruction ? urlDirectInstruction + '\n' : ''}` +
       `${purposeInstruction}\n` +
       `${periodInstruction}\n` +
       `- 日本語クエリを中心に、世界的・海外事例が有用なら英語クエリを1〜2個含める\n` +
@@ -489,6 +499,18 @@ ${p.customPurpose || 'ユーザーの自由な指定に沿って構成してく�
     recencyRule = `- 対象期間: 全期間（歴史的経緯や初期の事例、現在までの変遷も含めて網羅的に整理してください）。`;
   }
 
+  const isUrl = /^https?:\/\/[^\s]+$/i.test(p.theme.trim());
+  let urlContextBlock = '';
+  if (isUrl) {
+    urlContextBlock = `
+# 【重要: 特定URLダイレクト分析モード】
+本リサーチは指定URL「${p.theme}」の徹底調査レポートです。
+- 対象サービス・プロダクトの概要、コアバリュー、主要機能、料金プランを正確に整理すること
+- 主要競合サービスとの違い、強み・弱み、利用者の声・市場の評判を客観的に記述すること
+- 読者がこのプロダクトの導入・利用を検討する上で必要な判断材料を網羅すること
+`;
+  }
+
   const userContextBlock = p.referenceContext && p.referenceContext.trim()
     ? `
 # 【ユーザー提供の参考資料・前提メモ】
@@ -577,6 +599,7 @@ ${p.theme}
 # 調査範囲・対象期間
 ${SCOPE_LABELS[p.scope]}${sites.length ? `（対象: ${sites.join(', ')}）` : ''} / 期間: ${dateParams.label}
 ${userContextBlock}
+${urlContextBlock}
 # 執筆ルール・情報密度の要求
 ${recencyRule}
 - 必ず構文的に完全に正しい単一のJSONオブジェクトを出力すること。プロパティ間・配列要素間のカンマ（,）の付け忘れや、末尾の余計なカンマは厳禁
@@ -598,7 +621,12 @@ ${recencyRule}
   3. 課題や直面しているボトルネック、市場の反応や賛否両論 [番号]
   4. 今後の展開予測や影響
   各セクションの bullets は 2${deep ? '〜3' : '〜2'} 個（重要な論点や具体例の補足を箇条書きで追加、出典番号を付与）
-- insights: ${deep ? '3〜4' : '2〜3'} 個。アナリストの専門的視座からの示唆・提言。title は明確な提言（例:「中小企業における導入障壁とハイブリッド運用の有効性」）、body は ${deep ? '130〜220' : '100〜160'}字 で背景と今後の推奨アクションを深掘りする。priority は「高」「中」「低」
+- chart: 【必須・プロ仕様ビジュアル】収集情報の中で最も重要・特徴的な数値比較または推移（市場規模推移、CAGR比較、主要選択肢の多角評価レーダーなど）を可視化するデータオブジェクト1件。
+  - type: 'bar'（棒グラフ・推移・数値比較）または 'radar'（5軸多角評価・各0〜100点）
+  - title: グラフの見出しタイトル（30字以内）
+  - description: グラフから読み取れる重要示唆や出所（50字以内）
+  - labels: 4〜6件の項目ラベル
+  - datasets: 1〜2系列の数値データ配列 [{"label": "系列名", "data": [数値1, 数値2, ...]}]
 - sourceAssessments: ${deep ? '主要ソース（上位8〜12件）' : '主要ソース（上位6〜8件）'}について信頼度 score (0-100) を評価（公的機関・一次情報・専門メディアは高く、匿名SNS・まとめ・広告色の強いものは低く）
 ${deep ? '- deepThinking: 【最重要・必須】深層推論ブロック（analystNote、dynamicsAndRootCauses 2〜3件、tradeoffs 2〜3件、scenarios、roadmap）を必ず完全に出力してください。省略は厳禁です。' : ''}
 
@@ -607,6 +635,13 @@ ${deep ? '- deepThinking: 【最重要・必須】深層推論ブロック（ana
   "title": "レポートタイトル（35字以内）",
   "subtitle": "サブタイトル（50字以内）",
   "summary": "エグゼクティブサマリー（${deep ? '500〜700' : '300〜400'}字、段落間に\\n\\n、随所に出典[1]等を明記）",${deepSchema}
+  "chart": {
+    "type": "bar",
+    "title": "グラフタイトル（30字以内）",
+    "description": "読み取れる重要示唆（50字以内）",
+    "labels": ["項目1", "項目2", "項目3", "項目4", "項目5"],
+    "datasets": [{"label": "系列名", "data": [120, 180, 250, 360, 520]}]
+  },
   "keyPoints": ["【要点見出し】具体的なファクトや数値 [1]（${deep ? '70〜110' : '50〜80'}字）"],
   "metrics": [{"label": "指標名", "value": "値", "note": "算出根拠と出典 [1]"}],
   "table": {"caption": "表タイトル", "columns": ["比較対象", "観点1", "..."], "rows": [["サービスA [1]", "機能仕様 [1]", "..."]]},

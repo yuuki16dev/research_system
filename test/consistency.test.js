@@ -394,3 +394,54 @@ test('mobile responsiveness consistency: style dropdown and chips must fit small
   );
 });
 
+test('svg chart consistency: Pure SVG chart engine, vector PDF embedding, and styles exist', () => {
+  const chartsJsPath = path.join(ROOT, 'public', 'js', 'modules', 'charts.js');
+  assert.ok(fs.existsSync(chartsJsPath), 'public/js/modules/charts.js must exist');
+  const chartsJs = fs.readFileSync(chartsJsPath, 'utf8');
+  assert.ok(chartsJs.includes('export function renderSvgChart'), 'charts.js must export renderSvgChart function');
+  assert.ok(chartsJs.includes('renderBarChart'), 'charts.js must support bar charts');
+  assert.ok(chartsJs.includes('renderRadarChart'), 'charts.js must support radar charts');
+
+  const renderJs = fs.readFileSync(path.join(ROOT, 'public', 'js', 'render.js'), 'utf8');
+  assert.ok(renderJs.includes("import { renderSvgChart } from './modules/charts.js';"), 'render.js must import renderSvgChart');
+  assert.ok(renderJs.includes('renderSvgChart(data.chart)'), 'render.js must invoke renderSvgChart on data.chart');
+
+  const exportersJs = fs.readFileSync(path.join(ROOT, 'public', 'js', 'exporters.js'), 'utf8');
+  assert.ok(exportersJs.includes("import { renderSvgChart } from './modules/charts.js';"), 'exporters.js must import renderSvgChart');
+  assert.ok(exportersJs.includes('pr-chart-wrap'), 'exporters.js must wrap chart in pr-chart-wrap for vector PDF');
+
+  const printCss = fs.readFileSync(path.join(ROOT, 'public', 'css', 'print.css'), 'utf8');
+  assert.ok(printCss.includes('.pr-chart-wrap'), 'print.css must define .pr-chart-wrap vector print rules');
+});
+
+test('whitelabel brand settings consistency: publisher tagline, author, confidentiality, and disclaimer integrated', () => {
+  const html = fs.readFileSync(path.join(ROOT, 'public', 'index.html'), 'utf8');
+  assert.ok(html.includes('id="publisher-tagline"'), 'index.html must have publisher-tagline input');
+  assert.ok(html.includes('id="publisher-author"'), 'index.html must have publisher-author input');
+  assert.ok(html.includes('id="publisher-confidentiality"'), 'index.html must have publisher-confidentiality input');
+  assert.ok(html.includes('id="publisher-disclaimer"'), 'index.html must have publisher-disclaimer textarea or input');
+
+  const settingsJs = fs.readFileSync(path.join(ROOT, 'server', 'settings.js'), 'utf8');
+  assert.ok(settingsJs.includes('publisherTagline'), 'settings.js must support publisherTagline');
+  assert.ok(settingsJs.includes('author'), 'settings.js must support author');
+  assert.ok(settingsJs.includes('confidentiality'), 'settings.js must support confidentiality');
+  assert.ok(settingsJs.includes('disclaimer'), 'settings.js must support disclaimer');
+
+  const exportersJs = fs.readFileSync(path.join(ROOT, 'public', 'js', 'exporters.js'), 'utf8');
+  assert.ok(exportersJs.includes('publisherTagline'), 'exporters.js must reflect publisherTagline in exports');
+  assert.ok(exportersJs.includes('confidentiality'), 'exporters.js must reflect confidentiality in exports');
+  assert.ok(exportersJs.includes('disclaimer'), 'exporters.js must reflect disclaimer in exports');
+});
+
+test('url direct analysis mode consistency: UI badge and pipeline optimization exist', () => {
+  const html = fs.readFileSync(path.join(ROOT, 'public', 'index.html'), 'utf8');
+  assert.ok(html.includes('id="url-mode-badge"'), 'index.html must include url-mode-badge');
+
+  const researchJs = fs.readFileSync(path.join(ROOT, 'public', 'js', 'modules', 'research.js'), 'utf8');
+  assert.ok(researchJs.includes('syncUrlBadge'), 'research.js must have syncUrlBadge for URL detection');
+
+  const pipelineJs = fs.readFileSync(path.join(ROOT, 'server', 'pipeline.js'), 'utf8');
+  assert.ok(pipelineJs.includes('特定URLダイレクト分析モード'), 'pipeline.js must support URL direct analysis mode in query planning');
+});
+
+

@@ -67,7 +67,11 @@
           <div class="search-main-box">
             <div class="search-input-wrap">
               <span class="search-icon-decor" data-icon="search" aria-hidden="true"></span>
-              <textarea id="theme-input" name="theme" rows="2" maxlength="300" placeholder="何について調べますか？（例: 個人開発ツールのマネタイズ事例と価格設定、生成AIの業務活用...）" required></textarea>
+              <textarea id="theme-input" name="theme" rows="2" maxlength="300" placeholder="何について調べますか？（例: 個人開発ツールのマネタイズ事例と価格設定、生成AIの業務活用...、または特定URL）" required></textarea>
+              <div id="url-mode-badge" class="url-mode-badge" style="display: none;">
+                <span data-icon="sparkles"></span>
+                <span>🌐 Webサイト・特定URLダイレクト分析モード（対象サイトの競合・特徴・評判を徹底解剖）</span>
+              </div>
             </div>
             
             <div class="search-bottom-bar">
@@ -540,7 +544,7 @@
     </main>
 
     <footer class="footer">
-      <span id="footer-version">Research Studio v1.3.0</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span>
+      <span id="footer-version">Research Studio v1.4.0</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span>
     </footer>
   </div>
 
@@ -549,7 +553,7 @@
     <div class="modal-backdrop" data-close></div>
     <div class="modal-card glass">
       <header class="modal-head">
-        <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v1.3.0</small></h2>
+        <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v1.4.0</small></h2>
         <div style="display: flex; gap: 8px; align-items: center; margin-left: auto;">
           <button class="btn btn-ghost btn-sm" type="button" id="btn-open-usage-from-settings" title="現在のAPI利用料・クォータを確認"><span data-icon="chart"></span><span class="label">利用状況を見る</span></button>
           <button class="btn btn-ghost btn-icon" type="button" data-close aria-label="閉じる"><span data-icon="x"></span></button>
@@ -597,13 +601,45 @@
         </div>
 
         <div class="setting-block">
-          <div class="setting-title"><strong>動作 &amp; レポート</strong></div>
+          <div class="setting-title"><strong>🏢 ブランド・ホワイトラベル設定（PDF / Excel）</strong></div>
+          <p style="font-size: 11.5px; color: var(--text-3); margin: 0 0 10px;">レポート表紙やPDF・Excelのヘッダー・フッターに表示される組織名や機密区分をカスタマイズできます。</p>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <div>
+              <label class="field-label sm" for="publisher">発行組織名（社名/屋号）</label>
+              <input class="input" id="publisher" maxlength="60" placeholder="Research Studio" />
+            </div>
+            <div>
+              <label class="field-label sm" for="publisher-author">作成者・担当者名</label>
+              <input class="input" id="publisher-author" maxlength="60" placeholder="例: 戦略リサーチチーム" />
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px;">
+            <div>
+              <label class="field-label sm" for="publisher-tagline">レポート種別・タグライン</label>
+              <input class="input" id="publisher-tagline" maxlength="80" placeholder="RESEARCH &amp; INTELLIGENCE REPORT" />
+            </div>
+            <div>
+              <label class="field-label sm" for="publisher-confidentiality">機密区分（透かし・バッジ）</label>
+              <select class="input" id="publisher-confidentiality">
+                <option value="CONFIDENTIAL">CONFIDENTIAL（社外秘）</option>
+                <option value="INTERNAL">INTERNAL ONLY（社内限定）</option>
+                <option value="PUBLIC">PUBLIC（一般公開）</option>
+                <option value="NONE">表示なし</option>
+              </select>
+            </div>
+          </div>
+          <div style="margin-top: 8px;">
+            <label class="field-label sm" for="publisher-disclaimer">免責事項（レポート末尾に記載）</label>
+            <input class="input" id="publisher-disclaimer" maxlength="150" placeholder="本レポートはAIによる自動リサーチ集計結果であり、意思決定の参考情報としてご活用ください。" />
+          </div>
+        </div>
+
+        <div class="setting-block">
+          <div class="setting-title"><strong>動作モード</strong></div>
           <label class="switch-row" for="mode-mock">
             <span><strong>DEMOモードを強制</strong><small>APIを使わずモックデータで動作（UI確認・デモ用）</small></span>
             <input type="checkbox" id="mode-mock" class="switch" />
           </label>
-          <label class="field-label sm" for="publisher">発行者名（PDF表紙に表示）</label>
-          <input class="input" id="publisher" maxlength="60" placeholder="Research Studio" />
         </div>
 
         <div class="test-result" id="test-result" hidden></div>

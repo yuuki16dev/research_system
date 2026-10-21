@@ -612,3 +612,29 @@ table.pr-table {
   font-size: 7.8pt;
   color: var(--c-ink-2);
 }
+
+/* 商用PDF用チャートスタイル */
+.pr-chart-wrap {
+  margin: 6mm 0;
+  padding: 4mm 5mm;
+  border-radius: 2.5mm;
+  background: #f8fafc;
+  border: .3mm solid var(--c-line);
+  break-inside: avoid;
+  page-break-inside: avoid;
+  box-sizing: border-box;
+}
+
+.pr-chart-wrap .chart-card-title {
+  font-size: 9.5pt;
+  font-weight: 800;
+  color: var(--c-ink);
+  margin-bottom: 1.5mm;
+}
+
+.pr-chart-wrap .chart-card-desc {
+  font-size: 7.5pt;
+  color: var(--c-ink-3);
+  margin-bottom: 3mm;
+}
+
