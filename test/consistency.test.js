@@ -342,6 +342,41 @@ test('client-side ES module imports and exports consistency: all imported symbol
   }
 });
 
+test('pdf print margin consistency: print.css and pdf.js must enforce generous 18mm margin', () => {
+  const printCss = fs.readFileSync(path.join(ROOT, 'public', 'css', 'print.css'), 'utf8');
+  const pdfJs = fs.readFileSync(path.join(ROOT, 'server', 'pdf.js'), 'utf8');
 
+  assert.ok(
+    printCss.includes('margin: 16mm 18mm 16mm 18mm;'),
+    'public/css/print.css must enforce generous 18mm horizontal margins to prevent claustrophobic layout'
+  );
+  assert.ok(
+    pdfJs.includes('margin: 16mm 18mm 16mm 18mm;'),
+    'server/pdf.js must enforce generous 18mm horizontal margins in @page rule'
+  );
+});
 
+test('excel export consistency: exportExcel must configure dashboard sheets, auto col widths, and hyperlinks', () => {
+  const exportersJs = fs.readFileSync(path.join(ROOT, 'public', 'js', 'exporters.js'), 'utf8');
 
+  assert.ok(
+    exportersJs.includes('calculateColWidths'),
+    'exporters.js must include calculateColWidths helper for dynamic column width fitting'
+  );
+  assert.ok(
+    exportersJs.includes('enhanceWorksheet'),
+    'exporters.js must include enhanceWorksheet for wrapText, alignment and hyperlinks'
+  );
+  assert.ok(
+    exportersJs.includes("'エグゼクティブサマリー'"),
+    'exporters.js must include Executive Summary dashboard sheet as primary tab'
+  );
+  assert.ok(
+    exportersJs.includes("wsSummary['!cols']"),
+    'exporters.js must specify !cols on summary sheet'
+  );
+  assert.ok(
+    exportersJs.includes('Target: cell.v'),
+    'exporters.js must attach hyperlinked Target on source URL cells'
+  );
+});

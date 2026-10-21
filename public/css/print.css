@@ -5,7 +5,7 @@
 
 @page {
   size: A4 portrait;
-  margin: 12mm 12mm 14mm 12mm;
+  margin: 16mm 18mm 16mm 18mm;
 
   @top-left {
     content: 'Research Studio';
@@ -63,8 +63,8 @@
   }
 
   body {
-    font-size: 9.5pt;
-    line-height: 1.68;
+    font-size: 9.2pt;
+    line-height: 1.76;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
@@ -208,18 +208,19 @@
   word-break: break-word;
 }
 .pr p {
-  margin: 0 0 2.5mm;
+  margin: 0 0 3.2mm;
   text-align: justify;
   white-space: pre-line;
   word-break: break-word;
   overflow-wrap: break-word;
+  line-height: 1.76;
 }
 .pr-summary {
-  font-size: 9.6pt;
+  font-size: 9.2pt;
   line-height: 1.82;
-  padding: 4mm 5mm;
+  padding: 4.8mm 5.8mm;
   background: var(--c-soft);
-  border-radius: 2.5mm;
+  border-radius: 2.8mm;
   border-left: 1.2mm solid var(--c-primary);
   white-space: pre-line;
   word-break: break-word;
@@ -233,23 +234,23 @@
 .pr-metrics {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(36mm, 1fr));
-  gap: 2.6mm;
-  margin: 4.5mm 0;
+  gap: 3.2mm;
+  margin: 5mm 0;
   break-inside: avoid;
   page-break-inside: avoid;
   box-sizing: border-box;
 }
 .pr-metric {
-  padding: 2.8mm 3.2mm;
-  border-radius: 2.2mm;
+  padding: 3.2mm 3.8mm;
+  border-radius: 2.5mm;
   border: .3mm solid var(--c-line);
-  border-top: 1mm solid var(--c-primary);
+  border-top: 1.2mm solid var(--c-primary);
   min-width: 0;
   box-sizing: border-box;
 }
 .pr-metric small {
   display: block;
-  font-size: 7pt;
+  font-size: 7.2pt;
   color: var(--c-ink-2);
   font-weight: 700;
   white-space: nowrap;
@@ -261,7 +262,7 @@
   font-family: 'Outfit', 'Noto Sans JP', sans-serif;
   font-size: 13pt;
   font-weight: 800;
-  margin-top: 1mm;
+  margin-top: 1.2mm;
   color: var(--c-primary);
   line-height: 1.25;
   word-break: break-word;
@@ -269,9 +270,9 @@
 }
 .pr-metric span {
   display: block;
-  font-size: 6.5pt;
+  font-size: 6.8pt;
   color: var(--c-ink-3);
-  margin-top: 1mm;
+  margin-top: 1.2mm;
   line-height: 1.45;
   word-break: break-word;
 }
@@ -279,7 +280,7 @@
 .pr-points { list-style: none; margin: 0; padding: 0; counter-reset: kp; }
 .pr-points li {
   position: relative;
-  padding: 2.2mm 0 2.2mm 9mm;
+  padding: 2.6mm 0 2.6mm 9.5mm;
   border-bottom: .25mm dashed var(--c-line);
   counter-increment: kp;
   break-inside: avoid;
@@ -298,47 +299,48 @@
   color: var(--c-primary);
 }
 
-.pr-table-cap { font-size: 8.5pt; font-weight: 700; color: var(--c-ink-2); margin-bottom: 2mm; }
+.pr-table-cap { font-size: 8.5pt; font-weight: 700; color: var(--c-ink-2); margin-bottom: 2.5mm; }
 table.pr-table {
   width: 100% !important;
   max-width: 100% !important;
   table-layout: fixed !important;
   border-collapse: collapse;
-  font-size: 7.4pt;
-  line-height: 1.45;
+  font-size: 7.6pt;
+  line-height: 1.55;
   word-break: break-word;
   overflow-wrap: anywhere;
   box-sizing: border-box;
-  margin-bottom: 4mm;
+  margin-bottom: 5mm;
 }
 .pr-table thead { display: table-header-group; }
 .pr-table th {
-  background: #1a1f3d;
+  background: #1e293b;
   color: #fff;
   text-align: left;
-  padding: 1.8mm 2mm;
+  padding: 2.6mm 3.2mm;
   font-weight: 700;
   word-break: break-word;
   overflow-wrap: anywhere;
-  font-size: 7.4pt;
+  font-size: 7.8pt;
   vertical-align: top;
+  border-bottom: .4mm solid #0f172a;
 }
-.pr-table th:first-child { border-top-left-radius: 1.5mm; }
-.pr-table th:last-child { border-top-right-radius: 1.5mm; }
+.pr-table th:first-child { border-top-left-radius: 2mm; }
+.pr-table th:last-child { border-top-right-radius: 2mm; }
 .pr-table td {
-  padding: 1.8mm 2mm;
-  border-bottom: .25mm solid var(--c-line);
+  padding: 2.6mm 3.2mm;
+  border-bottom: .25mm solid #e2e8f0;
   vertical-align: top;
   word-break: break-word;
   overflow-wrap: anywhere;
   hyphens: auto;
-  font-size: 7.2pt;
+  font-size: 7.5pt;
 }
 .pr-table tr {
   break-inside: avoid;
   page-break-inside: avoid;
 }
-.pr-table tbody tr:nth-child(even) td { background: var(--c-soft); }
+.pr-table tbody tr:nth-child(even) td { background: #f8fafc; }
 .pr-table td:first-child { font-weight: 700; color: var(--c-ink); }
 
 .pr-bullets { margin: 0 0 2.5mm; padding-left: 4.5mm; }

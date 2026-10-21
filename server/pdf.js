@@ -87,7 +87,7 @@ async function generatePdfFromHtml(htmlContent) {
     ${printCss}
     @page {
       size: A4 portrait;
-      margin: 12mm 12mm 14mm 12mm;
+      margin: 16mm 18mm 16mm 18mm;
     }
     @page :first {
       margin: 0 !important;

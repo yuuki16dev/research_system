@@ -701,7 +701,77 @@ export function buildMarkdown(data) {
 }
 
 /**
- * 3. Excel (.xlsx) 出力 (SheetJS)
+ * Excel用の列幅自動計算ヘルパー
+ * 全角文字を幅2、半角文字を幅1として計算し、適切な列幅オブジェクト配列を生成
+ */
+function calculateColWidths(aoa, colCaps = {}) {
+  const colWidths = [];
+  aoa.forEach((row) => {
+    if (!Array.isArray(row)) return;
+    row.forEach((val, c) => {
+      if (val === null || val === undefined) return;
+      const str = String(val);
+      const lines = str.split(/\r?\n/);
+      let maxLen = 0;
+      lines.forEach((line) => {
+        let len = 0;
+        for (let i = 0; i < line.length; i++) {
+          const code = line.charCodeAt(i);
+          len += (code >= 0x00 && code <= 0x7e) || (code >= 0xff61 && code <= 0xff9f) ? 1 : 2;
+        }
+        if (len > maxLen) maxLen = len;
+      });
+      const current = colWidths[c] || 0;
+      colWidths[c] = Math.max(current, maxLen);
+    });
+  });
+
+  return colWidths.map((w, idx) => {
+    const minW = 10;
+    const maxW = colCaps[idx] || 65;
+    const calculated = Math.min(Math.max(w + 3, minW), maxW);
+    return { wch: calculated };
+  });
+}
+
+/**
+ * ワークシートのセル属性・折り返し・ハイパーリンク拡張
+ */
+function enhanceWorksheet(ws, { wrapCols = [], centerCols = [], rightCols = [], linkCols = {} } = {}) {
+  if (!ws || !ws['!ref'] || !window.XLSX) return;
+  const XLSX = window.XLSX;
+  const range = XLSX.utils.decode_range(ws['!ref']);
+
+  for (let R = range.s.r; R <= range.e.r; ++R) {
+    for (let C = range.s.c; C <= range.e.c; ++C) {
+      const cellRef = XLSX.utils.encode_cell({ r: R, c: C });
+      const cell = ws[cellRef];
+      if (!cell) continue;
+
+      if (!cell.s) cell.s = {};
+
+      // 長文セルの折り返しと上揃え
+      if (wrapCols.includes(C) || wrapCols.includes(-1)) {
+        cell.s.alignment = Object.assign(cell.s.alignment || {}, { wrapText: true, vertical: 'top' });
+      }
+
+      // 水平配置
+      if (centerCols.includes(C)) {
+        cell.s.alignment = Object.assign(cell.s.alignment || {}, { horizontal: 'center' });
+      } else if (rightCols.includes(C)) {
+        cell.s.alignment = Object.assign(cell.s.alignment || {}, { horizontal: 'right' });
+      }
+
+      // URLハイパーリンクの付与
+      if (linkCols[C] && cell.v && typeof cell.v === 'string' && /^https?:\/\//i.test(cell.v)) {
+        cell.l = { Target: cell.v, Tooltip: 'ブラウザで開く: ' + cell.v };
+      }
+    }
+  }
+}
+
+/**
+ * 3. Excel (.xlsx) 出力 (SheetJS) — プロフェッショナル・ダッシュボード帳票
  */
 export function exportExcel(data) {
   if (!window.XLSX) {
@@ -711,90 +781,153 @@ export function exportExcel(data) {
   const XLSX = window.XLSX;
   const wb = XLSX.utils.book_new();
 
-  // Sheet 1: 比較マトリクス表
-  if (data.table && data.table.columns && data.table.rows) {
-    const tableAoa = [data.table.columns, ...data.table.rows];
-    const wsTable = XLSX.utils.aoa_to_sheet(tableAoa);
-    XLSX.utils.book_append_sheet(wb, wsTable, '比較マトリクス');
-  }
-
-  // Sheet 2: 要約 & 示唆
+  // ----------------------------------------------------
+  // Sheet 1: 📊 エグゼクティブサマリー (Overview Dashboard)
+  // ----------------------------------------------------
   const summaryAoa = [
-    ['項目', '内容'],
-    ['タイトル', data.title],
-    ['サブタイトル', data.subtitle || ''],
-    ['リサーチテーマ', data.theme],
-    ['調査範囲', data.scopeLabel],
-    ['調査の深さ', data.depthLabel],
+    ['◆ RESEARCH STUDIO — エグゼクティブ・リサーチレポート', ''],
+    ['', ''],
+    ['リサーチテーマ', data.title || data.theme || '（無題）'],
     ['作成日時', fmtDate(data.createdAt)],
-    ['サマリー', data.summary],
+    ['調査スタイル', data.styleLabel || data.style || '標準ビジネス'],
+    ['調査スコープ / 深度', `${data.scopeLabel || data.scope || 'Web全体'} / ${data.depthLabel || data.depth || '通常'}`],
+    ['参照ソース件数', `${data.sources ? data.sources.length : 0} 件`],
+    ['', ''],
+    ['【エグゼクティブ要約】', ''],
+    ['サマリー本文', data.summary || '（サマリーなし）'],
+    ['', ''],
   ];
 
-  if (data.keyPoints && data.keyPoints.length) {
-    data.keyPoints.forEach((kp, idx) => {
-      summaryAoa.push([`ハイライト ${idx + 1}`, kp]);
-    });
-  }
-
+  // 主要数値指標 (KPI)
   if (data.metrics && data.metrics.length) {
+    summaryAoa.push(['【主要指標・重要数値 (KPI)】', '', '']);
+    summaryAoa.push(['指標項目', '数値・データ', '示唆・注記']);
     data.metrics.forEach((m) => {
-      summaryAoa.push([`指標: ${m.label}`, `${m.value} (${m.note || ''})`]);
+      summaryAoa.push([m.label || '', m.value || '', m.note || '']);
     });
+    summaryAoa.push(['', '', '']);
   }
 
+  // 重要ハイライト
+  if (data.keyPoints && data.keyPoints.length) {
+    summaryAoa.push(['【主要ハイライト・キーポイント】', '']);
+    data.keyPoints.forEach((kp, idx) => {
+      summaryAoa.push([`Point ${idx + 1}`, kp]);
+    });
+    summaryAoa.push(['', '']);
+  }
+
+  // 戦略提言 (Insights)
   if (data.insights && data.insights.length) {
-    data.insights.forEach((ins, idx) => {
-      summaryAoa.push([`提言 ${idx + 1} [${ins.priority || '中'}]`, `${ins.title} - ${ins.body}`]);
+    summaryAoa.push(['【戦略的インサイト・提言】', '', '']);
+    summaryAoa.push(['優先度', '提言タイトル', '詳細内容']);
+    data.insights.forEach((ins) => {
+      summaryAoa.push([`[${ins.priority || '中'}]`, ins.title || '', ins.body || '']);
     });
   }
 
   const wsSummary = XLSX.utils.aoa_to_sheet(summaryAoa);
+  // 列幅を最適化（A列: 項目22文字、B列: 内容65文字、C列: 補足45文字）
+  wsSummary['!cols'] = [
+    { wch: 24 },
+    { wch: 70 },
+    { wch: 48 },
+  ];
+  // 長文列（B列・C列）の自動折り返し
+  enhanceWorksheet(wsSummary, { wrapCols: [1, 2] });
   XLSX.utils.book_append_sheet(wb, wsSummary, 'エグゼクティブサマリー');
 
-  // Sheet 3: 収集ソース一覧
-  if (data.sources && data.sources.length) {
-    const sourcesAoa = [
-      ['No.', 'タイトル', 'ドメイン', '信頼度スコア', 'URL', '抜粋'],
-      ...data.sources.map((s) => [s.index, s.title, s.domain, s.score, s.url, s.snippet]),
+  // ----------------------------------------------------
+  // Sheet 2: ⚖️ 比較マトリクス表 (Comparison Matrix)
+  // ----------------------------------------------------
+  if (data.table && data.table.columns && data.table.rows && data.table.rows.length) {
+    const tableAoa = [
+      ['◆ 競合・要素比較マトリクス', ...Array(Math.max(0, data.table.columns.length - 1)).fill('')],
+      ['', ...Array(Math.max(0, data.table.columns.length - 1)).fill('')],
+      data.table.columns,
+      ...data.table.rows,
     ];
-    const wsSources = XLSX.utils.aoa_to_sheet(sourcesAoa);
-    XLSX.utils.book_append_sheet(wb, wsSources, '収集ソース一覧');
+    const wsTable = XLSX.utils.aoa_to_sheet(tableAoa);
+    wsTable['!cols'] = calculateColWidths(tableAoa, { 0: 26 });
+    // 全データセルを自動折り返し
+    enhanceWorksheet(wsTable, { wrapCols: [-1] });
+    XLSX.utils.book_append_sheet(wb, wsTable, '比較マトリクス');
   }
 
-  // Sheet 4: 深層推論・シナリオ・ロードマップ（ディープリサーチ時）
+  // ----------------------------------------------------
+  // Sheet 3: 🔍 深層推論・シナリオ (Deep Analysis)
+  // ----------------------------------------------------
   if (data.deepThinking) {
     const dt = data.deepThinking;
     const deepAoa = [
-      ['カテゴリ', '項目 / テーマ', '詳細内容 / 統合判断', '備考・要因'],
+      ['◆ ディープリサーチ深層推論・将来シナリオ予測', '', '', ''],
+      ['', '', '', ''],
+      ['分析カテゴリ', '項目 / 観点', '詳細内容・統合判断', '核心要因・備考'],
     ];
+
     if (dt.analystNote) {
-      deepAoa.push(['アナリスト思考仮説', '本質課題と前提検証', dt.analystNote, '']);
+      deepAoa.push(['アナリスト仮説', '本質課題と前提検証', dt.analystNote, '前提の妥当性精査']);
     }
+
     if (dt.dynamicsAndRootCauses && dt.dynamicsAndRootCauses.length) {
       dt.dynamicsAndRootCauses.forEach((d) => {
-        deepAoa.push(['構造的因果力学', d.topic, d.mechanism, `核心要因: ${d.keyFactor || '-'}`]);
+        deepAoa.push(['構造的因果力学', d.topic || '', d.mechanism || '', d.keyFactor || '-']);
       });
     }
+
     if (dt.tradeoffs && dt.tradeoffs.length) {
       dt.tradeoffs.forEach((t) => {
-        deepAoa.push(['多角トレードオフ', t.axis, `推進: ${t.proSide} / 慎重: ${t.conSide}`, `統合判断: ${t.synthesis || '-'}`]);
+        deepAoa.push(['多角トレードオフ', t.axis || '', `推進: ${t.proSide || ''} / 慎重: ${t.conSide || ''}`, `統合判断: ${t.synthesis || '-'}`]);
       });
     }
+
     if (dt.scenarios) {
-      deepAoa.push(['将来シナリオ予測', 'メイン予測 (60%)', dt.scenarios.mainScenario, '']);
-      deepAoa.push(['将来シナリオ予測', '加速/上振れ (25%)', dt.scenarios.upsideScenario, '']);
-      deepAoa.push(['将来シナリオ予測', '停滞/下振れ (15%)', dt.scenarios.downsideScenario, '']);
+      deepAoa.push(['将来シナリオ予測', 'メイン予測 (60%)', dt.scenarios.mainScenario || '', '確率 60%']);
+      deepAoa.push(['将来シナリオ予測', '加速/上振れ (25%)', dt.scenarios.upsideScenario || '', '確率 25%']);
+      deepAoa.push(['将来シナリオ予測', '停滞/下振れ (15%)', dt.scenarios.downsideScenario || '', '確率 15%']);
       if (dt.scenarios.criticalTriggers && dt.scenarios.criticalTriggers.length) {
-        deepAoa.push(['将来シナリオ予測', '分岐トリガー', dt.scenarios.criticalTriggers.join(' / '), '']);
+        deepAoa.push(['将来シナリオ予測', '分岐トリガー', dt.scenarios.criticalTriggers.join(' / '), '監視指標']);
       }
     }
+
     if (dt.roadmap && dt.roadmap.length) {
       dt.roadmap.forEach((r) => {
-        deepAoa.push(['実行戦略ロードマップ', r.phase, (r.actions || []).join(' / '), `重点: ${r.focus || '-'}`]);
+        deepAoa.push(['実行戦略ロードマップ', r.phase || '', (r.actions || []).join(' / '), `重点: ${r.focus || '-'}`]);
       });
     }
+
     const wsDeep = XLSX.utils.aoa_to_sheet(deepAoa);
+    wsDeep['!cols'] = calculateColWidths(deepAoa, { 0: 20, 1: 26, 2: 70, 3: 26 });
+    enhanceWorksheet(wsDeep, { wrapCols: [2, 3] });
     XLSX.utils.book_append_sheet(wb, wsDeep, '深層推論 & シナリオ');
+  }
+
+  // ----------------------------------------------------
+  // Sheet 4: 🔗 収集ソース一覧 (Sources & Fact-checking)
+  // ----------------------------------------------------
+  if (data.sources && data.sources.length) {
+    const sourcesAoa = [
+      ['◆ 収集・ファクトチェック参照ソース一覧', '', '', '', '', ''],
+      ['', '', '', '', '', ''],
+      ['No.', 'タイトル', 'ドメイン', '信頼度スコア', '参照URL (クリックで開く)', '引用・要約抜粋'],
+      ...data.sources.map((s) => [s.index, s.title, s.domain, s.score, s.url, s.snippet]),
+    ];
+    const wsSources = XLSX.utils.aoa_to_sheet(sourcesAoa);
+    wsSources['!cols'] = [
+      { wch: 6 },   // No.
+      { wch: 36 },  // タイトル
+      { wch: 20 },  // ドメイン
+      { wch: 14 },  // 信頼度スコア
+      { wch: 48 },  // 参照URL
+      { wch: 65 },  // 要約抜粋
+    ];
+    // 列0, 3を中央揃え、列1, 5を折り返し、列4 (URL) をクリック可能ハイパーリンク化
+    enhanceWorksheet(wsSources, {
+      centerCols: [0, 3],
+      wrapCols: [1, 5],
+      linkCols: { 4: true },
+    });
+    XLSX.utils.book_append_sheet(wb, wsSources, '収集ソース一覧');
   }
 
   const filename = `${safeFilename(data.title || data.theme)}.xlsx`;
