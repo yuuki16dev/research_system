@@ -211,8 +211,6 @@ export function bindFormControls() {
   const periodRadios = $$('input[name="period"]');
   const customPeriodBox = $('#custom-period-box');
   const customPeriodText = $('#custom-period-text');
-  const cpStartSelect = $('#custom-period-start');
-  const cpEndSelect = $('#custom-period-end');
 
   periodRadios.forEach((radio) => {
     radio.addEventListener('change', () => {

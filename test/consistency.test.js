@@ -204,6 +204,99 @@ test('style selector and custom style field consistency: DOM elements and CSS ru
   assert.ok(isHiddenMatch[1].includes('opacity: 0'), '.search-chips-row.is-hidden must have opacity: 0');
 });
 
+test('client-side ES modules syntax integrity: all public/js files must compile with node --check without SyntaxError or duplicate declarations', () => {
+  const { execFileSync } = require('child_process');
+  const jsDir = path.join(ROOT, 'public', 'js');
+  const findJsFiles = (dir) => {
+    let results = [];
+    for (const f of fs.readdirSync(dir)) {
+      const full = path.join(dir, f);
+      if (fs.statSync(full).isDirectory()) results.push(...findJsFiles(full));
+      else if (full.endsWith('.js')) results.push(full);
+    }
+    return results;
+  };
+
+  const jsFiles = findJsFiles(jsDir);
+  assert.ok(jsFiles.length >= 10, 'Must check all client-side JavaScript modules');
+
+  for (const file of jsFiles) {
+    const code = fs.readFileSync(file, 'utf8');
+    const rel = path.relative(ROOT, file);
+
+    try {
+      execFileSync(process.execPath, ['--input-type=module', '--check'], {
+        input: code,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+    } catch (err) {
+      const stderr = err.stderr ? err.stderr.toString() : err.message;
+      assert.fail(`Client module ${rel} failed ES module syntax check:\n${stderr}`);
+    }
+  }
+});
+
+test('client-side ES module imports and exports consistency: all imported symbols must exist in target modules', () => {
+  const jsDir = path.join(ROOT, 'public', 'js');
+  const findJsFiles = (dir) => {
+    let results = [];
+    for (const f of fs.readdirSync(dir)) {
+      const full = path.join(dir, f);
+      if (fs.statSync(full).isDirectory()) results.push(...findJsFiles(full));
+      else if (full.endsWith('.js')) results.push(full);
+    }
+    return results;
+  };
+
+  const files = findJsFiles(jsDir);
+  const fileExports = {};
+
+  for (const f of files) {
+    const normPath = path.relative(ROOT, f).replace(/\\/g, '/');
+    const code = fs.readFileSync(f, 'utf8');
+    const exports = new Set();
+
+    for (const m of code.matchAll(/export\s+(?:async\s+)?function\s+([a-zA-Z0-9_$]+)/g)) {
+      exports.add(m[1]);
+    }
+    for (const m of code.matchAll(/export\s+(?:const|let|var)\s+([a-zA-Z0-9_$]+)/g)) {
+      exports.add(m[1]);
+    }
+    for (const m of code.matchAll(/export\s*\{([^}]+)\}/g)) {
+      m[1].split(',').forEach((item) => {
+        const parts = item.trim().split(/\s+as\s+/);
+        const name = parts[parts.length - 1].trim();
+        if (name) exports.add(name);
+      });
+    }
+    if (code.includes('export default')) {
+      exports.add('default');
+    }
+    fileExports[normPath] = exports;
+  }
+
+  for (const f of files) {
+    const normPath = path.relative(ROOT, f).replace(/\\/g, '/');
+    const code = fs.readFileSync(f, 'utf8');
+
+    for (const m of code.matchAll(/import\s*\{([^}]+)\}\s*from\s*['"]([^'"]+)['"]/g)) {
+      const importedNames = m[1].split(',').map((s) => s.trim().split(/\s+as\s+/)[0].trim()).filter(Boolean);
+      const relPath = m[2];
+      const dir = path.dirname(normPath);
+      let target = path.posix.normalize(path.posix.join(dir, relPath));
+      if (!target.endsWith('.js')) target += '.js';
+
+      assert.ok(fileExports[target], `Module ${target} imported by ${normPath} must exist`);
+      for (const name of importedNames) {
+        assert.ok(
+          fileExports[target].has(name),
+          `Symbol '${name}' imported by ${normPath} from ${relPath} must be exported by ${target}`
+        );
+      }
+    }
+  }
+});
+
 
 
 

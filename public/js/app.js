@@ -21,36 +21,50 @@ import { bindShutdownHandlers, isAppShuttingDown } from './modules/shutdown.js';
 // ==========================================================================
 // アプリケーション初期化
 // ==========================================================================
-document.addEventListener('DOMContentLoaded', async () => {
-  // 1. UI基盤 & テーマの初期化
-  hydrateIcons();
-  initModals();
-  initTheme();
+async function initApp() {
+  try {
+    // 1. UI基盤 & テーマの初期化
+    hydrateIcons();
+    initModals();
+    initTheme();
 
-  // 2. 各機能モジュールのイベントバインド
-  bindFormControls();
-  bindExportActions(() => openHistoryDrawer());
-  bindPdfPreviewModal();
-  bindCompareModal();
-  bindPromptTemplateModal();
-  bindDeepDiveDrawer();
-  bindSettingsModal();
-  bindUsageModal();
-  bindMobileModal();
-  bindHistoryDrawer((data) => finishSuccess(data));
-  bindShutdownHandlers();
+    // 2. 各機能モジュールのイベントバインド
+    bindFormControls();
+    bindExportActions(() => openHistoryDrawer());
+    bindPdfPreviewModal();
+    bindCompareModal();
+    bindPromptTemplateModal();
+    bindDeepDiveDrawer();
+    bindSettingsModal();
+    bindUsageModal();
+    bindMobileModal();
+    bindHistoryDrawer((data) => finishSuccess(data));
+    bindShutdownHandlers();
 
-  // 3. リサーチ実行中・深掘り実行中の誤終了ガード (beforeunload)
-  window.addEventListener('beforeunload', (e) => {
-    if (isAppShuttingDown()) return;
-    if (isResearchActive() || deepDiveState.isQuerying) {
-      e.preventDefault();
-      e.returnValue = ''; // 各ブラウザの標準仕様に従い、離脱確認ダイアログを表示
-      return '';
-    }
-  });
+    // 3. リサーチ実行中・深掘り実行中の誤終了ガード (beforeunload)
+    window.addEventListener('beforeunload', (e) => {
+      if (isAppShuttingDown()) return;
+      if (isResearchActive() || deepDiveState.isQuerying) {
+        e.preventDefault();
+        e.returnValue = ''; // 各ブラウザの標準仕様に従い、離脱確認ダイアログを表示
+        return '';
+      }
+    });
 
-  // 4. アプリ初期情報の取得 & 直近履歴の読み込み
-  await refreshAppInfo();
-  await loadRecentHistory();
-});
+    // 4. アプリ初期情報の取得 & 直近履歴の読み込み
+    await refreshAppInfo();
+    await loadRecentHistory();
+  } catch (err) {
+    console.error('[Research Studio] 初期化エラー:', err);
+    const txt = document.getElementById('status-text');
+    if (txt) txt.textContent = '初期化エラー';
+    const pill = document.getElementById('status-pill');
+    if (pill) pill.className = 'status-pill offline';
+  }
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initApp);
+} else {
+  initApp();
+}
