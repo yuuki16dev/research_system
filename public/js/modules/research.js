@@ -80,6 +80,8 @@ export function bindFormControls() {
   }
 
   // 出力スタイル・方向性セレクター（案A）
+  const styleSelectorWrap = $('#style-selector-wrap');
+  const controlPanel = $('#control-panel');
   const btnStyleSelector = $('#btn-style-selector');
   const styleDropdownMenu = $('#style-dropdown-menu');
   const styleCurrentIcon = $('#style-current-icon');
@@ -153,7 +155,7 @@ export function bindFormControls() {
       const rect = btnStyleSelector.getBoundingClientRect();
       const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
       const spaceBelow = viewportHeight - rect.bottom;
-      const estimatedMenuHeight = 290;
+      const estimatedMenuHeight = 310;
 
       if (spaceBelow < estimatedMenuHeight && rect.top > estimatedMenuHeight) {
         styleDropdownMenu.classList.add('drop-up');
@@ -161,6 +163,10 @@ export function bindFormControls() {
         styleDropdownMenu.classList.remove('drop-up');
       }
     }
+
+    // ドロップダウン展開時は親要素を最上位スタッキングレイヤーに昇格（履歴カードなどの被りを完全防止）
+    if (styleSelectorWrap) styleSelectorWrap.classList.add('is-open');
+    if (controlPanel) controlPanel.classList.add('has-open-dropdown');
 
     styleDropdownMenu.hidden = false;
     if (btnStyleSelector) btnStyleSelector.setAttribute('aria-expanded', 'true');
@@ -170,6 +176,8 @@ export function bindFormControls() {
     if (!styleDropdownMenu) return;
     styleDropdownMenu.hidden = true;
     styleDropdownMenu.classList.remove('drop-up');
+    if (styleSelectorWrap) styleSelectorWrap.classList.remove('is-open');
+    if (controlPanel) controlPanel.classList.remove('has-open-dropdown');
     if (btnStyleSelector) btnStyleSelector.setAttribute('aria-expanded', 'false');
   }
 

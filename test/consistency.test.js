@@ -217,9 +217,22 @@ test('style selector and custom style field consistency: DOM elements and CSS ru
 
   assert.ok(css.includes('.style-dropdown-menu.drop-up'), 'styles.css must support .style-dropdown-menu.drop-up for smart flip-up');
   
+  // 5. スタッキングコンテキスト（重なり順序）アサーション：一時的プルダウンが過去の履歴カードより必ず1番上に表示されること
+  const heroCardMatch = css.match(/\.search-hero-card\s*\{([^}]+)\}/);
+  assert.ok(heroCardMatch, '.search-hero-card rule must exist');
+  assert.ok(heroCardMatch[1].includes('z-index:'), '.search-hero-card must have explicit z-index for stacking context elevation');
+  
+  assert.ok(css.includes('.search-hero-card.has-open-dropdown') || css.includes('.search-hero-card:has'), 'search card must elevate z-index when dropdown is open');
+  assert.ok(css.includes('.style-selector-wrap.is-open') || css.includes('.style-selector-wrap:has'), 'style selector must elevate z-index when open');
+
+  const recentCardMatch = css.match(/\.recent-card\s*\{([^}]+)\}/);
+  assert.ok(recentCardMatch, '.recent-card rule must exist');
+  assert.ok(recentCardMatch[1].includes('z-index: 1'), '.recent-card must have lower z-index than search dropdown overlays');
+
   const researchJs = fs.readFileSync(path.join(ROOT, 'public', 'js', 'modules', 'research.js'), 'utf8');
   assert.ok(researchJs.includes('getBoundingClientRect'), 'research.js must check viewport position with getBoundingClientRect');
   assert.ok(researchJs.includes('drop-up'), 'research.js must dynamically toggle drop-up class on space shortage');
+  assert.ok(researchJs.includes('has-open-dropdown'), 'research.js must toggle has-open-dropdown on container for stacking elevation');
 });
 
 test('client-side ES modules syntax integrity: all public/js files must compile with node --check without SyntaxError or duplicate declarations', () => {

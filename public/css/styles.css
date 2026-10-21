@@ -710,12 +710,19 @@ svg.i {
 
 .search-hero-card {
   position: relative;
+  z-index: 50; /* 後続の履歴セクションより確実に前面のスタッキングコンテキストを形成 */
   padding: clamp(20px, 3.5vw, 36px) !important;
   border-radius: 20px !important;
   background: var(--surface) !important;
   border: 1.5px solid var(--border-strong) !important;
   box-shadow: 0 20px 48px -12px rgba(0, 0, 0, 0.45) !important;
   transition: border-color 0.25s, box-shadow 0.25s;
+}
+
+/* プルダウンなどの一時的オーバーレイ展開時は最上位スタッキングレイヤーに昇格 */
+.search-hero-card:has(.style-dropdown-menu:not([hidden])),
+.search-hero-card.has-open-dropdown {
+  z-index: 100 !important;
 }
 
 [data-theme='light'] .search-hero-card {
@@ -798,10 +805,15 @@ svg.i {
   flex-wrap: wrap;
 }
 
-/* 案A：出力スタイル・方向性セレクター */
 .style-selector-wrap {
   position: relative;
   display: inline-block;
+  z-index: 100;
+}
+
+.style-selector-wrap:has(.style-dropdown-menu:not([hidden])),
+.style-selector-wrap.is-open {
+  z-index: 200;
 }
 
 .btn-style-selector {
@@ -3295,6 +3307,8 @@ table.matrix {
 
 /* -------------------------------------------------------------------- home */
 .home {
+  position: relative;
+  z-index: 1; /* 検索フォームのポップオーバー（z-index: 50以上）より背面のスタッキングコンテキスト */
   margin-top: 36px;
 }
 
@@ -3435,12 +3449,14 @@ table.matrix {
   transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
   cursor: pointer;
   position: relative;
+  z-index: 1;
 }
 
 .recent-card:hover {
   transform: translateY(-2px);
   border-color: var(--primary);
   box-shadow: var(--shadow-md);
+  z-index: 2;
 }
 
 .recent-card-head {
