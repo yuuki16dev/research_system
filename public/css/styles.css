@@ -428,6 +428,8 @@ svg.i {
   background: var(--surface-recessed);
   border: 1px solid var(--border);
   color: var(--text-2);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .status-pill .dot {
@@ -2232,16 +2234,20 @@ select.input option {
 .export-bar {
   position: sticky;
   top: calc(14px + var(--topbar-h) + 8px);
-  z-index: 40;
+  z-index: 60; /* .toc より確実に前面 */
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   padding: 10px 14px;
   border-radius: var(--radius);
-  background: var(--topbar-bg);
+  background: #0f1629; /* 不透明な背景で背後文字透けを遮断 */
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
+}
+
+[data-theme='light'] .export-bar {
+  background: #ffffff;
 }
 
 .export-info {
@@ -6703,6 +6709,31 @@ body.dd-expanded {
     transition: padding-right 0.28s var(--ease);
   }
 
+  body.has-deepdive-split .status-pill {
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+  }
+
+  body.has-deepdive-split .topbar-actions {
+    gap: 6px !important;
+    flex-shrink: 0 !important;
+  }
+
+  body.has-deepdive-split .topbar-actions .btn {
+    width: 36px !important;
+    height: 36px !important;
+    padding: 0 !important;
+    justify-content: center !important;
+  }
+
+  body.has-deepdive-split .topbar-actions .btn .label {
+    display: none !important;
+  }
+
+  body.has-deepdive-split .brand-text small {
+    display: none !important;
+  }
+
   body.has-deepdive-split #drawer-deepdive {
     position: fixed !important;
     top: 0 !important;
@@ -6742,114 +6773,15 @@ body.dd-expanded {
     flex-direction: column !important;
   }
 
-  /* スプリット時は目次（TOC）を自動でスマート・アイコンレール（46px）に縮小 */
+  /* スプリット時は目次（TOC）を非表示にしてレポート本文の横幅を最大化し、エクスポートバーとの被りを完全根絶 */
   body.has-deepdive-split .results-layout {
-    grid-template-columns: 46px minmax(0, 1fr) !important;
-    gap: 14px !important;
+    grid-template-columns: 1fr !important;
+    gap: 0 !important;
     overflow: visible !important;
   }
 
   body.has-deepdive-split .toc {
-    width: 46px !important;
-    align-items: center !important;
-    padding: 6px 0 !important;
-    top: calc(14px + var(--topbar-h) + 60px) !important;
-    z-index: 85 !important;
-    overflow: visible !important;
-  }
-
-  body.has-deepdive-split .toc-title {
     display: none !important;
-  }
-
-  body.has-deepdive-split .toc a {
-    width: 38px !important;
-    height: 38px !important;
-    padding: 0 !important;
-    justify-content: center !important;
-    border-radius: 10px !important;
-    border-left: none !important;
-    position: relative !important;
-    overflow: visible !important;
-    transition: all 0.2s var(--ease) !important;
-  }
-
-  body.has-deepdive-split .toc a .toc-text {
-    display: none !important;
-  }
-
-  body.has-deepdive-split .toc a .n {
-    font-size: 13px !important;
-    font-weight: 800 !important;
-    color: var(--primary-light) !important;
-    margin: 0 !important;
-  }
-
-  body.has-deepdive-split .toc a.active {
-    background: var(--primary) !important;
-    box-shadow: 0 4px 12px -2px rgba(99, 102, 241, 0.4) !important;
-  }
-
-  body.has-deepdive-split .toc a.active .n {
-    color: #ffffff !important;
-  }
-
-  /* ホバー時に右側にセクション名ツールチップ（フキダシ）をクッキリ最前面に展開 */
-  body.has-deepdive-split .toc a .toc-tooltip {
-    display: inline-flex !important;
-    align-items: center !important;
-    gap: 8px !important;
-    position: absolute !important;
-    left: 48px !important;
-    top: 50% !important;
-    transform: translateY(-50%) translateX(-4px) !important;
-    background: #0f172a !important;
-    color: #f8fafc !important;
-    border: 1px solid rgba(99, 102, 241, 0.45) !important;
-    box-shadow: 0 10px 28px -4px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(99, 102, 241, 0.25) !important;
-    font-size: 12.5px !important;
-    font-weight: 750 !important;
-    white-space: nowrap !important;
-    padding: 7px 14px !important;
-    border-radius: 8px !important;
-    z-index: 99999 !important;
-    pointer-events: none !important;
-    opacity: 0 !important;
-    visibility: hidden !important;
-    transition: opacity 0.16s var(--ease), transform 0.16s var(--ease), visibility 0.16s !important;
-  }
-
-  body.has-deepdive-split .toc a .toc-tooltip strong {
-    color: var(--primary-light) !important;
-    font-family: var(--mono) !important;
-    font-size: 11.5px !important;
-  }
-
-  /* フキダシの左矢印（ポインタ） */
-  body.has-deepdive-split .toc a .toc-tooltip::before {
-    content: '' !important;
-    position: absolute !important;
-    right: 100% !important;
-    top: 50% !important;
-    transform: translateY(-50%) !important;
-    border: 6px solid transparent !important;
-    border-right-color: #0f172a !important;
-  }
-
-  body.has-deepdive-split .toc a:hover .toc-tooltip {
-    opacity: 1 !important;
-    visibility: visible !important;
-    transform: translateY(-50%) translateX(2px) !important;
-  }
-
-  [data-theme='light'] body.has-deepdive-split .toc a .toc-tooltip {
-    background: #ffffff !important;
-    color: #0f172a !important;
-    border-color: rgba(99, 102, 241, 0.35) !important;
-    box-shadow: 0 10px 25px -4px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(99, 102, 241, 0.2) !important;
-  }
-  [data-theme='light'] body.has-deepdive-split .toc a .toc-tooltip::before {
-    border-right-color: #ffffff !important;
   }
 
   /* スプリット展開時の左側レポート内コンポーネント保護（幅圧縮によるUI被り・はみ出しゼロ化） */
@@ -6879,12 +6811,21 @@ body.dd-expanded {
     word-break: break-word !important;
   }
 
-  /* スプリット時はアクションバーを2段構成に整流化し、LIVEタグとボタン群が絶対に被らないようにする */
+  /* スプリット時はアクションバーを整流化し、背後透過や被りを完全防止 */
   body.has-deepdive-split .export-bar {
     flex-direction: column !important;
     align-items: stretch !important;
-    gap: 10px !important;
-    padding: 12px 14px !important;
+    gap: 8px !important;
+    padding: 10px 14px !important;
+    background: #0f1629 !important;
+    border: 1px solid var(--border-strong) !important;
+    box-shadow: 0 10px 30px -6px rgba(0, 0, 0, 0.6) !important;
+    z-index: 60 !important;
+  }
+
+  [data-theme='light'] body.has-deepdive-split .export-bar {
+    background: #ffffff !important;
+    box-shadow: 0 10px 30px -6px rgba(0, 0, 0, 0.12) !important;
   }
 
   body.has-deepdive-split .export-info {

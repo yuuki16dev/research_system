@@ -233,6 +233,12 @@ test('style selector and custom style field consistency: DOM elements and CSS ru
   assert.ok(researchJs.includes('getBoundingClientRect'), 'research.js must check viewport position with getBoundingClientRect');
   assert.ok(researchJs.includes('drop-up'), 'research.js must dynamically toggle drop-up class on space shortage');
   assert.ok(researchJs.includes('has-open-dropdown'), 'research.js must toggle has-open-dropdown on container for stacking elevation');
+
+  // 6. スプリットモード（Side-by-Side）時の左上UI被り防止アサーション（トップバー・TOC・エクスポートバー）
+  assert.ok(!html.includes('id="export-bar" class="export-bar glass"') && !html.includes('class="export-bar glass"'), 'export-bar must not have glass class to prevent transparency bleed-through');
+  assert.ok(css.includes('.status-pill') && css.includes('white-space: nowrap'), 'status-pill must have white-space: nowrap to prevent awkward vertical text wrapping');
+  assert.ok(css.includes('body.has-deepdive-split .results-layout') && css.includes('grid-template-columns: 1fr'), 'split results-layout must be 1fr to maximize readability');
+  assert.ok(css.includes('body.has-deepdive-split .toc') && css.includes('display: none'), 'split TOC must be hidden to eliminate collision with export-bar buttons');
 });
 
 test('client-side ES modules syntax integrity: all public/js files must compile with node --check without SyntaxError or duplicate declarations', () => {
