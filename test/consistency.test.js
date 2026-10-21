@@ -380,3 +380,17 @@ test('excel export consistency: exportExcel must configure dashboard sheets, aut
     'exporters.js must attach hyperlinked Target on source URL cells'
   );
 });
+
+test('mobile responsiveness consistency: style dropdown and chips must fit small mobile screens without clipping or overflow', () => {
+  const stylesCss = fs.readFileSync(path.join(ROOT, 'public', 'css', 'styles.css'), 'utf8');
+
+  assert.ok(
+    stylesCss.includes('.style-dropdown-menu {\n    min-width: 0 !important;'),
+    'styles.css must unconstrain dropdown min-width on small screens to prevent clipping on 360px mobile viewports'
+  );
+  assert.ok(
+    stylesCss.includes('.btn-style-selector {\n    width: 100%;'),
+    'styles.css must expand style selector button to full width on mobile for better touch targets'
+  );
+});
+

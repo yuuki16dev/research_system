@@ -5533,6 +5533,39 @@ table.matrix {
     align-items: stretch;
     gap: 10px;
   }
+  .search-bottom-left {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    gap: 10px;
+  }
+  .style-selector-wrap {
+    width: 100%;
+  }
+  .btn-style-selector {
+    width: 100%;
+    justify-content: space-between;
+    box-sizing: border-box;
+    height: 42px;
+    padding: 0 14px;
+  }
+  .btn-style-selector .style-name {
+    max-width: none;
+    flex: 1;
+    text-align: left;
+    font-size: 13.5px;
+  }
+  .style-dropdown-menu {
+    min-width: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    left: 0 !important;
+    right: 0 !important;
+    box-sizing: border-box;
+  }
+  .search-chips-row {
+    max-height: 280px;
+  }
   .depth-segmented {
     width: 100%;
     display: grid;
