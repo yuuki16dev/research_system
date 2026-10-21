@@ -2138,6 +2138,10 @@ select.input option {
   color: var(--primary);
 }
 
+.toc a .toc-tooltip {
+  display: none;
+}
+
 /* ------------------------------------------------------------------ report */
 .report {
   display: flex;
@@ -6396,10 +6400,20 @@ body.dd-expanded {
     overflow-y: auto !important;
   }
 
-  body.has-deepdive-split #results-section {
+  /* 画面全体のコンテンツを深掘りドロワー幅分だけ縮め、検索入力欄・ヒーローの被りを100%解消 */
+  body.has-deepdive-split #results-section,
+  body.has-deepdive-split #panel-section,
+  body.has-deepdive-split #hero,
+  body.has-deepdive-split #home-section {
     margin-right: var(--dd-split-width) !important;
     min-width: 0 !important;
     transition: margin-right 0.28s var(--ease);
+  }
+
+  /* トップバーのアクションボタン群も深掘りドロワーと被らないよう安全パディングを確保 */
+  body.has-deepdive-split .topbar {
+    padding-right: calc(var(--dd-split-width) + 16px) !important;
+    transition: padding-right 0.28s var(--ease);
   }
 
   body.has-deepdive-split #drawer-deepdive {
@@ -6445,6 +6459,7 @@ body.dd-expanded {
   body.has-deepdive-split .results-layout {
     grid-template-columns: 46px minmax(0, 1fr) !important;
     gap: 14px !important;
+    overflow: visible !important;
   }
 
   body.has-deepdive-split .toc {
@@ -6452,6 +6467,8 @@ body.dd-expanded {
     align-items: center !important;
     padding: 6px 0 !important;
     top: calc(14px + var(--topbar-h) + 60px) !important;
+    z-index: 85 !important;
+    overflow: visible !important;
   }
 
   body.has-deepdive-split .toc-title {
@@ -6466,10 +6483,11 @@ body.dd-expanded {
     border-radius: 10px !important;
     border-left: none !important;
     position: relative !important;
+    overflow: visible !important;
     transition: all 0.2s var(--ease) !important;
   }
 
-  body.has-deepdive-split .toc a span:not(.n) {
+  body.has-deepdive-split .toc a .toc-text {
     display: none !important;
   }
 
@@ -6489,25 +6507,62 @@ body.dd-expanded {
     color: #ffffff !important;
   }
 
-  /* ホバー時に右側にセクション名ツールチップをふわっと展開 */
-  body.has-deepdive-split .toc a:hover::after {
-    content: attr(data-label);
-    position: absolute;
-    left: 46px;
-    top: 50%;
-    transform: translateY(-50%);
-    background: var(--bg-elev);
-    color: var(--text);
-    border: 1px solid var(--border-strong);
-    box-shadow: var(--shadow-lg);
-    font-size: 12px;
-    font-weight: 750;
-    white-space: nowrap;
-    padding: 6px 12px;
-    border-radius: 6px;
-    z-index: 99;
-    pointer-events: none;
-    animation: fadeInDown 0.15s var(--ease);
+  /* ホバー時に右側にセクション名ツールチップ（フキダシ）をクッキリ最前面に展開 */
+  body.has-deepdive-split .toc a .toc-tooltip {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    position: absolute !important;
+    left: 48px !important;
+    top: 50% !important;
+    transform: translateY(-50%) translateX(-4px) !important;
+    background: #0f172a !important;
+    color: #f8fafc !important;
+    border: 1px solid rgba(99, 102, 241, 0.45) !important;
+    box-shadow: 0 10px 28px -4px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(99, 102, 241, 0.25) !important;
+    font-size: 12.5px !important;
+    font-weight: 750 !important;
+    white-space: nowrap !important;
+    padding: 7px 14px !important;
+    border-radius: 8px !important;
+    z-index: 99999 !important;
+    pointer-events: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    transition: opacity 0.16s var(--ease), transform 0.16s var(--ease), visibility 0.16s !important;
+  }
+
+  body.has-deepdive-split .toc a .toc-tooltip strong {
+    color: var(--primary-light) !important;
+    font-family: var(--mono) !important;
+    font-size: 11.5px !important;
+  }
+
+  /* フキダシの左矢印（ポインタ） */
+  body.has-deepdive-split .toc a .toc-tooltip::before {
+    content: '' !important;
+    position: absolute !important;
+    right: 100% !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    border: 6px solid transparent !important;
+    border-right-color: #0f172a !important;
+  }
+
+  body.has-deepdive-split .toc a:hover .toc-tooltip {
+    opacity: 1 !important;
+    visibility: visible !important;
+    transform: translateY(-50%) translateX(2px) !important;
+  }
+
+  [data-theme='light'] body.has-deepdive-split .toc a .toc-tooltip {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    border-color: rgba(99, 102, 241, 0.35) !important;
+    box-shadow: 0 10px 25px -4px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(99, 102, 241, 0.2) !important;
+  }
+  [data-theme='light'] body.has-deepdive-split .toc a .toc-tooltip::before {
+    border-right-color: #ffffff !important;
   }
 
   /* スプリット展開時の左側レポート内コンポーネント保護（幅圧縮によるUI被り・はみ出しゼロ化） */
@@ -6537,37 +6592,83 @@ body.dd-expanded {
     word-break: break-word !important;
   }
 
-  /* スプリット時はアクションバーをコンパクト＆はみ出しゼロに最適化 */
+  /* スプリット時はアクションバーを2段構成に整流化し、LIVEタグとボタン群が絶対に被らないようにする */
+  body.has-deepdive-split .export-bar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+    padding: 12px 14px !important;
+  }
+
+  body.has-deepdive-split .export-info {
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 10px !important;
+    padding-bottom: 8px !important;
+    border-bottom: 1px solid var(--border) !important;
+  }
+
+  body.has-deepdive-split .export-info .mode-tag {
+    font-size: 11.5px !important;
+    padding: 4px 10px !important;
+    flex-shrink: 0 !important;
+  }
+
   body.has-deepdive-split .export-actions-grouped {
-    flex-wrap: wrap !important;
+    width: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
     gap: 8px !important;
-    justify-content: space-between !important;
   }
 
   body.has-deepdive-split .export-primary-group {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
     flex-wrap: wrap !important;
-    gap: 6px !important;
   }
 
   body.has-deepdive-split .btn-export-highlight,
-  body.has-deepdive-split .btn-export {
-    height: 32px !important;
-    padding: 0 10px !important;
-    font-size: 12px !important;
+  body.has-deepdive-split .btn-export,
+  body.has-deepdive-split .export-primary-group .btn {
+    height: 36px !important;
+    padding: 0 14px !important;
+    font-size: 12.5px !important;
+    font-weight: 750 !important;
+    border-radius: 8px !important;
+    flex: 1 1 auto !important;
+    justify-content: center !important;
+  }
+
+  body.has-deepdive-split .export-secondary-group {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    border-left: none !important;
+    padding-left: 0 !important;
+    flex-wrap: wrap !important;
   }
 
   body.has-deepdive-split .quick-outputs-group {
-    flex-wrap: nowrap !important;
-    overflow-x: auto !important;
-    padding-bottom: 4px !important;
-    gap: 4px !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    flex-wrap: wrap !important;
   }
 
   body.has-deepdive-split .btn-quick-output {
-    height: 30px !important;
-    padding: 0 8px !important;
-    font-size: 11.5px !important;
+    height: 32px !important;
+    padding: 0 10px !important;
+    font-size: 12px !important;
+    border-radius: 6px !important;
     white-space: nowrap !important;
+  }
+
+  body.has-deepdive-split .claude-group {
+    height: 32px !important;
   }
 }
 

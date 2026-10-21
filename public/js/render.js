@@ -660,9 +660,10 @@ function buildTOC(data) {
     ${sections
       .map(
         (s) => `
-      <a href="#${s.id}" data-target="${s.id}" data-label="${s.num} ${esc(s.label)}">
+      <a href="#${s.id}" data-target="${s.id}" data-label="${s.num} ${esc(s.label)}" title="${s.num} ${esc(s.label)}">
         <span class="n">${s.num}</span>
-        <span>${esc(s.label)}</span>
+        <span class="toc-text">${esc(s.label)}</span>
+        <span class="toc-tooltip" aria-hidden="true"><strong>${s.num}</strong><span>${esc(s.label)}</span></span>
       </a>`
       )
       .join('')}
