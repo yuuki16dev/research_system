@@ -7776,3 +7776,282 @@ body.dd-expanded {
     transform: translateY(0);
   }
 }
+
+/* ==========================================================================
+   APIキー取得ガイド ＆ GitHubお問い合わせ (API Guide & GitHub Support)
+   ========================================================================== */
+.api-guide-quick-card {
+  margin: 8px 0 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+}
+
+[data-theme='light'] .api-guide-quick-card {
+  background: rgba(79, 70, 229, 0.05);
+  border-color: rgba(79, 70, 229, 0.2);
+}
+
+.agq-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.agq-badge {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #818cf8;
+}
+
+[data-theme='light'] .agq-badge {
+  color: #4f46e5;
+}
+
+.agq-btn-link {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #38bdf8;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: opacity 0.15s ease;
+}
+
+.agq-btn-link:hover {
+  opacity: 0.8;
+}
+
+[data-theme='light'] .agq-btn-link {
+  color: #0284c7;
+}
+
+.agq-desc {
+  font-size: 12px;
+  color: var(--text-2, #cbd5e1);
+  line-height: 1.5;
+}
+
+/* 開発者GitHub問い合わせカード */
+.guide-github-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  margin-bottom: 24px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.85), rgba(15, 23, 42, 0.95));
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+}
+
+[data-theme='light'] .guide-github-card {
+  background: linear-gradient(135deg, rgba(248, 250, 252, 0.95), rgba(241, 245, 249, 0.95));
+  border-color: rgba(79, 70, 229, 0.25);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+}
+
+.ggc-icon {
+  font-size: 32px;
+  color: var(--text, #f8fafc);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ggc-icon svg {
+  width: 36px;
+  height: 36px;
+}
+
+.ggc-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.ggc-main h3 {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text, #f8fafc);
+}
+
+.ggc-main p {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text-muted, #94a3b8);
+  line-height: 1.5;
+}
+
+.ggc-action {
+  flex-shrink: 0;
+}
+
+/* ガイドセクション */
+.guide-section {
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+}
+
+.guide-section:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.guide-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.gsh-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.gsh-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 9999px;
+  background: var(--primary, #6366f1);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.gsh-title h4 {
+  margin: 0 0 2px;
+  font-size: 14.5px;
+  font-weight: 700;
+}
+
+.gsh-title p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted, #94a3b8);
+}
+
+.guide-steps-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.guide-step-card {
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+}
+
+[data-theme='light'] .guide-step-card {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.gsc-num {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--primary, #6366f1);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+
+.guide-step-card strong {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.guide-step-card p {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--text-2, #cbd5e1);
+  line-height: 1.5;
+}
+
+.guide-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted, #94a3b8);
+  line-height: 1.5;
+}
+
+/* QAグリッド */
+.qa-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.qa-item {
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+}
+
+[data-theme='light'] .qa-item {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.qa-item strong {
+  display: block;
+  font-size: 12.5px;
+  margin-bottom: 4px;
+  color: var(--text, #f8fafc);
+}
+
+.qa-item p {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--text-muted, #94a3b8);
+  line-height: 1.5;
+}
+
+.qa-item code {
+  font-family: var(--mono);
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+/* 設定フッターのお問い合わせリンク */
+.settings-github-link,
+.footer-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--text-muted, #94a3b8);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.settings-github-link:hover,
+.footer-link:hover {
+  color: var(--text, #f8fafc);
+  text-decoration: underline;
+}
+
+.footer-link svg {
+  width: 14px;
+  height: 14px;
+}

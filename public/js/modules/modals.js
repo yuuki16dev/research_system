@@ -555,3 +555,20 @@ function updateMobileModalContent() {
 
   selectLan(selected);
 }
+
+export function bindApiGuideModal() {
+  const btnTop = $('#btn-guide');
+  if (btnTop) {
+    btnTop.addEventListener('click', () => {
+      openModal('modal-api-guide');
+    });
+  }
+
+  const btnSettings = $('#btn-open-guide-from-settings');
+  if (btnSettings) {
+    btnSettings.addEventListener('click', () => {
+      openModal('modal-api-guide');
+    });
+  }
+}
+

@@ -46,6 +46,7 @@
         <button class="btn btn-ghost" id="btn-mobile" type="button" title="スマホ連携"><span data-icon="smartphone"></span><span class="label">スマホ連携</span></button>
         <button class="btn btn-ghost" id="btn-usage" type="button" title="API利用状況 &amp; クォータ"><span data-icon="chart"></span><span class="label">クォータ</span></button>
         <button class="btn btn-ghost" id="btn-settings" type="button" title="API設定"><span data-icon="key"></span><span class="label">設定</span></button>
+        <button class="btn btn-ghost" id="btn-guide" type="button" title="APIキー取得ガイド &amp; GitHubお問い合わせ"><span data-icon="help-circle"></span><span class="label">ガイド・問い合わせ</span></button>
         <button class="btn btn-ghost btn-icon" id="btn-theme" type="button" title="テーマ切替 (ライト/ダーク)" aria-label="ライト/ダーク切替"><span data-icon="sun" class="only-dark"></span><span data-icon="moon" class="only-light"></span></button>
         <button class="btn btn-ghost btn-icon btn-shutdown" id="btn-power-shutdown" type="button" title="アプリを終了 (サーバー停止)" aria-label="アプリ終了"><span data-icon="power"></span></button>
       </nav>
@@ -566,7 +567,7 @@
     </main>
 
     <footer class="footer">
-      <span id="footer-version">Research Studio v1.5.0</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span>
+      <span id="footer-version">Research Studio v1.5.0</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span><span class="sep">·</span><a href="https://github.com/yuuki16dev/research_system/issues" target="_blank" rel="noopener" class="footer-link"><span data-icon="github"></span>GitHubでお問い合わせ</a>
     </footer>
   </div>
 
@@ -577,7 +578,8 @@
       <header class="modal-head">
         <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v1.5.0</small></h2>
         <div style="display: flex; gap: 8px; align-items: center; margin-left: auto;">
-          <button class="btn btn-ghost btn-sm" type="button" id="btn-open-usage-from-settings" title="現在のAPI利用料・クォータを確認"><span data-icon="chart"></span><span class="label">利用状況を見る</span></button>
+          <button class="btn btn-ghost btn-sm" type="button" id="btn-open-guide-from-settings" title="APIキー取得ガイド &amp; GitHubお問い合わせ"><span data-icon="help-circle"></span><span class="label">ガイド・問い合わせ</span></button>
+          <button class="btn btn-ghost btn-sm" type="button" id="btn-open-usage-from-settings" title="現在のAPI利用料・クォータを確認"><span data-icon="chart"></span><span class="label">利用状況</span></button>
           <button class="btn btn-ghost btn-icon" type="button" data-close aria-label="閉じる"><span data-icon="x"></span></button>
         </div>
       </header>
@@ -585,8 +587,20 @@
         <div class="setting-block">
           <div class="setting-title">
             <strong>Google Gemini</strong><span class="chip-status" id="gemini-status">未設定</span>
-            <a class="ext-link" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">キーを取得 <span data-icon="external"></span></a>
+            <a class="ext-link" href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">キーを取得 <span data-icon="external"></span></a>
           </div>
+
+          <!-- クイック取得ガイドカード -->
+          <div class="api-guide-quick-card">
+            <div class="agq-head">
+              <span class="agq-badge">💡 クレジットカード不要・完全無料（$0）</span>
+              <a class="agq-btn-link" href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">
+                <span>Google AI Studio を開く ↗</span>
+              </a>
+            </div>
+            <div class="agq-desc">Googleアカウントでログインし、青い「<strong>Create API key</strong>」を押してコピーしたキーを下に貼り付けてください（1日1,500回まで完全無料）。</div>
+          </div>
+
           <label class="field-label sm" for="gemini-key">APIキー</label>
           <div class="input-group">
             <input class="input" type="password" id="gemini-key" placeholder="AIza…（変更する場合のみ入力）" spellcheck="false" />
@@ -683,8 +697,11 @@
         <p class="security-note"><span data-icon="shield"></span>APIキーはこのPCの <code>data/settings.json</code> にのみ保存され、ブラウザには返されません。</p>
       </form>
       <footer class="modal-foot">
-        <button class="btn btn-ghost" type="button" id="btn-test-api"><span data-icon="zap"></span>接続テスト</button>
-        <button class="btn btn-primary" type="submit" form="settings-form" id="btn-save-settings"><span data-icon="check"></span>保存</button>
+        <a href="https://github.com/yuuki16dev/research_system/issues" target="_blank" rel="noopener" class="settings-github-link" title="不具合報告・機能要望をGitHubで送信"><span data-icon="github"></span>GitHubでお問い合わせ ↗</a>
+        <div style="margin-left: auto; display: flex; gap: 8px;">
+          <button class="btn btn-ghost" type="button" id="btn-test-api"><span data-icon="zap"></span>接続テスト</button>
+          <button class="btn btn-primary" type="submit" form="settings-form" id="btn-save-settings"><span data-icon="check"></span>保存</button>
+        </div>
       </footer>
     </div>
   </div>
@@ -891,6 +908,108 @@
       <footer class="modal-foot">
         <button class="btn btn-ghost" type="button" id="btn-reset-prompt-template">初期値に戻す</button>
         <button class="btn btn-primary" type="button" id="btn-save-prompt-template"><span data-icon="check"></span>保存して適用</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- ============================================== MODAL: API GUIDE & GITHUB SUPPORT -->
+  <div class="modal" id="modal-api-guide" role="dialog" aria-modal="true" aria-labelledby="guide-modal-title" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card glass modal-lg">
+      <header class="modal-head">
+        <h2 class="modal-title" id="guide-modal-title"><span data-icon="help-circle"></span>APIキー取得ガイド ＆ お問い合わせ</h2>
+        <button class="icon-btn" data-close type="button" aria-label="閉じる"><span data-icon="x"></span></button>
+      </header>
+      <div class="modal-body guide-modal-body">
+        <!-- 開発者GitHub問い合わせカード -->
+        <div class="guide-github-card">
+          <div class="ggc-icon"><span data-icon="github"></span></div>
+          <div class="ggc-main">
+            <h3>開発者（yuuki16dev）へのお問い合わせ</h3>
+            <p>使い方のご質問、不具合のご報告、新機能のご要望は GitHub Issues よりお気軽にお寄せください。開発者が直接確認・対応いたします。</p>
+          </div>
+          <div class="ggc-action">
+            <a href="https://github.com/yuuki16dev/research_system/issues" target="_blank" rel="noopener" class="btn btn-primary btn-sm">
+              <span data-icon="github"></span><span>GitHubで問い合わせる ↗</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- Gemini API 3分取得ガイド -->
+        <div class="guide-section">
+          <div class="guide-section-head">
+            <div class="gsh-title">
+              <span class="gsh-num">1</span>
+              <div>
+                <h4>【必須】Google Gemini API キーの無料取得手順</h4>
+                <p>クレジットカード登録不要・完全無料（1日1,500回まで$0）で誰でも3分で取得できます。</p>
+              </div>
+            </div>
+            <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener" class="btn btn-secondary btn-sm">
+              <span data-icon="external"></span><span>Google AI Studio を開く ↗</span>
+            </a>
+          </div>
+
+          <div class="guide-steps-grid">
+            <div class="guide-step-card">
+              <div class="gsc-num">Step 1</div>
+              <strong>公式サイトにアクセス</strong>
+              <p><a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">Google AI Studio</a> を開き、お持ちのGoogleアカウント（Gmail等）でログインします。</p>
+            </div>
+            <div class="guide-step-card">
+              <div class="gsc-num">Step 2</div>
+              <strong>APIキーを発行してコピー</strong>
+              <p>画面の青い「<strong>Create API key</strong>」を押し、「Create in new project」を選んで生成されたキーをコピーします。</p>
+            </div>
+            <div class="guide-step-card">
+              <div class="gsc-num">Step 3</div>
+              <strong>アプリに貼り付けて保存</strong>
+              <p>本アプリの「⚙️ 設定」➔「Gemini APIキー」に貼り付け、「接続テスト」➔「保存」を押せば完了です！</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- オプション Tavily キー -->
+        <div class="guide-section">
+          <div class="guide-section-head">
+            <div class="gsh-title">
+              <span class="gsh-num">2</span>
+              <div>
+                <h4>【任意】Tavily Search API キー（Web深層検索の強化）</h4>
+                <p>※本アプリはキー不要の DuckDuckGo を内蔵しているため、<strong>未設定でも全機能が動作します</strong>。</p>
+              </div>
+            </div>
+            <a href="https://tavily.com/" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">
+              <span data-icon="external"></span><span>Tavily 公式 ↗</span>
+            </a>
+          </div>
+          <p class="guide-note">より大量のWebサイトや最新ニュースを高速・高精度に巡回させたい場合のみ、<a href="https://tavily.com/" target="_blank" rel="noopener">Tavily公式サイト</a> で無料登録（月1,000回無料）してキーを設定してください。</p>
+        </div>
+
+        <!-- よくある質問 Q&A -->
+        <div class="guide-section">
+          <h4>💡 よくある質問 ＆ トラブルシューティング</h4>
+          <div class="qa-grid">
+            <div class="qa-item">
+              <strong>Q. お金が勝手に請求される心配はありませんか？</strong>
+              <p>クレジットカード登録画面自体がないため、勝手に請求されることは100%ありません。無料枠上限に達した場合は一時停止するだけです。</p>
+            </div>
+            <div class="qa-item">
+              <strong>Q. 「APIキーが無効です」とエラーが出ます</strong>
+              <p>キーの前後に余分なスペースが入っていないかご確認ください。キーは通常 <code>AIzaSy</code> から始まります。また、個人のGoogleアカウントでお試しください。</p>
+            </div>
+            <div class="qa-item">
+              <strong>Q. アプリをアップデートしたら設定は消えますか？</strong>
+              <p>消えません。設定や履歴は Windows の共通データ領域（<code>%APPDATA%\ResearchStudio\</code>）に安全に保管されるため、自動で引き継がれます。</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <footer class="modal-foot">
+        <a href="https://github.com/yuuki16dev/research_system" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">
+          <span data-icon="github"></span><span>GitHubリポジトリ</span>
+        </a>
+        <button class="btn btn-primary btn-sm" type="button" data-close>閉じる</button>
       </footer>
     </div>
   </div>

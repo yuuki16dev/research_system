@@ -478,5 +478,27 @@ test('v1.5.0 inline direct editor, presets, and update notification banner consi
   assert.ok(css.includes('.btn-pin-hi'), 'styles.css must have .btn-pin-hi style');
 });
 
+test('api key guide and GitHub support consistency: modal, topbar button, and contact links exist', () => {
+  const html = fs.readFileSync(path.join(ROOT, 'public', 'index.html'), 'utf8');
+  assert.ok(html.includes('id="btn-guide"'), 'index.html must have btn-guide button in topbar');
+  assert.ok(html.includes('id="modal-api-guide"'), 'index.html must have modal-api-guide modal');
+  assert.ok(html.includes('id="btn-open-guide-from-settings"'), 'index.html must have btn-open-guide-from-settings button');
+  assert.ok(
+    html.includes('https://github.com/yuuki16dev/research_system/issues'),
+    'index.html must have direct link to user GitHub issues for support'
+  );
+
+  const modalsJs = fs.readFileSync(path.join(ROOT, 'public', 'js', 'modules', 'modals.js'), 'utf8');
+  assert.ok(modalsJs.includes('bindApiGuideModal'), 'modals.js must export bindApiGuideModal');
+
+  const appJs = fs.readFileSync(path.join(ROOT, 'public', 'js', 'app.js'), 'utf8');
+  assert.ok(appJs.includes('bindApiGuideModal'), 'app.js must import and call bindApiGuideModal');
+
+  const css = fs.readFileSync(path.join(ROOT, 'public', 'css', 'styles.css'), 'utf8');
+  assert.ok(css.includes('.api-guide-quick-card'), 'styles.css must style .api-guide-quick-card');
+  assert.ok(css.includes('.guide-github-card'), 'styles.css must style .guide-github-card');
+});
+
+
 
 

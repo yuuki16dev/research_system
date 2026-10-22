@@ -11,6 +11,7 @@ import {
   bindPromptTemplateModal,
   bindSettingsModal,
   bindMobileModal,
+  bindApiGuideModal,
 } from './modules/modals.js';
 import { bindUsageModal } from './modules/usage-modal.js';
 import { isResearchActive } from './modules/state.js';
@@ -81,6 +82,7 @@ async function initApp() {
     bindMobileModal();
     bindHistoryDrawer((data) => finishSuccess(data));
     bindShutdownHandlers();
+    bindApiGuideModal();
 
     // 3. リサーチ実行中・深掘り実行中の誤終了ガード (beforeunload)
     window.addEventListener('beforeunload', (e) => {
