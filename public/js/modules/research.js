@@ -8,6 +8,7 @@ import { renderReport } from '../render.js';
 import { appState } from './state.js';
 import { bindReportDeepDiveActions } from './deep-dive.js';
 import { loadRecentHistory } from './history.js';
+import { resetEditMode } from './editor.js';
 
 export function bindFormControls() {
   const form = $('#research-form');
@@ -217,6 +218,49 @@ export function bindFormControls() {
     if (e.key === 'Escape' && styleDropdownMenu && !styleDropdownMenu.hidden) {
       closeStyleDropdown();
     }
+  });
+
+  // リサーチ目的プリセットチップ（1クリック設定）
+  const presetChips = $$('.preset-chip');
+  presetChips.forEach((chip) => {
+    chip.addEventListener('click', () => {
+      const preset = chip.dataset.preset;
+      const currentVal = themeInput.value.trim();
+
+      if (preset === 'compare') {
+        if (!currentVal) {
+          themeInput.value = '主要生成AIツール（ChatGPT, Claude, Gemini）の料金プランと機能・強み弱み比較';
+        } else if (!currentVal.includes('比較')) {
+          themeInput.value = `${currentVal}の主要競合3〜5社との料金・機能・強み弱み比較`;
+        }
+        selectStyle('decision');
+      } else if (preset === 'market') {
+        if (!currentVal) {
+          themeInput.value = '国内BtoB SaaS市場の最新動向・市場規模・成長機会・参入障壁';
+        } else if (!currentVal.includes('市場')) {
+          themeInput.value = `${currentVal}の市場規模・ターゲット課題・収益モデル・参入機会`;
+        }
+        selectStyle('business');
+      } else if (preset === 'tool') {
+        if (!currentVal) {
+          themeInput.value = 'プロジェクト管理ツールの選定基準・料金プラン・無料枠・ユーザー評判';
+        } else if (!currentVal.includes('選定') && !currentVal.includes('導入')) {
+          themeInput.value = `${currentVal}の導入メリット・料金プラン・制限事項・実際の口コミ評価`;
+        }
+        selectStyle('decision');
+      } else if (preset === 'risk') {
+        if (!currentVal) {
+          themeInput.value = '生成AIを社内導入する際のリスク・セキュリティ課題・著作権・法規制・失敗事例';
+        } else if (!currentVal.includes('リスク') && !currentVal.includes('課題')) {
+          themeInput.value = `${currentVal}の導入リスク・セキュリティ課題・法的注意点・失敗事例`;
+        }
+        selectStyle('tech');
+      }
+
+      updateCount();
+      themeInput.focus();
+      toast(`🎯 プリセット「${chip.innerText.trim()}」を適用しました`, 'info');
+    });
   });
 
   // サンプルチップクリック
@@ -738,7 +782,8 @@ export function finishSuccess(resultData) {
   progressSection.classList.add('is-done');
   updateStepper('done');
 
-  // 結果描画
+  // 編集モードを初期化して結果描画
+  resetEditMode();
   renderReport(resultData, $('#report'));
   bindReportDeepDiveActions();
 

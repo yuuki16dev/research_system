@@ -34,13 +34,17 @@ function list() {
           period: r.period || 'year',
           periodLabel: r.periodLabel || '直近1年',
           sourceCount: (r.sources || []).length,
+          pinned: !!r.pinned,
         };
       } catch {
         return null;
       }
     })
     .filter(Boolean)
-    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+    .sort((a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      return String(b.createdAt).localeCompare(String(a.createdAt));
+    });
 }
 
 function get(id) {
@@ -70,10 +74,18 @@ function update(id, patch) {
   return updated;
 }
 
+function togglePin(id) {
+  const item = get(id);
+  if (!item) return null;
+  item.pinned = !item.pinned;
+  fs.writeFileSync(path.join(DIR, `${id}.json`), JSON.stringify(item), 'utf8');
+  return item;
+}
+
 function prune() {
   const items = list();
   items.slice(MAX_ITEMS).forEach((x) => remove(x.id));
 }
 
-module.exports = { save, list, get, remove, update };
+module.exports = { save, list, get, remove, update, togglePin };
 

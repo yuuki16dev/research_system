@@ -65,6 +65,25 @@
         <form id="research-form" autocomplete="off" novalidate>
           <!-- メイン検索入力ボックス -->
           <div class="search-main-box">
+            <!-- リサーチ目的プリセット（1クリック設定チップ） -->
+            <div class="research-presets-bar" id="research-presets-bar">
+              <span class="presets-label"><span data-icon="sparkles"></span>目的プリセット:</span>
+              <div class="presets-chips" role="toolbar" aria-label="目的別リサーチプリセット">
+                <button type="button" class="preset-chip" data-preset="compare" title="競合3〜5社の料金・機能・強み弱みを徹底比較">
+                  <span class="pc-icon">⚔️</span><span>競合・製品比較</span>
+                </button>
+                <button type="button" class="preset-chip" data-preset="market" title="市場規模・ターゲット課題・収益モデルを調査">
+                  <span class="pc-icon">💡</span><span>新規事業・市場調査</span>
+                </button>
+                <button type="button" class="preset-chip" data-preset="tool" title="料金プラン・無料枠・導入事例・実際の口コミ">
+                  <span class="pc-icon">🛠️</span><span>ツール選定・導入</span>
+                </button>
+                <button type="button" class="preset-chip" data-preset="risk" title="導入時の注意点・セキュリティ・法的リスク">
+                  <span class="pc-icon">⚠️</span><span>リスク・課題</span>
+                </button>
+              </div>
+            </div>
+
             <div class="search-input-wrap">
               <span class="search-icon-decor" data-icon="search" aria-hidden="true"></span>
               <textarea id="theme-input" name="theme" rows="2" maxlength="300" placeholder="何について調べますか？（例: 個人開発ツールのマネタイズ事例と価格設定、生成AIの業務活用...、または特定URL）" required></textarea>
@@ -433,6 +452,9 @@
               <button type="button" class="btn btn-secondary btn-sm" id="btn-xlsx" title="Excel (.xlsx) 出力">
                 <span data-icon="sheet"></span><span>Excel出力</span>
               </button>
+              <button type="button" class="btn btn-outline btn-sm btn-edit-toggle" id="btn-toggle-edit" title="レポートの文章やタイトルを直接画面上で推敲・編集">
+                <span data-icon="edit"></span><span id="btn-toggle-edit-label">直接編集</span>
+              </button>
               <button type="button" class="btn btn-deepdive btn-sm" id="btn-open-deepdive" title="このレポートをAIとWeb検索でさらに深掘り質問">
                 <span data-icon="sparkles"></span><span>深掘り質問</span>
               </button>
@@ -544,7 +566,7 @@
     </main>
 
     <footer class="footer">
-      <span id="footer-version">Research Studio v1.4.0</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span>
+      <span id="footer-version">Research Studio v1.5.0</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span>
     </footer>
   </div>
 
@@ -553,7 +575,7 @@
     <div class="modal-backdrop" data-close></div>
     <div class="modal-card glass">
       <header class="modal-head">
-        <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v1.4.0</small></h2>
+        <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v1.5.0</small></h2>
         <div style="display: flex; gap: 8px; align-items: center; margin-left: auto;">
           <button class="btn btn-ghost btn-sm" type="button" id="btn-open-usage-from-settings" title="現在のAPI利用料・クォータを確認"><span data-icon="chart"></span><span class="label">利用状況を見る</span></button>
           <button class="btn btn-ghost btn-icon" type="button" data-close aria-label="閉じる"><span data-icon="x"></span></button>
@@ -920,6 +942,19 @@
       <span class="btn-quote-icon"><span data-icon="sparkles"></span></span>
       <span class="btn-quote-label">この文章を引用して深掘り質問</span>
     </button>
+  </div>
+
+  <!-- ============================================== VERSION UPDATE NOTIFICATION -->
+  <div class="version-update-banner glass" id="version-update-banner" hidden>
+    <div class="vub-icon">💡</div>
+    <div class="vub-body">
+      <div class="vub-title"><strong>新バージョン <span id="vub-version-tag"></span> が公開されました</strong></div>
+      <p class="vub-desc" id="vub-version-desc">最新の改善と新機能が利用可能です。</p>
+    </div>
+    <div class="vub-actions">
+      <a href="https://github.com/yuuki16dev/research_system/releases" target="_blank" rel="noopener" class="btn btn-sm btn-primary" id="vub-link">更新内容を見る</a>
+      <button type="button" class="btn btn-ghost btn-sm btn-icon" id="vub-dismiss" title="閉じる" aria-label="閉じる"><span data-icon="x"></span></button>
+    </div>
   </div>
 
   <div class="toast-stack" id="toasts" aria-live="polite"></div>

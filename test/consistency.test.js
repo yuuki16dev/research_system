@@ -444,4 +444,39 @@ test('url direct analysis mode consistency: UI badge and pipeline optimization e
   assert.ok(pipelineJs.includes('特定URLダイレクト分析モード'), 'pipeline.js must support URL direct analysis mode in query planning');
 });
 
+test('v1.5.0 AppData persistence, history pin, and version check consistency', () => {
+  const settingsJs = fs.readFileSync(path.join(ROOT, 'server', 'settings.js'), 'utf8');
+  assert.ok(settingsJs.includes('resolveDataDir'), 'settings.js must implement resolveDataDir for user-level persistence');
+
+  const historyJs = fs.readFileSync(path.join(ROOT, 'server', 'history.js'), 'utf8');
+  assert.ok(historyJs.includes('togglePin'), 'history.js must implement togglePin');
+  assert.ok(historyJs.includes('function update('), 'history.js must implement update for inline edited reports');
+  assert.ok(historyJs.includes('pinned'), 'history.js must handle pinned status in sorting');
+
+  const serverIndexJs = fs.readFileSync(path.join(ROOT, 'server', 'index.js'), 'utf8');
+  assert.ok(serverIndexJs.includes('/api/history/:id/pin'), 'server/index.js must have /api/history/:id/pin endpoint');
+  assert.ok(serverIndexJs.includes("app.put('/api/history/:id'"), 'server/index.js must have PUT /api/history/:id endpoint');
+  assert.ok(serverIndexJs.includes('/api/version/check'), 'server/index.js must have /api/version/check endpoint');
+});
+
+test('v1.5.0 inline direct editor, presets, and update notification banner consistency', () => {
+  const html = fs.readFileSync(path.join(ROOT, 'public', 'index.html'), 'utf8');
+  assert.ok(html.includes('id="btn-toggle-edit"'), 'index.html must have btn-toggle-edit button');
+  assert.ok(html.includes('id="research-presets-bar"'), 'index.html must have research-presets-bar');
+  assert.ok(html.includes('id="version-update-banner"'), 'index.html must have version-update-banner');
+
+  const editorJsPath = path.join(ROOT, 'public', 'js', 'modules', 'editor.js');
+  assert.ok(fs.existsSync(editorJsPath), 'public/js/modules/editor.js must exist');
+  const editorJs = fs.readFileSync(editorJsPath, 'utf8');
+  assert.ok(editorJs.includes('bindReportEditor'), 'editor.js must export bindReportEditor');
+  assert.ok(editorJs.includes('resetEditMode'), 'editor.js must export resetEditMode');
+
+  const css = fs.readFileSync(path.join(ROOT, 'public', 'css', 'styles.css'), 'utf8');
+  assert.ok(css.includes('.is-editable-mode'), 'styles.css must have .is-editable-mode style');
+  assert.ok(css.includes('.research-presets-bar'), 'styles.css must have .research-presets-bar style');
+  assert.ok(css.includes('.version-update-banner'), 'styles.css must have .version-update-banner style');
+  assert.ok(css.includes('.btn-pin-hi'), 'styles.css must have .btn-pin-hi style');
+});
+
+
 

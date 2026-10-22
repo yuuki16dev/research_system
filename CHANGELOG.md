@@ -9,6 +9,47 @@
 
 ---
 
+## [v1.5.0] - 2026-10-22
+
+### ✏️ レポートのインライン直接推敲・編集機能 (Inline Report Direct Editing & Instant Sync)
+- **AI生成レポートを画面上で直接タイピング編集可能な「直接編集モード」を新開発**:
+  - エクスポートバーに「✏️ 直接編集」トグルボタン（`#btn-toggle-edit`）を設置。
+  - レポートタイトル、サブタイトル、エグゼクティブサマリー、各セクション見出し・本文、重要指標（KPI）、提言（Insights）をクリックして直接キーボードで推敲・追記・修正可能。
+  - 編集内容はリアルタイムでデータモデルおよびサーバー履歴に自動同期（`PUT /api/history/:id`）。
+  - ユーザーが加筆・推敲した内容が、そのまま商用 A4 PDF 印刷や Excel (.xlsx) 帳票出力に 100% 完全反映。WordやGoogle Docsにコピペして整形し直す手間を全廃。
+
+### 🛡️ アプデ耐性：設定・履歴データの AppData 外出し永続化 (AppData Persistence & Safe Migration)
+- **Windows `%APPDATA%\ResearchStudio\` へのデータ外出し永続化アーキテクチャ**:
+  - `settings.json` および `history.json` の保存先を、アプリケーション配置ディレクトリからユーザー共通領域（Windows: `%APPDATA%\ResearchStudio`、macOS/Linux: `~/.research_studio`）へ移行。
+  - **自動マイグレーション機能（`migrateOldDataIfNeeded()`）**: 旧バージョンのローカル `data/` フォルダが存在する場合、初回起動時に自動でデータを引き継ぎ。
+  - BOOTH購入者が将来新しいバージョンの ZIP をどこに展開しても、Gemini API キー、ホワイトラベル設定、過去の調査履歴が 100% 自動で引き継がれ、データ消失クレームを根絶。
+
+### ⭐ 過去リサーチのお気に入りピン留め ＆ 優先ソート (History Pinning & Priority Sorting)
+- **重要レポートのワンクリック固定機能**:
+  - 履歴ドロワーおよびホーム画面の履歴カードに「⭐ ピン留め」ボタンを追加（`POST /api/history/:id/pin`）。
+  - ピン留めされた重要リサーチはゴールドスターバッジ付きで常に最上部に固定表示。
+  - 検索フィルターと組み合わせることで、過去の重要資料を0.1秒で即座に呼び出し可能。
+
+### 🎯 リサーチ目的別プリセットチップ (Research Presets Chips)
+- **迷わず1クリックで最適な調査設計を適用するプリセットバーを検索画面に新設**:
+  - `⚔️ 競合・製品比較`: 主要競合3〜5社との料金・機能・強み弱み比較
+  - `💡 新規事業・市場調査`: 市場規模、ターゲット課題、収益モデル、参入機会
+  - `🛠️ ツール選定・導入`: 料金プラン、無料枠、導入メリット、実際の口コミ評判
+  - `⚠️ リスク・課題`: 導入リスク、セキュリティ課題、法的注意点、失敗事例
+  - 各チップをクリックすると、テーマの補助文および最適な分析スタイル（`business`, `decision`, `tech`）がワンタップで自動適用。
+
+### 💡 アプリ内新バージョン自動確認 ＆ 通知バナー (Update Notification Banner)
+- **最新リリースの非侵入的通知システム**:
+  - アプリ起動時に GitHub Releases から最新バージョン情報を軽量フェッチ（`GET /api/version/check`）。
+  - 新バージョンがある場合、画面右下に非侵入的なトーストバナーを表示し、更新内容やBOOTH/GitHubへの導線を提供。
+
+### 🧪 自動テストスイートの強化（全40件 100% 合格）
+- `test/consistency.test.js` に以下のアサーションを追加：
+  1. `v1.5.0 AppData persistence, history pin, and version check consistency`: AppData永続化、履歴ピン留め、PUT更新、バージョンチェックAPIの検証。
+  2. `v1.5.0 inline direct editor, presets, and update notification banner consistency`: インライン編集UI、プリセットバー、通知バナー、ピンボタンスタイルの検証。
+
+---
+
 ## [v1.4.0] - 2026-10-22
 
 ### 📈 Pure SVG ビジュアル・チャート描画エンジン搭載 (Pure SVG Chart Engine & Vector PDF Embedding)

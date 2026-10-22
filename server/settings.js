@@ -4,8 +4,25 @@
 const fs = require('fs');
 const path = require('path');
 
+function resolveDataDir() {
+  if (process.env.RESEARCH_DATA_DIR) {
+    return path.resolve(process.env.RESEARCH_DATA_DIR);
+  }
+  // テスト実行時や明示的ポータブル指定時はプロジェクトルート直下の data ディレクトリを使用
+  if (process.env.NODE_ENV === 'test' || process.env.PORTABLE_MODE === '1') {
+    const base = process.pkg ? path.dirname(process.execPath) : path.join(__dirname, '..');
+    return path.join(base, 'data');
+  }
+  // 商用・日常実行時: Windows では %APPDATA%\ResearchStudio, その他 OS は ~/.research_studio
+  if (process.platform === 'win32' && process.env.APPDATA) {
+    return path.join(process.env.APPDATA, 'ResearchStudio');
+  }
+  const home = process.env.HOME || process.env.USERPROFILE || '.';
+  return path.join(home, '.research_studio');
+}
+
 const BASE_DIR = process.pkg ? path.dirname(process.execPath) : path.join(__dirname, '..');
-const DATA_DIR = path.join(BASE_DIR, 'data');
+const DATA_DIR = resolveDataDir();
 const FILE = path.join(DATA_DIR, 'settings.json');
 
 const DEFAULTS = {
@@ -28,8 +45,33 @@ const ENUMS = {
   confidentiality: ['CONFIDENTIAL', 'INTERNAL', 'PUBLIC', 'NONE'],
 };
 
+function migrateOldDataIfNeeded() {
+  const oldDir = path.join(BASE_DIR, 'data');
+  if (path.resolve(oldDir) === path.resolve(DATA_DIR)) return;
+  if (!fs.existsSync(oldDir)) return;
+
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    const oldSettings = path.join(oldDir, 'settings.json');
+    const newSettings = path.join(DATA_DIR, 'settings.json');
+    if (fs.existsSync(oldSettings) && !fs.existsSync(newSettings)) {
+      fs.copyFileSync(oldSettings, newSettings);
+    }
+    const oldHist = path.join(oldDir, 'history');
+    const newHist = path.join(DATA_DIR, 'history');
+    if (fs.existsSync(oldHist) && !fs.existsSync(newHist)) {
+      if (typeof fs.cpSync === 'function') {
+        fs.cpSync(oldHist, newHist, { recursive: true });
+      }
+    }
+  } catch {
+    // 移行エラーがあっても起動はブロックしない
+  }
+}
+
 function ensureDir() {
   fs.mkdirSync(DATA_DIR, { recursive: true });
+  migrateOldDataIfNeeded();
 }
 
 function readFile() {

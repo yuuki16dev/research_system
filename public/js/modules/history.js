@@ -150,11 +150,15 @@ export async function renderHistoryDrawerList() {
       return text.includes(historyState.drawerFilter);
     });
 
-    if (historyState.drawerSort === 'asc') {
-      filtered = [...filtered].sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
-    } else {
-      filtered = [...filtered].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
-    }
+    // 並び替え: ピン留め（pinned）を常に最優先し、その中で作成日時順
+    filtered = [...filtered].sort((a, b) => {
+      const pinA = a.pinned ? 1 : 0;
+      const pinB = b.pinned ? 1 : 0;
+      if (pinA !== pinB) return pinB - pinA; // ピン留めが先頭
+      return historyState.drawerSort === 'asc'
+        ? String(a.createdAt).localeCompare(String(b.createdAt))
+        : String(b.createdAt).localeCompare(String(a.createdAt));
+    });
 
     if (!filtered.length) {
       listEl.innerHTML = `<li class="history-empty">${historyState.drawerFilter ? '一致するリサーチ履歴がありません' : 'リサーチ履歴がありません'}</li>`;
@@ -165,15 +169,18 @@ export async function renderHistoryDrawerList() {
     let html = '';
 
     filtered.forEach((item) => {
-      const g = getHistoryGroupKey(item.createdAt);
+      const g = item.pinned ? '⭐ ピン留めした履歴' : getHistoryGroupKey(item.createdAt);
       if (g !== currentGroup) {
         currentGroup = g;
         html += `<li class="history-group-title"><span>${esc(currentGroup)}</span></li>`;
       }
       html += `
-      <li class="history-item" data-id="${item.id}" data-title="${esc(item.title || item.theme)}">
+      <li class="history-item ${item.pinned ? 'is-pinned' : ''}" data-id="${item.id}" data-title="${esc(item.title || item.theme)}">
         <div class="hi-main">
-          <strong>${esc(item.title || item.theme)}</strong>
+          <div class="hi-title-row">
+            ${item.pinned ? '<span class="pin-badge" title="ピン留め済み">⭐</span>' : ''}
+            <strong>${esc(item.title || item.theme)}</strong>
+          </div>
           <div class="hi-meta">
             <span class="mode-tag ${item.mode === 'live' ? 'live' : ''}">${item.mode === 'live' ? 'LIVE' : 'DEMO'}</span>
             <span>${esc(item.scopeLabel)}</span>
@@ -182,9 +189,14 @@ export async function renderHistoryDrawerList() {
             <span>· ${relTime(item.createdAt)}</span>
           </div>
         </div>
-        <button type="button" class="btn btn-ghost btn-icon btn-sm btn-delete-hi" data-delete-id="${item.id}" title="この履歴を削除" aria-label="削除">
-          <span data-icon="trash"></span>
-        </button>
+        <div class="hi-actions">
+          <button type="button" class="btn btn-ghost btn-icon btn-sm btn-pin-hi ${item.pinned ? 'active' : ''}" data-pin-id="${item.id}" title="${item.pinned ? 'ピン留め解除' : '上部にピン留め'}" aria-label="ピン留め">
+            <span data-icon="star"></span>
+          </button>
+          <button type="button" class="btn btn-ghost btn-icon btn-sm btn-delete-hi" data-delete-id="${item.id}" title="この履歴を削除" aria-label="削除">
+            <span data-icon="trash"></span>
+          </button>
+        </div>
       </li>`;
     });
 
@@ -194,10 +206,28 @@ export async function renderHistoryDrawerList() {
     // 履歴クリックで読み込み
     $$('.history-item', listEl).forEach((li) => {
       li.addEventListener('click', async (e) => {
-        if (e.target.closest('[data-delete-id]')) return;
+        if (e.target.closest('[data-delete-id]') || e.target.closest('[data-pin-id]')) return;
         const id = li.dataset.id;
         await loadHistoryItem(id);
         closeModal('drawer-history');
+      });
+    });
+
+    // ピン留めボタン
+    $$('[data-pin-id]', listEl).forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.pinId;
+        try {
+          const res = await api.pinHistory(id);
+          const item = historyState.items.find((x) => x.id === id);
+          if (item) item.pinned = res.pinned;
+          toast(res.pinned ? 'ピン留めしました' : 'ピン留めを解除しました', 'info');
+          await renderHistoryDrawerList();
+          renderHomeHistory();
+        } catch (err) {
+          toast(`ピン留め失敗: ${err.message}`, 'error');
+        }
       });
     });
 
@@ -258,6 +288,14 @@ export function renderHomeHistory() {
     return text.includes(historyState.homeFilter);
   });
 
+  // ピン留め（pinned）を最優先にして並び替え
+  filtered = [...filtered].sort((a, b) => {
+    const pinA = a.pinned ? 1 : 0;
+    const pinB = b.pinned ? 1 : 0;
+    if (pinA !== pinB) return pinB - pinA;
+    return String(b.createdAt).localeCompare(String(a.createdAt));
+  });
+
   const isRecentView = historyState.view === 'recent';
   const displayItems = isRecentView ? filtered.slice(0, historyState.visibleCount) : filtered;
   const remaining = Math.max(0, filtered.length - displayItems.length);
@@ -279,10 +317,18 @@ export function renderHomeHistory() {
   grid.innerHTML = displayItems
     .map((item) => {
       return `
-      <div class="recent-card glass" data-history-id="${item.id}">
+      <div class="recent-card glass ${item.pinned ? 'is-pinned' : ''}" data-history-id="${item.id}">
         <div class="recent-card-head">
-          <span class="mode-tag ${item.mode === 'live' ? 'live' : ''}">${item.mode === 'live' ? 'LIVE' : 'DEMO'}</span>
-          <span class="recent-meta"><span>${relTime(item.createdAt)}</span></span>
+          <div class="recent-head-left">
+            <span class="mode-tag ${item.mode === 'live' ? 'live' : ''}">${item.mode === 'live' ? 'LIVE' : 'DEMO'}</span>
+            ${item.pinned ? '<span class="pin-badge" title="ピン留め済み">⭐ ピン留め</span>' : ''}
+          </div>
+          <div class="recent-head-right">
+            <button type="button" class="btn btn-ghost btn-icon btn-sm btn-pin-hi ${item.pinned ? 'active' : ''}" data-home-pin-id="${item.id}" title="${item.pinned ? 'ピン留め解除' : 'ピン留め'}" aria-label="ピン留め">
+              <span data-icon="star"></span>
+            </button>
+            <span class="recent-meta"><span>${relTime(item.createdAt)}</span></span>
+          </div>
         </div>
         <strong>${esc(item.title || item.theme)}</strong>
         <div class="recent-meta">
@@ -305,8 +351,25 @@ export function renderHomeHistory() {
 
   $$('.recent-card', grid).forEach((card) => {
     card.addEventListener('click', (e) => {
-      if (e.target.closest('[data-home-delete-id]')) return;
+      if (e.target.closest('[data-home-delete-id]') || e.target.closest('[data-home-pin-id]')) return;
       loadHistoryItem(card.dataset.historyId);
+    });
+  });
+
+  $$('[data-home-pin-id]', grid).forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.homePinId;
+      try {
+        const res = await api.pinHistory(id);
+        const item = historyState.items.find((x) => x.id === id);
+        if (item) item.pinned = res.pinned;
+        toast(res.pinned ? 'ピン留めしました' : 'ピン留めを解除しました', 'info');
+        renderHomeHistory();
+        renderHistoryDrawerList();
+      } catch (err) {
+        toast(`ピン留め失敗: ${err.message}`, 'error');
+      }
     });
   });
 

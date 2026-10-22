@@ -91,10 +91,24 @@ app.use(express.static(path.join(ROOT, 'public'), { extensions: ['html'] }));
 /* --------------------------------------------------------------- info */
 let currentPort = PORT;
 
-let pkgVer = '1.3.0';
+let pkgVer = '1.4.0';
 try {
   pkgVer = require('../package.json').version || pkgVer;
 } catch {}
+
+function compareSemver(a, b) {
+  const pa = String(a).split('.').map(Number);
+  const pb = String(b).split('.').map(Number);
+  for (let i = 0; i < 3; i++) {
+    const na = pa[i] || 0;
+    const nb = pb[i] || 0;
+    if (na > nb) return 1;
+    if (na < nb) return -1;
+  }
+  return 0;
+}
+
+let versionCache = { checkedAt: 0, latest: null };
 
 function lanAddresses(port = currentPort) {
   const out = [];
@@ -109,6 +123,39 @@ function lanAddresses(port = currentPort) {
 
 app.get('/api/info', (req, res) => {
   res.json({ app: 'Research Studio', version: pkgVer, port: currentPort, lan: lanAddresses(currentPort), settings: settings.publicView() });
+});
+
+app.get('/api/version/check', async (req, res) => {
+  const current = pkgVer;
+  const now = Date.now();
+  if (versionCache.latest && now - versionCache.checkedAt < 3600000) {
+    return res.json({ current, ...versionCache.latest });
+  }
+
+  try {
+    const fetchRes = await fetch('https://api.github.com/repos/yuuki16dev/research_system/releases/latest', {
+      headers: { 'User-Agent': 'ResearchStudio-App' },
+      signal: AbortSignal.timeout(3500),
+    });
+    if (!fetchRes.ok) {
+      return res.json({ current, hasUpdate: false });
+    }
+    const data = await fetchRes.json();
+    const tagName = String(data.tag_name || '').replace(/^v/, '');
+    const hasUpdate = tagName && tagName !== current && compareSemver(tagName, current) > 0;
+    versionCache = {
+      checkedAt: now,
+      latest: {
+        hasUpdate,
+        latestVersion: tagName,
+        releaseUrl: data.html_url || 'https://github.com/yuuki16dev/research_system/releases',
+        releaseName: data.name || '',
+      },
+    };
+    res.json({ current, ...versionCache.latest });
+  } catch {
+    res.json({ current, hasUpdate: false });
+  }
 });
 
 app.get('/api/qr', async (req, res) => {
@@ -301,6 +348,14 @@ app.get('/api/history/:id', (req, res) => {
 });
 app.patch('/api/history/:id', (req, res) => {
   const updated = history.update(req.params.id, req.body || {});
+  return updated ? res.json(updated) : res.status(404).json({ error: 'not found' });
+});
+app.put('/api/history/:id', (req, res) => {
+  const updated = history.update(req.params.id, req.body || {});
+  return updated ? res.json(updated) : res.status(404).json({ error: 'not found' });
+});
+app.post('/api/history/:id/pin', (req, res) => {
+  const updated = history.togglePin(req.params.id);
   return updated ? res.json(updated) : res.status(404).json({ error: 'not found' });
 });
 app.delete('/api/history/:id', (req, res) => res.json({ ok: history.remove(req.params.id) }));
