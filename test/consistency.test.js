@@ -385,11 +385,11 @@ test('mobile responsiveness consistency: style dropdown and chips must fit small
   const stylesCss = fs.readFileSync(path.join(ROOT, 'public', 'css', 'styles.css'), 'utf8');
 
   assert.ok(
-    stylesCss.includes('.style-dropdown-menu {\n    min-width: 0 !important;'),
+    /\.style-dropdown-menu\s*\{\s*min-width:\s*0\s*!important;/.test(stylesCss),
     'styles.css must unconstrain dropdown min-width on small screens to prevent clipping on 360px mobile viewports'
   );
   assert.ok(
-    stylesCss.includes('.btn-style-selector {\n    width: 100%;'),
+    /\.btn-style-selector\s*\{\s*width:\s*100%;/.test(stylesCss),
     'styles.css must expand style selector button to full width on mobile for better touch targets'
   );
 });
