@@ -93,7 +93,7 @@ app.use(express.static(path.join(ROOT, 'public'), { extensions: ['html'] }));
 /* --------------------------------------------------------------- info */
 let currentPort = PORT;
 
-let pkgVer = '1.7.0';
+let pkgVer = '1.7.1';
 try {
   pkgVer = require('../package.json').version || pkgVer;
 } catch {}
@@ -542,11 +542,9 @@ function startServer(port, host, retries = 5) {
         process.exit(0);
       }
 
-      if (retries > 0) {
-        console.warn(`[警告] ポート ${port} は別のプログラムが使用しています。次のポート ${port + 1} を試行します...`);
-        startServer(port + 1, host, retries - 1);
-        return;
-      }
+      console.error(`\n[エラー] ポート ${port} は使用中です。Research Studio は単一インスタンス（ポート ${port}）で動作します。`);
+      console.error(`既存のプロセスを停止して再起動するには stop.bat を実行してください。\n`);
+      process.exit(1);
     }
     console.error('[致命的エラー] サーバーの起動に失敗しました:', err);
     process.exit(1);

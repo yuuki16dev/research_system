@@ -1,9 +1,8 @@
 'use strict';
 
-const { spawn } = require('child_process');
+const { spawn, execSync } = require('child_process');
 const path = require('path');
 const net = require('net');
-const readline = require('readline');
 const logger = require('./logger');
 
 const DEFAULT_PORT = 3939;
@@ -24,15 +23,6 @@ function isPortInUse(port) {
   });
 }
 
-/** 空いているポートを順番に探索 */
-async function findAvailablePort(startPort, maxAttempts = 10) {
-  for (let p = startPort; p < startPort + maxAttempts; p++) {
-    const inUse = await isPortInUse(p);
-    if (!inUse) return p;
-  }
-  return startPort;
-}
-
 /** 該当ポートで動いているのが Research Studio か確認 (IPv4 / IPv6 両対応) */
 async function checkIsResearchStudio(port) {
   const hosts = ['127.0.0.1', 'localhost'];
@@ -50,25 +40,38 @@ async function checkIsResearchStudio(port) {
   return false;
 }
 
+/** ポートを強制解放する（ゾンビプロセスや未応答プロセスの除去） */
+function forceFreePort(port) {
+  try {
+    if (process.platform === 'win32') {
+      const output = execSync(`netstat -ano | findstr :${port} | findstr LISTENING`, { encoding: 'utf8' });
+      const lines = output.trim().split('\n');
+      for (const line of lines) {
+        const parts = line.trim().split(/\s+/);
+        const pid = parts[parts.length - 1];
+        if (pid && !isNaN(pid) && pid !== '0' && pid !== String(process.pid)) {
+          try { execSync(`taskkill /F /PID ${pid}`, { stdio: 'ignore' }); } catch {}
+        }
+      }
+    } else {
+      const output = execSync(`lsof -t -i:${port}`, { encoding: 'utf8' }).trim();
+      if (output) {
+        const pids = output.split('\n');
+        for (const pid of pids) {
+          if (pid && pid !== String(process.pid)) {
+            try { execSync(`kill -9 ${pid}`, { stdio: 'ignore' }); } catch {}
+          }
+        }
+      }
+    }
+  } catch {}
+}
+
 function openBrowser(url) {
   try {
     const platform = process.platform;
     if (platform === 'win32') {
-      // 1. cmd /c start "" "url" で確実に起動
-      const child = spawn('cmd', ['/c', 'start', '""', url], {
-        detached: true,
-        stdio: 'ignore',
-        windowsVerbatimArguments: true,
-      });
-      child.on('error', () => {
-        // 2. フォールバック: PowerShell Start-Process
-        try {
-          spawn('powershell', ['-NoProfile', '-NonInteractive', '-Command', `Start-Process '${url}'`], {
-            detached: true,
-            stdio: 'ignore',
-          });
-        } catch {}
-      });
+      spawn('cmd', ['/c', 'start', '', url], { detached: true, stdio: 'ignore' });
     } else if (platform === 'darwin') {
       spawn('open', [url], { detached: true, stdio: 'ignore' });
     } else {
@@ -88,7 +91,7 @@ function pauseAndExit(code = 1) {
   }
 }
 
-let pkgVer = '1.7.0';
+let pkgVer = '1.7.1';
 try {
   pkgVer = require('../package.json').version || pkgVer;
 } catch {}
@@ -117,66 +120,35 @@ async function main() {
   console.log(`  ◆ Research Studio v${pkgVer} 起動マネージャー`);
   console.log('═'.repeat(56) + '\n');
 
+  // 二重起動チェック
   const inUse = await isPortInUse(DEFAULT_PORT);
-  let targetPort = DEFAULT_PORT;
-
   if (inUse) {
     const isOurApp = await checkIsResearchStudio(DEFAULT_PORT);
     if (isOurApp) {
       console.log(`\n${'═'.repeat(56)}`);
-      console.log(`  [情報] Research Studio はすでにバックグラウンドで起動中です`);
+      console.log(`  [情報] Research Studio はすでに起動しています`);
       console.log(`  アクセス先: http://localhost:${DEFAULT_PORT}`);
       console.log(`${'═'.repeat(56)}\n`);
       console.log('ブラウザで既存の画面を開きます...\n');
       openBrowser(`http://localhost:${DEFAULT_PORT}`);
-      console.log('★ ブラウザが自動で開かない場合は、上記URLを直接開いてください');
-      console.log('★ アプリを完全に再起動したい場合は、一度 stop.bat を実行してください\n');
-      pauseAndExit(0);
+      console.log('※ すでに起動しているため、この起動ウィンドウは1.5秒後に自動で閉じます...');
+      setTimeout(() => process.exit(0), 1500);
       return;
-    } else {
-      console.log(`[注意] ポート ${DEFAULT_PORT} は別のプログラムが使用しています。`);
-      targetPort = await findAvailablePort(DEFAULT_PORT + 1);
-      console.log(`空きポート ${targetPort} を検出しました。ポート ${targetPort} で起動します...\n`);
     }
+
+    // もしポート 3939 が塞がっているが正常応答しない場合は、前回のゾンビプロセスを解放
+    console.log(`[情報] ポート ${DEFAULT_PORT} を解放・クリーンアップしています...`);
+    forceFreePort(DEFAULT_PORT);
+    await new Promise((r) => setTimeout(r, 600));
   }
 
+  // サーバー起動（別プロセスを spawn するのではなく、同一プロセスで index.js を実行して単一PID化）
   console.log('サーバーを起動しています...');
-  const serverScript = path.join(__dirname, 'index.js');
-  const env = { ...process.env, PORT: String(targetPort) };
+  process.env.PORT = String(DEFAULT_PORT);
+  process.env.AUTO_OPEN = '1';
 
-  const child = spawn(process.execPath, [serverScript], {
-    stdio: 'inherit',
-    cwd: path.join(__dirname, '..'),
-    env,
-  });
-
-  child.on('error', (err) => {
-    console.error('\n【サーバープロセス起動エラー】', err.message);
-    pauseAndExit(1);
-  });
-
-  const url = `http://localhost:${targetPort}`;
-
-  // 1.5秒後に自動でブラウザを開く
-  setTimeout(() => {
-    openBrowser(url);
-  }, 1500);
-
-  child.on('exit', (code) => {
-    if (code !== 0 && code !== null) {
-      console.log('\n' + '═'.repeat(56));
-      console.log(`【エラー】サーバーが異常終了しました (終了コード: ${code})`);
-      console.log(`詳細なエラーログは以下に保存されています:`);
-      console.log(`  ▶ ${logger.ERROR_LOG}`);
-      console.log('═'.repeat(56) + '\n');
-      pauseAndExit(code);
-    }
-  });
-
-  process.on('SIGINT', () => {
-    child.kill('SIGINT');
-    process.exit(0);
-  });
+  // index.js を直接読み込んで起動
+  require('./index.js');
 }
 
 main().catch((err) => {
@@ -184,3 +156,4 @@ main().catch((err) => {
   console.log(`詳細ログ: ${logger.ERROR_LOG}`);
   pauseAndExit(1);
 });
+
