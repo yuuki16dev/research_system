@@ -253,5 +253,24 @@ test('integration: /api/export/excel generates high-quality spreadsheet binary w
   });
 });
 
+test('integration: /api/changelog returns structured version history', async () => {
+  await runWithServer(async (url) => {
+    const res = await fetch(`${url}/api/changelog`);
+    assert.strictEqual(res.status, 200);
+    const data = await res.json();
+    assert.strictEqual(data.app, 'Research Studio');
+    assert.strictEqual(data.currentVersion, '1.7.0');
+    assert.ok(Array.isArray(data.releases), 'releases must be an array');
+    assert.ok(data.releases.length >= 10, 'releases must contain past versions');
+
+    const latest = data.releases[0];
+    assert.strictEqual(latest.version, 'v1.7.0');
+    assert.strictEqual(latest.isCurrent, true);
+    assert.ok(Array.isArray(latest.categories), 'categories must be an array');
+    assert.ok(latest.categories.length > 0, 'latest release must have categories');
+  });
+});
+
+
 
 

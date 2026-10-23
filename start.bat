@@ -14,15 +14,24 @@ rem 1. Node.js のインストール確認
 where node >nul 2>nul
 if %ERRORLEVEL% NEQ 0 goto NO_NODE
 
-rem 2. 初回起動時: node_modules が無ければ自動インストール
+rem 2. 依存ライブラリのチェック（未インストールまたは不足パッケージがある場合は自動インストール）
+set NEED_INSTALL=0
 if not exist node_modules (
+    set NEED_INSTALL=1
+) else if not exist "node_modules\exceljs" (
+    set NEED_INSTALL=1
+) else if not exist "node_modules\express" (
+    set NEED_INSTALL=1
+)
+
+if "%NEED_INSTALL%"=="1" (
     echo ======================================================================
-    echo   [初回セットアップ] 必要なライブラリを自動インストールしています...
-    echo   (初回のみ15〜30秒ほど時間がかかります。しばらくお待ちください)
+    echo   [ライブラリ確認] 必要なパッケージを自動インストール・更新しています...
+    echo   (初回またはアプデ時のみ15〜30秒ほど時間がかかります。お待ちください)
     echo ======================================================================
     call npm install
     if %ERRORLEVEL% NEQ 0 goto NPM_FAIL
-    echo   インストールが完了しました。サーバーを起動します...
+    echo   ライブラリの準備が完了しました。サーバーを起動します...
     echo.
 )
 

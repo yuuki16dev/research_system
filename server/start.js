@@ -33,17 +33,20 @@ async function findAvailablePort(startPort, maxAttempts = 10) {
   return startPort;
 }
 
-/** 該当ポートで動いているのが Research Studio か確認 */
+/** 該当ポートで動いているのが Research Studio か確認 (IPv4 / IPv6 両対応) */
 async function checkIsResearchStudio(port) {
-  try {
-    const res = await fetch(`http://localhost:${port}/api/info`, {
-      signal: AbortSignal.timeout(1500),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      return data && data.app === 'Research Studio';
-    }
-  } catch {}
+  const hosts = ['127.0.0.1', 'localhost'];
+  for (const h of hosts) {
+    try {
+      const res = await fetch(`http://${h}:${port}/api/info`, {
+        signal: AbortSignal.timeout(1200),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.app === 'Research Studio') return true;
+      }
+    } catch {}
+  }
   return false;
 }
 
@@ -51,7 +54,21 @@ function openBrowser(url) {
   try {
     const platform = process.platform;
     if (platform === 'win32') {
-      spawn('cmd', ['/c', 'start', '', url], { detached: true, stdio: 'ignore' });
+      // 1. cmd /c start "" "url" で確実に起動
+      const child = spawn('cmd', ['/c', 'start', '""', url], {
+        detached: true,
+        stdio: 'ignore',
+        windowsVerbatimArguments: true,
+      });
+      child.on('error', () => {
+        // 2. フォールバック: PowerShell Start-Process
+        try {
+          spawn('powershell', ['-NoProfile', '-NonInteractive', '-Command', `Start-Process '${url}'`], {
+            detached: true,
+            stdio: 'ignore',
+          });
+        } catch {}
+      });
     } else if (platform === 'darwin') {
       spawn('open', [url], { detached: true, stdio: 'ignore' });
     } else {
@@ -71,7 +88,7 @@ function pauseAndExit(code = 1) {
   }
 }
 
-let pkgVer = '1.6.0';
+let pkgVer = '1.7.0';
 try {
   pkgVer = require('../package.json').version || pkgVer;
 } catch {}
@@ -106,10 +123,15 @@ async function main() {
   if (inUse) {
     const isOurApp = await checkIsResearchStudio(DEFAULT_PORT);
     if (isOurApp) {
-      console.log(`[情報] すでに Research Studio は起動しています（ポート ${DEFAULT_PORT}）`);
-      console.log(`ブラウザで http://localhost:${DEFAULT_PORT} を開きます...\n`);
+      console.log(`\n${'═'.repeat(56)}`);
+      console.log(`  [情報] Research Studio はすでにバックグラウンドで起動中です`);
+      console.log(`  アクセス先: http://localhost:${DEFAULT_PORT}`);
+      console.log(`${'═'.repeat(56)}\n`);
+      console.log('ブラウザで既存の画面を開きます...\n');
       openBrowser(`http://localhost:${DEFAULT_PORT}`);
-      console.log('※ 終了する場合は stop.bat を実行するか、既存の画面を閉じてください。\n');
+      console.log('★ ブラウザが自動で開かない場合は、上記URLを直接開いてください');
+      console.log('★ アプリを完全に再起動したい場合は、一度 stop.bat を実行してください\n');
+      pauseAndExit(0);
       return;
     } else {
       console.log(`[注意] ポート ${DEFAULT_PORT} は別のプログラムが使用しています。`);
@@ -126,6 +148,11 @@ async function main() {
     stdio: 'inherit',
     cwd: path.join(__dirname, '..'),
     env,
+  });
+
+  child.on('error', (err) => {
+    console.error('\n【サーバープロセス起動エラー】', err.message);
+    pauseAndExit(1);
   });
 
   const url = `http://localhost:${targetPort}`;

@@ -28,6 +28,7 @@ if (typeof AbortSignal.any !== 'function') {
 const express = require('express');
 const path = require('path');
 const os = require('os');
+const fs = require('fs');
 const QRCode = require('qrcode');
 
 const settings = require('./settings');
@@ -92,7 +93,7 @@ app.use(express.static(path.join(ROOT, 'public'), { extensions: ['html'] }));
 /* --------------------------------------------------------------- info */
 let currentPort = PORT;
 
-let pkgVer = '1.6.0';
+let pkgVer = '1.7.0';
 try {
   pkgVer = require('../package.json').version || pkgVer;
 } catch {}
@@ -156,6 +157,81 @@ app.get('/api/version/check', async (req, res) => {
     res.json({ current, ...versionCache.latest });
   } catch {
     res.json({ current, hasUpdate: false });
+  }
+});
+
+function parseChangelog(content, currentVer) {
+  const releases = [];
+  const lines = content.split('\n');
+  let currentRelease = null;
+  let currentCategory = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    // ## [v1.6.0] - 2026-10-23 または ## [1.6.0] - 2026-10-23
+    const releaseMatch = line.match(/^##\s+\[v?([0-9.]+)\](?:\s*-\s*([0-9-]+))?/);
+    if (releaseMatch) {
+      if (currentRelease) {
+        if (currentCategory) currentRelease.categories.push(currentCategory);
+        releases.push(currentRelease);
+      }
+      const ver = releaseMatch[1];
+      const date = releaseMatch[2] || '';
+      currentRelease = {
+        version: `v${ver}`,
+        rawVersion: ver,
+        date,
+        isCurrent: ver === String(currentVer).replace(/^v/, ''),
+        categories: [],
+      };
+      currentCategory = null;
+      continue;
+    }
+
+    if (!currentRelease) continue;
+
+    // ### 📊 見出し
+    const catMatch = line.match(/^###\s+(.+)$/);
+    if (catMatch) {
+      if (currentCategory) currentRelease.categories.push(currentCategory);
+      currentCategory = {
+        title: catMatch[1].trim(),
+        items: [],
+      };
+      continue;
+    }
+
+    // 箇条書き項目: - **...**: ... または - ...
+    if (currentCategory && line.trim().startsWith('- ')) {
+      currentCategory.items.push(line.trim().replace(/^-\s+/, ''));
+    }
+  }
+
+  if (currentRelease) {
+    if (currentCategory) currentRelease.categories.push(currentCategory);
+    releases.push(currentRelease);
+  }
+
+  return releases;
+}
+
+app.get('/api/changelog', (req, res) => {
+  try {
+    const changelogPath = path.join(ROOT, 'CHANGELOG.md');
+    if (!fs.existsSync(changelogPath)) {
+      return res.status(404).json({ error: 'CHANGELOG.md not found' });
+    }
+    const rawContent = fs.readFileSync(changelogPath, 'utf8');
+    const releases = parseChangelog(rawContent, pkgVer);
+    res.json({
+      app: 'Research Studio',
+      currentVersion: pkgVer,
+      totalReleases: releases.length,
+      releases,
+    });
+  } catch (err) {
+    logger.error('Failed to parse CHANGELOG.md', err);
+    res.status(500).json({ error: 'Failed to read changelog', message: err.message });
   }
 });
 
@@ -415,15 +491,18 @@ function openBrowser(url) {
 
 /** 該当ポートで動いているのが Research Studio か確認 */
 async function checkIsResearchStudio(port) {
-  try {
-    const res = await fetch(`http://localhost:${port}/api/info`, {
-      signal: AbortSignal.timeout(1000),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      return !!(data && data.app === 'Research Studio');
-    }
-  } catch {}
+  const hosts = ['127.0.0.1', 'localhost'];
+  for (const h of hosts) {
+    try {
+      const res = await fetch(`http://${h}:${port}/api/info`, {
+        signal: AbortSignal.timeout(1000),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.app === 'Research Studio') return true;
+      }
+    } catch {}
+  }
   return false;
 }
 

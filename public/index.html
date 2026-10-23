@@ -47,6 +47,7 @@
         <button class="btn btn-ghost" id="btn-usage" type="button" title="API利用状況 &amp; クォータ"><span data-icon="chart"></span><span class="label">クォータ</span></button>
         <button class="btn btn-ghost" id="btn-settings" type="button" title="API設定"><span data-icon="key"></span><span class="label">設定</span></button>
         <button class="btn btn-ghost" id="btn-guide" type="button" title="APIキー取得ガイド &amp; GitHubお問い合わせ"><span data-icon="help-circle"></span><span class="label">ガイド・問い合わせ</span></button>
+        <button class="btn btn-ghost" id="btn-changelog" type="button" title="アップデート履歴 &amp; リリースノート"><span data-icon="book-open"></span><span class="label">更新履歴</span></button>
         <button class="btn btn-ghost btn-icon" id="btn-theme" type="button" title="テーマ切替 (ライト/ダーク)" aria-label="ライト/ダーク切替"><span data-icon="sun" class="only-dark"></span><span data-icon="moon" class="only-light"></span></button>
         <button class="btn btn-ghost btn-icon btn-shutdown" id="btn-power-shutdown" type="button" title="アプリを終了 (サーバー停止)" aria-label="アプリ終了"><span data-icon="power"></span></button>
       </nav>
@@ -567,7 +568,7 @@
     </main>
 
     <footer class="footer">
-      <span id="footer-version">Research Studio v1.6.0</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span><span class="sep">·</span><a href="https://github.com/yuuki16dev/research_system/issues" target="_blank" rel="noopener" class="footer-link"><span data-icon="github"></span>GitHubでお問い合わせ</a>
+      <span id="footer-version">Research Studio v1.7.0</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span><span class="sep">·</span><a href="https://github.com/yuuki16dev/research_system/issues" target="_blank" rel="noopener" class="footer-link"><span data-icon="github"></span>GitHubでお問い合わせ</a>
     </footer>
   </div>
 
@@ -576,8 +577,9 @@
     <div class="modal-backdrop" data-close></div>
     <div class="modal-card glass">
       <header class="modal-head">
-        <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v1.6.0</small></h2>
+        <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v1.7.0</small></h2>
         <div style="display: flex; gap: 8px; align-items: center; margin-left: auto;">
+          <button class="btn btn-ghost btn-sm" type="button" id="btn-settings-changelog" title="アップデート履歴 &amp; リリースノート"><span data-icon="book-open"></span><span class="label">更新履歴</span></button>
           <button class="btn btn-ghost btn-sm" type="button" id="btn-open-guide-from-settings" title="APIキー取得ガイド &amp; GitHubお問い合わせ"><span data-icon="help-circle"></span><span class="label">ガイド・問い合わせ</span></button>
           <button class="btn btn-ghost btn-sm" type="button" id="btn-open-usage-from-settings" title="現在のAPI利用料・クォータを確認"><span data-icon="chart"></span><span class="label">利用状況</span></button>
           <button class="btn btn-ghost btn-icon" type="button" data-close aria-label="閉じる"><span data-icon="x"></span></button>
@@ -928,10 +930,13 @@
             <h3>開発者（yuuki16dev）へのお問い合わせ</h3>
             <p>使い方のご質問、不具合のご報告、新機能のご要望は GitHub Issues よりお気軽にお寄せください。開発者が直接確認・対応いたします。</p>
           </div>
-          <div class="ggc-action">
+          <div class="ggc-action" style="display: flex; gap: 8px; flex-wrap: wrap;">
             <a href="https://github.com/yuuki16dev/research_system/issues" target="_blank" rel="noopener" class="btn btn-primary btn-sm">
               <span data-icon="github"></span><span>GitHubで問い合わせる ↗</span>
             </a>
+            <button type="button" class="btn btn-ghost btn-sm" id="guide-open-changelog">
+              <span data-icon="book-open"></span><span>アップデート履歴を見る</span>
+            </button>
           </div>
         </div>
 
@@ -1039,6 +1044,41 @@
       <footer class="modal-foot shutdown-foot">
         <button class="btn btn-ghost" type="button" data-close id="btn-shutdown-cancel">キャンセル</button>
         <button class="btn btn-danger" type="button" id="btn-shutdown-confirm"><span data-icon="power"></span><span id="shutdown-btn-label">終了する</span></button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- ============================================== MODAL: CHANGELOG & RELEASE NOTES -->
+  <div class="modal" id="modal-changelog" role="dialog" aria-modal="true" aria-labelledby="changelog-modal-title" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card glass modal-lg" id="changelog-modal-card">
+      <header class="modal-head">
+        <div class="modal-head-title-group" style="display: flex; align-items: center; gap: 8px;">
+          <h2 class="modal-title" id="changelog-modal-title"><span data-icon="book-open"></span>アップデート履歴 ＆ リリースノート</h2>
+          <span class="chip-status" id="cl-total-count" style="font-size: 11px;">CHANGELOG</span>
+        </div>
+        <div class="modal-head-tools" style="display: flex; gap: 8px; align-items: center; margin-left: auto;">
+          <a href="https://github.com/yuuki16dev/research_system/releases" target="_blank" rel="noopener" class="btn btn-ghost btn-sm" title="GitHub Releases を開く">
+            <span data-icon="github"></span><span class="label">Releases ↗</span>
+          </a>
+          <button class="icon-btn" data-close type="button" aria-label="閉じる"><span data-icon="x"></span></button>
+        </div>
+      </header>
+      <div class="modal-toolbar changelog-toolbar" style="padding: 10px 16px; border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.08));">
+        <div class="changelog-search-wrap" style="position: relative; width: 100%;">
+          <input type="text" id="changelog-search-input" class="search-input" placeholder="キーワードで更新内容を検索（例: PDF、Excel、ピン、API...）" autocomplete="off" style="width: 100%; padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(0,0,0,0.25); color: inherit;" />
+        </div>
+      </div>
+      <div class="modal-body changelog-body" id="changelog-body" style="max-height: 65vh; overflow-y: auto; padding: 16px;">
+        <div class="changelog-timeline" id="changelog-timeline">
+          <!-- JSでレンダリング -->
+        </div>
+      </div>
+      <footer class="modal-foot" style="display: flex; justify-content: space-between; align-items: center;">
+        <div class="changelog-foot-meta" style="font-size: 11px; opacity: 0.65;">
+          <span>※ 本アプリは Semantic Versioning 2.0.0 に準拠して開発されています。</span>
+        </div>
+        <button class="btn btn-ghost" data-close type="button">閉じる</button>
       </footer>
     </div>
   </div>

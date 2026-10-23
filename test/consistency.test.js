@@ -527,6 +527,45 @@ test('v1.6.0 professional ExcelJS engine, running PDF headers, and inline editor
   assert.ok(!html.includes('html2pdf.bundle.min.js'), 'index.html must not include obsolete html2pdf script');
 });
 
+test('v1.7.0 in-app changelog modal and start.bat auto-repair consistency', () => {
+  // 1. CHANGELOG Modal module
+  const clModulePath = path.join(ROOT, 'public', 'js', 'modules', 'changelog-modal.js');
+  assert.ok(fs.existsSync(clModulePath), 'changelog-modal.js must exist');
+  const clModule = fs.readFileSync(clModulePath, 'utf8');
+  assert.ok(clModule.includes('openChangelogModal'), 'changelog-modal.js must export openChangelogModal');
+  assert.ok(clModule.includes('initChangelogModal'), 'changelog-modal.js must export initChangelogModal');
+
+  // 2. Server changelog API
+  const serverIndex = fs.readFileSync(path.join(ROOT, 'server', 'index.js'), 'utf8');
+  assert.ok(serverIndex.includes("app.get('/api/changelog'"), 'server/index.js must have /api/changelog endpoint');
+  assert.ok(serverIndex.includes('function parseChangelog'), 'server/index.js must have parseChangelog function');
+
+  // 3. API client
+  const apiClient = fs.readFileSync(path.join(ROOT, 'public', 'js', 'api.js'), 'utf8');
+  assert.ok(apiClient.includes("changelog: () => request('GET', '/api/changelog')"), 'api.js must have changelog method');
+
+  // 4. HTML markup
+  const html = fs.readFileSync(path.join(ROOT, 'public', 'index.html'), 'utf8');
+  assert.ok(html.includes('id="modal-changelog"'), 'index.html must have #modal-changelog');
+  assert.ok(html.includes('id="btn-changelog"'), 'index.html must have #btn-changelog in topbar');
+  assert.ok(html.includes('id="changelog-search-input"'), 'index.html must have #changelog-search-input');
+  assert.ok(html.includes('id="changelog-timeline"'), 'index.html must have #changelog-timeline');
+
+  // 5. Styles
+  const styles = fs.readFileSync(path.join(ROOT, 'public', 'css', 'styles.css'), 'utf8');
+  assert.ok(styles.includes('#modal-changelog'), 'styles.css must have #modal-changelog rules');
+  assert.ok(styles.includes('.cl-card'), 'styles.css must have .cl-card rules');
+
+  // 6. start.bat auto-repair & server/start.js reliability
+  const startBat = fs.readFileSync(path.join(ROOT, 'start.bat'), 'utf8');
+  assert.ok(startBat.includes('node_modules\\exceljs'), 'start.bat must check for exceljs presence');
+  assert.ok(startBat.includes('npm install'), 'start.bat must invoke npm install when packages missing');
+
+  const startJs = fs.readFileSync(path.join(ROOT, 'server', 'start.js'), 'utf8');
+  assert.ok(startJs.includes('127.0.0.1') && startJs.includes('localhost'), 'server/start.js must test both IPv4 and localhost');
+});
+
+
 
 
 

@@ -19,6 +19,7 @@ import { bindDeepDiveDrawer, deepDiveState } from './modules/deep-dive.js';
 import { bindHistoryDrawer, loadRecentHistory, openHistoryDrawer } from './modules/history.js';
 import { bindShutdownHandlers, isAppShuttingDown } from './modules/shutdown.js';
 import { bindReportEditor } from './modules/editor.js';
+import { initChangelogModal, openChangelogModal } from './modules/changelog-modal.js';
 import { api } from './api.js';
 
 // ==========================================================================
@@ -40,7 +41,13 @@ async function checkVersionUpdate() {
     const dismissBtn = document.getElementById('vub-dismiss');
 
     if (verEl) verEl.textContent = info.latestVersion;
-    if (linkEl && info.releaseUrl) linkEl.href = info.releaseUrl;
+    if (linkEl) {
+      if (info.releaseUrl) linkEl.href = info.releaseUrl;
+      linkEl.addEventListener('click', (e) => {
+        e.preventDefault();
+        openChangelogModal();
+      });
+    }
 
     banner.hidden = false;
 
@@ -83,6 +90,7 @@ async function initApp() {
     bindHistoryDrawer((data) => finishSuccess(data));
     bindShutdownHandlers();
     bindApiGuideModal();
+    initChangelogModal();
 
     // 3. リサーチ実行中・深掘り実行中の誤終了ガード (beforeunload)
     window.addEventListener('beforeunload', (e) => {

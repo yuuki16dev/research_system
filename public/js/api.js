@@ -32,6 +32,7 @@ export const api = {
   updateHistory: (id, data) => request('PUT', `/api/history/${id}`, data),
   pinHistory: (id) => request('POST', `/api/history/${id}/pin`),
   checkVersion: () => request('GET', '/api/version/check'),
+  changelog: () => request('GET', '/api/changelog'),
   deepDive: (body) => request('POST', '/api/research/deep-dive', body),
   usage: () => request('GET', '/api/usage'),
   getLogs: () => request('GET', '/api/logs'),
