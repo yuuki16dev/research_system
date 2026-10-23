@@ -4,7 +4,7 @@ const { execSync } = require('child_process');
 
 const DEFAULT_PORT = 3939;
 
-let pkgVer = '1.3.0';
+let pkgVer = '1.6.0';
 try {
   pkgVer = require('../package.json').version || pkgVer;
 } catch {}

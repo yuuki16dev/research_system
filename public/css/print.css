@@ -114,44 +114,85 @@
   overflow: hidden;
   break-after: page;
   page-break-after: always;
-  background: #0b0f22;
+  background: #090e1a;
   color: #fff;
   box-sizing: border-box;
+  border-left: 6mm solid #0284c7;
 }
 .pr-cover-art { position: absolute; inset: 0; }
-.pr-cover-art i { position: absolute; border-radius: 50%; filter: blur(30mm); opacity: .9; }
-.pr-cover-art i:nth-child(1) { width: 150mm; height: 150mm; left: -40mm; top: -50mm; background: #6b4dff; }
-.pr-cover-art i:nth-child(2) { width: 120mm; height: 120mm; right: -40mm; top: 70mm; background: #0fb5d4; opacity: .65; }
-.pr-cover-art i:nth-child(3) { width: 110mm; height: 110mm; left: 40mm; bottom: -60mm; background: #e04fb0; opacity: .5; }
-.pr-cover-grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.06) 1px, transparent 1px); background-size: 12mm 12mm; }
+.pr-cover-art i { display: none; }
+.pr-cover-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, .03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, .03) 1px, transparent 1px);
+  background-size: 10mm 10mm;
+}
 .pr-cover-inner {
   position: relative;
   height: 100%;
-  padding: 22mm 18mm 18mm;
+  padding: 24mm 20mm 20mm;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
 }
-.pr-brand { display: flex; align-items: center; gap: 3mm; font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 10.5pt; letter-spacing: .04em; }
-.pr-brand-mark { width: 7.5mm; height: 7.5mm; border-radius: 2mm; background: var(--g); display: grid; place-items: center; font-size: 8.5pt; }
-.pr-kicker { margin-top: 48mm; font-family: 'Outfit', sans-serif; font-size: 9pt; font-weight: 700; letter-spacing: .28em; color: #9fe9f7; }
-.pr-title { margin: 5mm 0 0; font-size: 23pt; font-weight: 900; line-height: 1.34; letter-spacing: -.01em; word-break: break-word; overflow-wrap: break-word; }
-.pr-subtitle { margin-top: 4mm; font-size: 10.5pt; color: rgba(255,255,255,.8); line-height: 1.6; word-break: break-word; overflow-wrap: break-word; }
-.pr-rule { width: 26mm; height: 1.3mm; border-radius: 1mm; background: var(--g); margin-top: 8mm; }
-.pr-theme-box { margin-top: 8mm; padding: 4.5mm 5.5mm; border-radius: 2.8mm; background: rgba(255,255,255,.08); border: .3mm solid rgba(255,255,255,.18); box-sizing: border-box; }
-.pr-theme-box small { display: block; font-size: 7.2pt; letter-spacing: .18em; color: rgba(255,255,255,.6); font-family: 'Outfit', sans-serif; font-weight: 600; }
-.pr-theme-box div { font-size: 10.5pt; font-weight: 700; margin-top: 1mm; word-break: break-word; }
+.pr-brand { display: flex; align-items: center; gap: 3.5mm; font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 11pt; letter-spacing: .06em; }
+.pr-brand-mark { width: 8mm; height: 8mm; border-radius: 2mm; background: #0284c7; color: #fff; display: grid; place-items: center; font-size: 9pt; font-weight: 900; }
+.pr-kicker { margin-top: 45mm; font-family: 'Outfit', sans-serif; font-size: 9.5pt; font-weight: 800; letter-spacing: .32em; color: #38bdf8; text-transform: uppercase; }
+.pr-title { margin: 6mm 0 0; font-size: 24pt; font-weight: 900; line-height: 1.32; letter-spacing: -.02em; word-break: break-word; overflow-wrap: break-word; color: #ffffff; }
+.pr-subtitle { margin-top: 4mm; font-size: 11pt; color: #94a3b8; line-height: 1.6; word-break: break-word; overflow-wrap: break-word; }
+.pr-rule { width: 32mm; height: 1.5mm; border-radius: 1mm; background: #0284c7; margin-top: 8mm; }
+.pr-theme-box { margin-top: 9mm; padding: 5mm 6mm; border-radius: 2mm; background: rgba(255,255,255,.05); border-left: 1.5mm solid #0284c7; box-sizing: border-box; }
+.pr-theme-box small { display: block; font-size: 7.5pt; letter-spacing: .18em; color: #94a3b8; font-family: 'Outfit', sans-serif; font-weight: 700; text-transform: uppercase; }
+.pr-theme-box div { font-size: 11pt; font-weight: 700; margin-top: 1.5mm; word-break: break-word; color: #f1f5f9; }
 .pr-meta {
   margin-top: auto;
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 3mm;
-  padding-top: 5mm;
-  border-top: .3mm solid rgba(255,255,255,.2);
+  gap: 3.5mm;
+  padding-top: 6mm;
+  border-top: .4mm solid rgba(255,255,255,.15);
   box-sizing: border-box;
 }
-.pr-meta dt { font-family: 'Outfit', sans-serif; font-size: 6.5pt; letter-spacing: .15em; color: rgba(255,255,255,.6); font-weight: 600; }
-.pr-meta dd { margin: 1mm 0 0; font-size: 8.5pt; font-weight: 700; word-break: break-word; }
+.pr-meta dt { font-family: 'Outfit', sans-serif; font-size: 6.8pt; letter-spacing: .16em; color: #94a3b8; font-weight: 700; text-transform: uppercase; }
+.pr-meta dd { margin: 1.2mm 0 0; font-size: 9pt; font-weight: 700; word-break: break-word; color: #f8fafc; }
+
+/* -------------------------------------------------------- running header/footer */
+.pr-running-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 2mm;
+  margin-bottom: 5mm;
+  border-bottom: .3mm solid #cbd5e1;
+  font-size: 7.5pt;
+  color: #64748b;
+  font-family: 'Outfit', 'Noto Sans JP', sans-serif;
+  box-sizing: border-box;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.pr-rh-brand { font-weight: 800; color: #0f172a; letter-spacing: .06em; }
+.pr-rh-title { max-width: 100mm; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #475569; }
+.pr-rh-sec { font-weight: 700; color: #0284c7; letter-spacing: .05em; text-transform: uppercase; }
+
+.pr-running-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 2.5mm;
+  margin-top: 6mm;
+  border-top: .3mm solid #e2e8f0;
+  font-size: 7pt;
+  color: #94a3b8;
+  font-family: 'Outfit', 'Noto Sans JP', sans-serif;
+  box-sizing: border-box;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.pr-rf-conf { font-weight: 700; letter-spacing: .08em; color: #b91c1c; text-transform: uppercase; }
+.pr-rf-page { font-weight: 700; color: #334155; font-size: 7.5pt; }
 
 /* ------------------------------------------------------------------ toc */
 .pr-toc {

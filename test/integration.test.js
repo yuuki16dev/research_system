@@ -227,4 +227,31 @@ test('integration: /api/shutdown accepts graceful shutdown request', async () =>
   });
 });
 
+test('integration: /api/export/excel generates high-quality spreadsheet binary with ExcelJS', async () => {
+  await runWithServer(async (url) => {
+    const mockData = {
+      title: 'テストExcelレポート',
+      summary: 'テストサマリー本文',
+      metrics: [{ label: '市場規模', value: '1,500億円', note: '前年比20%増' }],
+      table: { columns: ['項目', 'A社', 'B社'], rows: [['価格', '1000円', '2000円']] },
+      sources: [{ index: 1, title: 'ソース1', url: 'https://example.com', score: 0.9 }],
+    };
+
+    const res = await fetch(`${url}/api/export/excel`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: mockData, brand: { publisherName: 'Test Corp' } }),
+    });
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(
+      res.headers.get('content-type'),
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    const buffer = await res.arrayBuffer();
+    assert.ok(buffer.byteLength > 5000, 'Excel buffer must be non-empty and well-structured');
+  });
+});
+
+
 

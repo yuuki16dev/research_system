@@ -772,9 +772,31 @@ function enhanceWorksheet(ws, { wrapCols = [], centerCols = [], rightCols = [], 
 }
 
 /**
- * 3. Excel (.xlsx) 出力 (SheetJS) — プロフェッショナル・ダッシュボード帳票
+ * 3. Excel (.xlsx) 出力 — プロフェッショナル・ダッシュボード帳票
+ * サーバー側高品位 ExcelJS エンジン (/api/export/excel) を優先使用し、
+ * A4横向き印刷・濃紺ヘッダー帯・KPIカード・ゼブラマトリクスを備えた商用帳票を生成。
  */
-export function exportExcel(data, brand = {}) {
+export async function exportExcel(data, brand = {}) {
+  const filename = `${safeFilename(data.title || data.theme)}.xlsx`;
+  toast('📊 高品質エクセル帳票を生成中…', 'info', 3000);
+
+  try {
+    const res = await fetch('/api/export/excel', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data, brand, filename }),
+    });
+
+    if (res.ok) {
+      const blob = await res.blob();
+      downloadBlob(blob, filename);
+      toast('✅ プロ仕様Excel (.xlsx) をダウンロードしました！', 'success');
+      return;
+    }
+  } catch (err) {
+    console.warn('Server-side Excel export failed, falling back to client-side SheetJS:', err);
+  }
+
   if (!window.XLSX) {
     toast('Excel生成ライブラリ (SheetJS) が読み込まれていません', 'error');
     return;
@@ -949,7 +971,6 @@ export function exportExcel(data, brand = {}) {
     XLSX.utils.book_append_sheet(wb, wsSources, '収集ソース一覧');
   }
 
-  const filename = `${safeFilename(data.title || data.theme)}.xlsx`;
   XLSX.writeFile(wb, filename);
   toast(`Excel (.xlsx) をダウンロードしました`, 'success');
 }
@@ -1047,10 +1068,31 @@ export function buildPdfHtml(data, brand = 'Research Studio') {
     return idx >= 0 ? String(idx + 1).padStart(2, '0') : '01';
   };
 
+  let pageCounter = 1;
+  const renderHeader = (enTitle) => `
+    <div class="pr-running-head">
+      <span class="pr-rh-brand">◆ ${esc(publisherName)}</span>
+      <span class="pr-rh-title">${esc(data.title || data.theme)}</span>
+      <span class="pr-rh-sec">${esc(enTitle || '')}</span>
+    </div>
+  `;
+
+  const renderFooter = () => {
+    pageCounter++;
+    return `
+    <div class="pr-running-foot">
+      <span class="pr-rf-conf">${esc(confidentiality || 'CONFIDENTIAL')}</span>
+      <span class="pr-rf-date">${esc(createdStr)}</span>
+      <span class="pr-rf-page">Page ${pageCounter}</span>
+    </div>
+    `;
+  };
+
   // 目次 (Table of Contents)
   html += `
   <section class="pr-toc">
-    <div class="pr-en">TABLE OF CONTENTS</div>
+    ${renderHeader('TABLE OF CONTENTS')}
+    <div class="pr-en">EXECUTIVE OVERVIEW</div>
     <h2>目次</h2>
     <ol>
       ${sectionsList
@@ -1064,12 +1106,14 @@ export function buildPdfHtml(data, brand = 'Research Studio') {
     <div class="pr-toc-note">
       ${esc(disclaimer)}
     </div>
+    ${renderFooter()}
   </section>
   `;
 
   // 01 エグゼクティブサマリー
   html += `
-  <section class="pr-sec">
+  <section class="pr-sec pr-break">
+    ${renderHeader('EXECUTIVE SUMMARY & HIGHLIGHTS')}
     <h2 class="pr-h2"><span class="pr-num">${getSecNum('summary')}</span>エグゼクティブサマリー &amp; キーハイライト</h2>
     <div class="pr-summary">${esc(data.summary)}</div>
 
@@ -1100,6 +1144,7 @@ export function buildPdfHtml(data, brand = 'Research Studio') {
       </ol>`
         : ''
     }
+    ${renderFooter()}
   </section>
   `;
 
@@ -1107,11 +1152,13 @@ export function buildPdfHtml(data, brand = 'Research Studio') {
   if (sectionsList.some((s) => s.id === 'chart')) {
     html += `
     <section class="pr-sec pr-break">
+      ${renderHeader('VISUAL DATA ANALYSIS & CHARTS')}
       <h2 class="pr-h2"><span class="pr-num">${getSecNum('chart')}</span>データビジュアライゼーション・チャート分析 <span class="pr-deep-badge">PURE SVG</span></h2>
       <div class="pr-chart-caption">${esc(data.chart.title || '主要指標の可視化チャート')}</div>
       <div class="pr-chart-wrap">
         ${renderSvgChart(data.chart)}
       </div>
+      ${renderFooter()}
     </section>
     `;
   }
@@ -1120,6 +1167,7 @@ export function buildPdfHtml(data, brand = 'Research Studio') {
   if (sectionsList.some((s) => s.id === 'dynamics')) {
     html += `
     <section class="pr-sec pr-break">
+      ${renderHeader('DEEP REASONING & ROOT CAUSES')}
       <h2 class="pr-h2"><span class="pr-num">${getSecNum('dynamics')}</span>深層推論 &amp; 構造的因果力学 <span class="pr-deep-badge">DEEP REASONING</span></h2>
       ${
         dt.analystNote
@@ -1147,6 +1195,7 @@ export function buildPdfHtml(data, brand = 'Research Studio') {
         </div>`
           : ''
       }
+      ${renderFooter()}
     </section>
     `;
   }
@@ -1155,6 +1204,7 @@ export function buildPdfHtml(data, brand = 'Research Studio') {
   if (sectionsList.some((s) => s.id === 'tradeoffs')) {
     html += `
     <section class="pr-sec pr-break">
+      ${renderHeader('TRADE-OFFS & MULTI-PERSPECTIVE ANALYSIS')}
       <h2 class="pr-h2"><span class="pr-num">${getSecNum('tradeoffs')}</span>多角トレードオフ &amp; 対立軸マトリクス <span class="pr-deep-badge">TRADE-OFFS</span></h2>
       <div style="margin-bottom: 3.5mm; font-size: 8.5pt; color: var(--c-ink-2);">
         単一の結論に偏らず、推進派・慎重派の根拠および構造的ジレンマを客観的に比較検証した分析結果です。
@@ -1183,6 +1233,7 @@ export function buildPdfHtml(data, brand = 'Research Studio') {
         </div>`
         )
         .join('')}
+      ${renderFooter()}
     </section>
     `;
   }
@@ -1191,6 +1242,7 @@ export function buildPdfHtml(data, brand = 'Research Studio') {
   if (data.table && data.table.columns && data.table.rows && data.table.rows.length) {
     html += `
     <section class="pr-sec pr-break">
+      ${renderHeader('STRUCTURED COMPARISON MATRIX')}
       <h2 class="pr-h2"><span class="pr-num">${getSecNum('matrix')}</span>構造化比較マトリクス</h2>
       <div class="pr-table-cap">${esc(data.table.caption || '比較分析データ')}</div>
       <table class="pr-table">
@@ -1210,6 +1262,7 @@ export function buildPdfHtml(data, brand = 'Research Studio') {
             .join('')}
         </tbody>
       </table>
+      ${renderFooter()}
     </section>
     `;
   }
@@ -1218,6 +1271,7 @@ export function buildPdfHtml(data, brand = 'Research Studio') {
   if (data.sections && data.sections.length) {
     html += `
     <section class="pr-sec pr-break">
+      ${renderHeader('DETAILED FACT ANALYSIS')}
       <h2 class="pr-h2"><span class="pr-num">${getSecNum('detailed')}</span>詳細解説・多角分析</h2>
       ${data.sections
         .map(
@@ -1236,6 +1290,7 @@ export function buildPdfHtml(data, brand = 'Research Studio') {
         </article>`
         )
         .join('')}
+      ${renderFooter()}
     </section>
     `;
   }
@@ -1243,7 +1298,8 @@ export function buildPdfHtml(data, brand = 'Research Studio') {
   // 示唆・提言
   if (data.insights && data.insights.length) {
     html += `
-    <section class="pr-sec">
+    <section class="pr-sec pr-break">
+      ${renderHeader('KEY INSIGHTS & RECOMMENDATIONS')}
       <h2 class="pr-h2"><span class="pr-num">${getSecNum('insights')}</span>示唆・提言（Key Insights）</h2>
       ${data.insights
         .map(
@@ -1257,6 +1313,7 @@ export function buildPdfHtml(data, brand = 'Research Studio') {
         </div>`
         )
         .join('')}
+      ${renderFooter()}
     </section>
     `;
   }
@@ -1265,6 +1322,7 @@ export function buildPdfHtml(data, brand = 'Research Studio') {
   if (sectionsList.some((s) => s.id === 'future')) {
     html += `
     <section class="pr-sec pr-break">
+      ${renderHeader('SCENARIOS & STRATEGIC ROADMAP')}
       <h2 class="pr-h2"><span class="pr-num">${getSecNum('future')}</span>将来シナリオ予測 &amp; 実行戦略ロードマップ <span class="pr-deep-badge">SCENARIOS &amp; ROADMAP</span></h2>
       ${
         dt.scenarios
@@ -1323,6 +1381,7 @@ export function buildPdfHtml(data, brand = 'Research Studio') {
       `
           : ''
       }
+      ${renderFooter()}
     </section>
     `;
   }
@@ -1331,6 +1390,7 @@ export function buildPdfHtml(data, brand = 'Research Studio') {
   if (data.deepDives && data.deepDives.length) {
     html += `
     <section class="pr-sec pr-break">
+      ${renderHeader('FOLLOW-UP DEEP-DIVE INSIGHTS')}
       <h2 class="pr-h2"><span class="pr-num">${getSecNum('deepdives')}</span>追加深掘り知見（Follow-up Insights）</h2>
       ${data.deepDives
         .map(
@@ -1354,6 +1414,7 @@ export function buildPdfHtml(data, brand = 'Research Studio') {
         </article>`
         )
         .join('')}
+      ${renderFooter()}
     </section>
     `;
   }
@@ -1362,6 +1423,7 @@ export function buildPdfHtml(data, brand = 'Research Studio') {
   if (data.sources && data.sources.length) {
     html += `
     <section class="pr-sec pr-break">
+      ${renderHeader('REFERENCES & FACT-CHECKING SOURCES')}
       <h2 class="pr-h2"><span class="pr-num">${getSecNum('sources')}</span>収集ソース一覧 &amp; 信頼度スコア</h2>
       <ul class="pr-sources">
         ${data.sources
@@ -1382,6 +1444,7 @@ export function buildPdfHtml(data, brand = 'Research Studio') {
         <div><strong>発行元:</strong> ${esc(publisherName)}${author ? ` · <strong>作成者:</strong> ${esc(author)}` : ''} · <strong>発行日時:</strong> ${fmtDate(data.createdAt)} · <strong>モード:</strong> ${data.mode === 'live' ? 'Live Search' : 'Demo Verification'}${confidentiality ? ` · <strong>機密区分:</strong> ${esc(confidentiality)}` : ''}</div>
         <div style="margin-top: 1.5mm; font-size: 7.5pt; color: var(--c-ink-2);">${esc(disclaimer)}</div>
       </div>
+      ${renderFooter()}
     </section>
     `;
   }

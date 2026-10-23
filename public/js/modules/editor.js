@@ -64,7 +64,7 @@ export function bindReportEditor() {
 function enableEditableElements(root) {
   if (!root) return;
   const targets = $$(
-    '#sec-hero h2, #sec-hero .subtitle, .btc-text, .sub-block-title, .metric-label, .metric-value, .metric-note, .keypoints li, .sec-h4, .sec-body p, .ins-item-text',
+    '#sec-hero h2, #sec-hero .subtitle, .btc-text, .sub-block-title, .metric-label, .metric-value, .metric-note, .keypoints li, .sec-h4, .sec-body p, .ins-item-text, #matrix-tbody td',
     root
   );
   targets.forEach((el) => {
@@ -132,6 +132,36 @@ function saveEditedReport(root) {
     items.forEach((item, idx) => {
       if (r.insights[idx] !== undefined) {
         r.insights[idx] = item.innerText.trim();
+      }
+    });
+  }
+
+  // 7. 重要指標 (KPI)
+  if (Array.isArray(r.metrics)) {
+    const metricCards = $$('.metric-card', root);
+    metricCards.forEach((card, idx) => {
+      if (r.metrics[idx]) {
+        const l = $('.metric-label', card);
+        const v = $('.metric-value', card);
+        const n = $('.metric-note', card);
+        if (l) r.metrics[idx].label = l.innerText.trim();
+        if (v) r.metrics[idx].value = v.innerText.trim();
+        if (n) r.metrics[idx].note = n.innerText.trim();
+      }
+    });
+  }
+
+  // 8. 構造化比較マトリクス (Table)
+  if (r.table && Array.isArray(r.table.rows)) {
+    const trs = $$('#matrix-tbody tr', root);
+    trs.forEach((tr, rIdx) => {
+      if (r.table.rows[rIdx]) {
+        const tds = $$('td', tr);
+        tds.forEach((td, cIdx) => {
+          if (r.table.rows[rIdx][cIdx] !== undefined) {
+            r.table.rows[rIdx][cIdx] = td.innerText.trim();
+          }
+        });
       }
     });
   }

@@ -499,6 +499,35 @@ test('api key guide and GitHub support consistency: modal, topbar button, and co
   assert.ok(css.includes('.guide-github-card'), 'styles.css must style .guide-github-card');
 });
 
+test('v1.6.0 professional ExcelJS engine, running PDF headers, and inline editor table sync consistency', () => {
+  const excelJsPath = path.join(ROOT, 'server', 'excel.js');
+  assert.ok(fs.existsSync(excelJsPath), 'server/excel.js must exist');
+  const excelJs = fs.readFileSync(excelJsPath, 'utf8');
+  assert.ok(excelJs.includes('generateExcelReport'), 'server/excel.js must export generateExcelReport');
+
+  const indexJs = fs.readFileSync(path.join(ROOT, 'server', 'index.js'), 'utf8');
+  assert.ok(indexJs.includes("require('./excel')"), 'server/index.js must import excel module');
+  assert.ok(indexJs.includes("app.post('/api/export/excel'"), 'server/index.js must have /api/export/excel endpoint');
+
+  const exportersJs = fs.readFileSync(path.join(ROOT, 'public', 'js', 'exporters.js'), 'utf8');
+  assert.ok(exportersJs.includes("fetch('/api/export/excel'"), 'exporters.js must call /api/export/excel');
+  assert.ok(exportersJs.includes('pr-running-head'), 'exporters.js must inject pr-running-head into PDF');
+  assert.ok(exportersJs.includes('pr-running-foot'), 'exporters.js must inject pr-running-foot into PDF');
+
+  const printCss = fs.readFileSync(path.join(ROOT, 'public', 'css', 'print.css'), 'utf8');
+  assert.ok(printCss.includes('.pr-running-head'), 'print.css must define .pr-running-head styles');
+  assert.ok(printCss.includes('.pr-running-foot'), 'print.css must define .pr-running-foot styles');
+
+  const editorJs = fs.readFileSync(path.join(ROOT, 'public', 'js', 'modules', 'editor.js'), 'utf8');
+  assert.ok(editorJs.includes('#matrix-tbody td'), 'editor.js must enable editing on table cells');
+  assert.ok(editorJs.includes('r.metrics'), 'editor.js must save edited metrics');
+  assert.ok(editorJs.includes('r.table.rows'), 'editor.js must save edited table rows');
+
+  const html = fs.readFileSync(path.join(ROOT, 'public', 'index.html'), 'utf8');
+  assert.ok(!html.includes('html2pdf.bundle.min.js'), 'index.html must not include obsolete html2pdf script');
+});
+
+
 
 
 

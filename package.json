@@ -1,6 +1,6 @@
 {
   "name": "research_system",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "",
   "main": "server/index.js",
   "bin": "server/index.js",
@@ -28,6 +28,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "exceljs": "^4.4.0",
     "express": "^5.2.1",
     "qrcode": "^1.5.4",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"

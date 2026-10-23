@@ -39,6 +39,7 @@ const { generate } = require('./gemini');
 const { tavilySearch } = require('./search');
 const deepdive = require('./deepdive');
 const pdf = require('./pdf');
+const excel = require('./excel');
 const { getFullUsageSummary } = require('./usage');
 
 
@@ -91,7 +92,7 @@ app.use(express.static(path.join(ROOT, 'public'), { extensions: ['html'] }));
 /* --------------------------------------------------------------- info */
 let currentPort = PORT;
 
-let pkgVer = '1.4.0';
+let pkgVer = '1.6.0';
 try {
   pkgVer = require('../package.json').version || pkgVer;
 } catch {}
@@ -337,6 +338,23 @@ app.post('/api/export/pdf', async (req, res) => {
   } catch (err) {
     console.error('PDF export error:', err);
     res.status(500).json({ error: err.message || 'PDFの生成に失敗しました' });
+  }
+});
+
+/* ----------------------------------------------------------- Excel export */
+app.post('/api/export/excel', async (req, res) => {
+  const { data, brand, filename } = req.body || {};
+  if (!data) return res.status(400).json({ error: 'data は必須です' });
+
+  try {
+    const buffer = await excel.generateExcelReport(data, brand || {});
+    const safeName = encodeURIComponent((filename || 'Research_Report.xlsx').replace(/[\\/:*?"<>|\r\n]+/g, '_'));
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${safeName}"; filename*=UTF-8''${safeName}`);
+    res.send(buffer);
+  } catch (err) {
+    console.error('Excel export error:', err);
+    res.status(500).json({ error: err.message || 'Excelの生成に失敗しました' });
   }
 });
 
