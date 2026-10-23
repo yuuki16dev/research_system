@@ -162,12 +162,12 @@ app.get('/api/version/check', async (req, res) => {
 
 function parseChangelog(content, currentVer) {
   const releases = [];
-  const lines = content.split('\n');
+  const lines = String(content || '').split(/\r?\n/);
   let currentRelease = null;
   let currentCategory = null;
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+    const line = lines[i].trim();
     // ## [v1.6.0] - 2026-10-23 または ## [1.6.0] - 2026-10-23
     const releaseMatch = line.match(/^##\s+\[v?([0-9.]+)\](?:\s*-\s*([0-9-]+))?/);
     if (releaseMatch) {
@@ -202,8 +202,8 @@ function parseChangelog(content, currentVer) {
     }
 
     // 箇条書き項目: - **...**: ... または - ...
-    if (currentCategory && line.trim().startsWith('- ')) {
-      currentCategory.items.push(line.trim().replace(/^-\s+/, ''));
+    if (currentCategory && line.startsWith('- ')) {
+      currentCategory.items.push(line.replace(/^-\s+/, ''));
     }
   }
 
@@ -570,3 +570,4 @@ async function bootstrap() {
 
 bootstrap();
 
+module.exports = { app, parseChangelog };
