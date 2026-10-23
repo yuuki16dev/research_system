@@ -444,14 +444,6 @@ export function bindFormControls() {
       cancelCurrentResearch();
     }
   });
-
-  // 「新しいリサーチ」ボタン
-  $('#btn-new').addEventListener('click', () => {
-    $('#results-section').hidden = true;
-    $('#control-panel').scrollIntoView({ behavior: 'smooth' });
-    syncChipsVisibility();
-    themeInput.focus();
-  });
 }
 
 // ==========================================================================
