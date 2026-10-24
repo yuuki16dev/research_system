@@ -91,7 +91,7 @@ function pauseAndExit(code = 1) {
   }
 }
 
-let pkgVer = '1.8.0';
+let pkgVer = '1.8.1';
 try {
   pkgVer = require('../package.json').version || pkgVer;
 } catch {}
