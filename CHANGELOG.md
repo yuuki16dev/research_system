@@ -9,6 +9,24 @@
 
 ---
 
+## [v1.8.0] - 2026-10-25
+
+### 📊 商用エグゼクティブ・スライド型 A4横PDF出力エンジン全面刷新
+- **次世代A4横（297mm × 210mm）スライド形式のPDFテンプレートを完全統合**:
+  - **細長・窮屈レイアウトからの脱却**: PC画面やプロジェクター閲覧に最適化されたA4ランドスケープ（横型）比率をフル活用。マッキンゼー・BCG等の一流戦略コンサルティングファーム水準の洗練されたビジュアルスライドを出力。
+  - **1スライド=1ページの完全固定枠組み（改ページ崩れの根絶）**: `width: 297mm; height: 210mm; max-height: 210mm; overflow: hidden; page-break-after: always;` を各スライドに徹底適用。表紙の下端が目次ページに漏れ出るようなレイアウト崩れを物理的に100%防止。
+  - **全6ページの完全構造化スライド構成**:
+    1. **Cover（表紙）**: ダークネイビー基調、幾何学SVGアート、Confidence Score円形ゲージ、調査テーマ・日付・Report ID・発行者・機密区分バッジ。
+    2. **Executive Summary（サマリー）**: Bottom Line（結論ファースト）、4大数値メトリクス（Confidence, Sources, Primary Data, Coverage）、4つのキーインサイトカード（市場・効果・技術・リスク）。
+    3. **Comparison Matrix（構造化比較）**: 広大な横幅を活かした比較マトリクス表（総合・精度・コスト・速度・権限の◎/○/△評価、メリット、課題、推奨ハイライト、So What示唆）。
+    4. **Detailed Analysis（詳細分析）**: 3カラム（Technology, Market Impact, Risk Factors）、スタット数値、エビデンスバーグラフ、ファクト箇条書き、Implication。
+    5. **Recommendations & Roadmap（提言・ロードマップ）**: 3フェーズ（短期・中期・長期）シェブロンロードマップ、Key Risks & Mitigation（リスク対策マトリクス）。
+    6. **Sources & Appendix（出典・方法論）**: 主要出典上位10件テーブル、Methodology、Source Rating（A/B/C）、Glossary、Disclaimer、Copyright。
+  - **PDFプレビューモーダルのA4横最適化**: アプリ内プレビュー画面（`#modal-pdf-preview`）もA4横サイズ（1140px幅）に合わせて自動フィット・ズーム制御を最適化。
+  - **ヘッドレスChromium完全対応**: Node.js経由のEdge/Chrome直接生成（`--landscape`）とクライアント印刷の両方で高品質ベクターPDFを直接ダウンロード可能。
+
+---
+
 ## [v1.7.2] - 2026-10-23
 
 ### 🎨 UI/UX 改善・ツールバーの最適化

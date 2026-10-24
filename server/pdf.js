@@ -83,14 +83,11 @@ async function generatePdfFromHtml(htmlContent) {
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
   <style>
-    /* リセット & A4印刷用CSS */
+    /* リセット & A4横スライド印刷用CSS */
     ${printCss}
     @page {
-      size: A4 portrait;
-      margin: 16mm 18mm 16mm 18mm;
-    }
-    @page :first {
-      margin: 0 !important;
+      size: A4 landscape;
+      margin: 0;
     }
     body {
       margin: 0 !important;
@@ -114,6 +111,7 @@ async function generatePdfFromHtml(htmlContent) {
       '--disable-gpu',
       '--no-pdf-header-footer',
       '--run-all-compositor-stages-before-draw',
+      '--landscape',
       `--print-to-pdf=${tmpPdf}`,
       tmpHtml,
     ];

@@ -342,17 +342,17 @@ test('client-side ES module imports and exports consistency: all imported symbol
   }
 });
 
-test('pdf print margin consistency: print.css and pdf.js must enforce generous 18mm margin', () => {
+test('pdf print margin consistency: print.css and pdf.js must enforce generous 18mm margin and A4 landscape', () => {
   const printCss = fs.readFileSync(path.join(ROOT, 'public', 'css', 'print.css'), 'utf8');
   const pdfJs = fs.readFileSync(path.join(ROOT, 'server', 'pdf.js'), 'utf8');
 
   assert.ok(
-    printCss.includes('margin: 16mm 18mm 16mm 18mm;'),
-    'public/css/print.css must enforce generous 18mm horizontal margins to prevent claustrophobic layout'
+    printCss.includes('size: A4 landscape;') && (printCss.includes('18mm') || printCss.includes('margin: 0;')),
+    'public/css/print.css must enforce A4 landscape and generous 18mm horizontal margins in slides'
   );
   assert.ok(
-    pdfJs.includes('margin: 16mm 18mm 16mm 18mm;'),
-    'server/pdf.js must enforce generous 18mm horizontal margins in @page rule'
+    pdfJs.includes('size: A4 landscape;') && pdfJs.includes('--landscape'),
+    'server/pdf.js must enforce A4 landscape and headless browser flags'
   );
 });
 

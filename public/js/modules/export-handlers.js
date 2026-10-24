@@ -164,7 +164,7 @@ export function bindPdfPreviewModal() {
       const stage = $('#pdf-stage');
       if (stage) {
         const stageWidth = stage.clientWidth - 48;
-        const fitScale = Math.min(1.0, Math.max(0.45, stageWidth / 820));
+        const fitScale = Math.min(1.0, Math.max(0.35, stageWidth / 1140));
         updateZoom(fitScale);
       }
     });
@@ -192,10 +192,9 @@ export function openPdfPreview(data, publisher) {
 
   setTimeout(() => {
     const stage = $('#pdf-stage');
-    if (stage && stage.clientWidth < 860) {
-      const fitScale = Math.min(1.0, Math.max(0.45, (stage.clientWidth - 32) / 820));
-      stageInner.style.transform = `scale(${fitScale})`;
-      if (zoomText) zoomText.textContent = `${Math.round(fitScale * 100)}%`;
+    if (stage) {
+      const fitScale = Math.min(1.0, Math.max(0.35, (stage.clientWidth - 48) / 1140));
+      updateZoom(fitScale);
     }
   }, 80);
 }

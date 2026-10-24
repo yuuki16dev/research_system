@@ -93,7 +93,7 @@ app.use(express.static(path.join(ROOT, 'public'), { extensions: ['html'] }));
 /* --------------------------------------------------------------- info */
 let currentPort = PORT;
 
-let pkgVer = '1.7.2';
+let pkgVer = '1.8.0';
 try {
   pkgVer = require('../package.json').version || pkgVer;
 } catch {}
