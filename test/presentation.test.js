@@ -78,3 +78,25 @@ test('presentation: ES module syntax integrity for presentation-modal.js', () =>
   assert.strictEqual(res.status, 0, `presentation-modal.js syntax error: ${res.stderr}`);
 });
 
+test('presentation: slide inline edit and PowerPoint export DOM consistency in public/index.html', () => {
+  const html = fs.readFileSync(path.join(ROOT, 'public', 'index.html'), 'utf8');
+
+  assert.ok(html.includes('id="btn-slide-toggle-edit"'), 'must have btn-slide-toggle-edit button');
+  assert.ok(html.includes('id="btn-export-pptx"'), 'must have btn-export-pptx button');
+  assert.ok(html.includes('/vendor/pptxgen.bundle.js'), 'must have pptxgen.bundle.js script tag');
+});
+
+test('presentation: pptx-export.js module syntax integrity and vendor bundle existence', () => {
+  const modPath = path.join(ROOT, 'public', 'js', 'modules', 'pptx-export.js');
+  assert.ok(fs.existsSync(modPath), 'pptx-export.js must exist');
+
+  const res = spawnSync(process.execPath, ['--check', modPath], { encoding: 'utf8' });
+  assert.strictEqual(res.status, 0, `pptx-export.js syntax error: ${res.stderr}`);
+
+  const vendorPath = path.join(ROOT, 'public', 'vendor', 'pptxgen.bundle.js');
+  assert.ok(fs.existsSync(vendorPath), 'public/vendor/pptxgen.bundle.js must exist');
+  const stats = fs.statSync(vendorPath);
+  assert.ok(stats.size > 100000, 'pptxgen.bundle.js must be a valid bundle (>100KB)');
+});
+
+

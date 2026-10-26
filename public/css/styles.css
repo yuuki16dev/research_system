@@ -8443,5 +8443,40 @@ body.dd-expanded {
   to { opacity: 1; transform: scale(1); }
 }
 
+/* =========================================================================
+   スライド直接編集 (Slide Inline Direct Editing Mode)
+   ========================================================================= */
+#btn-slide-toggle-edit.active {
+  background: rgba(99, 102, 241, 0.25);
+  border-color: #6366f1;
+  color: #818cf8;
+}
+
+.deck.is-editable-mode [contenteditable='true'] {
+  cursor: text;
+  outline: 1px dashed rgba(99, 102, 241, 0.4);
+  border-radius: 3px;
+  transition: all 0.15s ease;
+}
+
+.deck.is-editable-mode [contenteditable='true']:hover {
+  outline: 1.5px dashed rgba(99, 102, 241, 0.85);
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.deck.is-editable-mode [contenteditable='true']:focus {
+  outline: 2px solid #6366f1 !important;
+  background: rgba(99, 102, 241, 0.14) !important;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+}
+
+@media print {
+  .deck [contenteditable='true'] {
+    outline: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+}
+
 
 

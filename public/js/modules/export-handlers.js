@@ -1,5 +1,5 @@
 // ==========================================================================
-// エクスポート & PDFプレビュー操作 (Export Actions & PDF Modal)
+// エクスポート & PDFプレビュー & スライド推敲 (Export Actions & PDF Modal)
 // ==========================================================================
 
 import { $, toast, copyText, downloadBlob, safeFilename, openModal } from '../ui.js';
@@ -14,8 +14,10 @@ import {
   buildEmailDraft,
 } from '../exporters.js';
 import { appState } from './state.js';
+import { exportPowerPoint } from './pptx-export.js';
 
 let pdfPreviewZoom = 1.0;
+let isSlideEditMode = false;
 
 function getBrandConfig() {
   const s = appState.settings || {};
@@ -133,6 +135,129 @@ export function bindExportActions(onOpenHistory) {
   }
 }
 
+/** スライドプレビュー内の編集されたDOMテキストを appState.currentResult に同期 */
+export function syncSlideDomToState(stageInner) {
+  if (!stageInner || !appState.currentResult) return;
+  const deck = stageInner.querySelector('.deck');
+  if (!deck) return;
+  const r = appState.currentResult;
+
+  // 1. タイトル & サブタイトル (Slide 1)
+  const titleEl = deck.querySelector('.s1-title');
+  if (titleEl && titleEl.innerText.trim()) {
+    r.title = titleEl.innerText.trim();
+  }
+  const subEl = deck.querySelector('.s1-subtitle');
+  if (subEl) {
+    r.subtitle = subEl.innerText.trim();
+  }
+
+  // 2. Bottom Line (結論) (Slide 2)
+  const blEl = deck.querySelector('.bl-text');
+  if (blEl && blEl.innerText.trim()) {
+    r.summary = blEl.innerText.trim();
+  }
+
+  // 3. キーインサイト (Slide 2)
+  const insCards = deck.querySelectorAll('.s2 .ins-card');
+  if (insCards.length && Array.isArray(r.insights)) {
+    insCards.forEach((card, idx) => {
+      if (!r.insights[idx]) r.insights[idx] = {};
+      const t = card.querySelector('.ins-title');
+      const d = card.querySelector('.ins-desc');
+      const k = card.querySelector('.ins-kpi-val');
+      if (t) r.insights[idx].title = t.innerText.trim();
+      if (d) r.insights[idx].body = d.innerText.trim();
+      if (k) r.insights[idx].kpi = k.innerText.trim();
+    });
+  }
+
+  // 4. 比較マトリクス表 (Slide 3)
+  const tableRows = deck.querySelectorAll('.s3 .mt-table tbody tr');
+  if (tableRows.length && r.table && Array.isArray(r.table.rows)) {
+    tableRows.forEach((tr, rIdx) => {
+      if (!r.table.rows[rIdx]) r.table.rows[rIdx] = [];
+      const cells = tr.querySelectorAll('td');
+      cells.forEach((td, cIdx) => {
+        r.table.rows[rIdx][cIdx] = td.innerText.trim();
+      });
+    });
+  }
+
+  // 5. 詳細分析セクション (Slide 4)
+  const secBlocks = deck.querySelectorAll('.s4 .ab-col');
+  if (secBlocks.length && Array.isArray(r.sections)) {
+    secBlocks.forEach((col, idx) => {
+      if (!r.sections[idx]) r.sections[idx] = {};
+      const h = col.querySelector('.ab-title');
+      const b = col.querySelector('.ab-lead');
+      if (h) r.sections[idx].heading = h.innerText.trim();
+      if (b) r.sections[idx].body = b.innerText.trim();
+      const bulletLis = col.querySelectorAll('.ab-bullets li');
+      if (bulletLis.length) {
+        r.sections[idx].bullets = Array.from(bulletLis).map((li) => li.innerText.trim());
+      }
+    });
+  }
+
+  // 6. ロードマップ施策 (Slide 5)
+  const phCards = deck.querySelectorAll('.s5 .ph-card');
+  if (phCards.length && r.deepThinking && Array.isArray(r.deepThinking.roadmap)) {
+    phCards.forEach((card, idx) => {
+      if (!r.deepThinking.roadmap[idx]) r.deepThinking.roadmap[idx] = {};
+      const ph = card.querySelector('.ph-name');
+      const fc = card.querySelector('.ph-focus');
+      if (ph) r.deepThinking.roadmap[idx].phase = ph.innerText.trim();
+      if (fc) r.deepThinking.roadmap[idx].focus = fc.innerText.replace(/^【重点】\s*/, '').trim();
+      const actLis = card.querySelectorAll('.ph-list li');
+      if (actLis.length) {
+        r.deepThinking.roadmap[idx].actions = Array.from(actLis).map((li) => li.innerText.trim());
+      }
+    });
+  }
+}
+
+/** スライドプレビュー内の編集可能要素の切替 */
+function setSlideEditable(deck, editable) {
+  if (!deck) return;
+  if (editable) {
+    deck.classList.add('is-editable-mode');
+  } else {
+    deck.classList.remove('is-editable-mode');
+  }
+
+  const editableSelectors = [
+    '.s1-title',
+    '.s1-subtitle',
+    '.sh-title',
+    '.sh-lead',
+    '.bl-text',
+    '.ins-title',
+    '.ins-desc',
+    '.ins-kpi-val',
+    '.mt-table td',
+    '.mt-table th',
+    '.ab-title',
+    '.ab-lead',
+    '.ab-bullets li',
+    '.ph-name',
+    '.ph-focus',
+    '.ph-list li',
+    '.rc-body',
+    '.rf-center',
+  ];
+
+  const targets = deck.querySelectorAll(editableSelectors.join(', '));
+  targets.forEach((el) => {
+    if (editable) {
+      el.setAttribute('contenteditable', 'true');
+      el.setAttribute('spellcheck', 'false');
+    } else {
+      el.removeAttribute('contenteditable');
+    }
+  });
+}
+
 /** 商用レポートPDF プレビューモーダル */
 export function bindPdfPreviewModal() {
   const stageInner = $('#pdf-stage-inner');
@@ -170,10 +295,48 @@ export function bindPdfPreviewModal() {
     });
   }
 
+  // スライド直接編集トグルボタン
+  const btnSlideEdit = $('#btn-slide-toggle-edit');
+  const btnSlideEditLabel = $('#btn-slide-toggle-edit-label');
+  if (btnSlideEdit) {
+    btnSlideEdit.addEventListener('click', () => {
+      const deck = stageInner ? stageInner.querySelector('.deck') : null;
+      if (!deck) return;
+
+      isSlideEditMode = !isSlideEditMode;
+      if (isSlideEditMode) {
+        btnSlideEdit.classList.add('active');
+        if (btnSlideEditLabel) btnSlideEditLabel.textContent = '💾 編集を完了';
+        setSlideEditable(deck, true);
+        toast('✏️ スライド編集モードON: 見出しや文章・表をクリックして直接手直しできます', 'info', 4000);
+      } else {
+        syncSlideDomToState(stageInner);
+        btnSlideEdit.classList.remove('active');
+        if (btnSlideEditLabel) btnSlideEditLabel.textContent = 'スライド直接編集';
+        setSlideEditable(deck, false);
+        toast('💾 スライドの編集内容を保存しました！PDFやPowerPoint出力に反映されます', 'success');
+      }
+    });
+  }
+
+  // PowerPoint (.pptx) 直接エクスポートボタン
+  const btnExportPptx = $('#btn-export-pptx');
+  if (btnExportPptx) {
+    btnExportPptx.addEventListener('click', async () => {
+      if (!appState.currentResult) return;
+      // 編集内容を同期
+      if (stageInner) syncSlideDomToState(stageInner);
+      await exportPowerPoint(appState.currentResult, getBrandConfig());
+    });
+  }
+
+  // PDF直接ダウンロードボタン
   const btnConfirm = $('#btn-pdf-print-confirm');
   if (btnConfirm) {
     btnConfirm.addEventListener('click', () => {
       if (!appState.currentResult) return;
+      // 編集内容を同期
+      if (stageInner) syncSlideDomToState(stageInner);
       exportPDF(appState.currentResult, getBrandConfig());
     });
   }
@@ -187,6 +350,15 @@ export function openPdfPreview(data, publisher) {
   stageInner.style.transform = 'scale(1.0)';
   const zoomText = $('#zoom-level-text');
   if (zoomText) zoomText.textContent = '100%';
+
+  // 編集モードのリセット
+  isSlideEditMode = false;
+  const btnSlideEdit = $('#btn-slide-toggle-edit');
+  const btnSlideEditLabel = $('#btn-slide-toggle-edit-label');
+  if (btnSlideEdit) btnSlideEdit.classList.remove('active');
+  if (btnSlideEditLabel) btnSlideEditLabel.textContent = 'スライド直接編集';
+  const deck = stageInner.querySelector('.deck');
+  if (deck) setSlideEditable(deck, false);
 
   openModal('modal-pdf-preview');
 
