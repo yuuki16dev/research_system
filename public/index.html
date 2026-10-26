@@ -42,6 +42,7 @@
 
       <nav class="topbar-actions" aria-label="グローバル">
         <button class="btn btn-danger btn-sm" id="btn-topbar-cancel" type="button" title="実行中のリサーチを中止" style="display: none;"><span data-icon="stop"></span><span class="label">調査を中止</span></button>
+        <button class="btn btn-primary-gradient btn-sm" id="btn-open-presentation-maker" type="button" title="企画書・資料からプレゼンスライドを作成"><span data-icon="monitor"></span><span class="label">スライド作成</span></button>
         <button class="btn btn-ghost" id="btn-history" type="button" title="リサーチ履歴"><span data-icon="history"></span><span class="label">履歴</span></button>
         <button class="btn btn-ghost" id="btn-mobile" type="button" title="スマホ連携"><span data-icon="smartphone"></span><span class="label">スマホ連携</span></button>
         <button class="btn btn-ghost" id="btn-usage" type="button" title="API利用状況 &amp; クォータ"><span data-icon="chart"></span><span class="label">クォータ</span></button>
@@ -470,6 +471,9 @@
                 <button type="button" class="btn btn-ghost btn-sm btn-quick-output" id="btn-copy-slides" title="プレゼン・スライド骨子（Markdown/Marp形式）をコピー">
                   <span data-icon="layers"></span><span class="label">スライド骨子</span>
                 </button>
+                <button type="button" class="btn btn-ghost btn-sm btn-quick-output" id="btn-open-presentation-from-report" title="このレポートをもとに発表対象を指定してスライドを作成">
+                  <span data-icon="monitor"></span><span class="label">スライド作成</span>
+                </button>
                 <button type="button" class="btn btn-ghost btn-sm btn-quick-output" id="btn-copy-email" title="上長・役員向け稟議/報告メール文面をコピー">
                   <span data-icon="file-text"></span><span class="label">報告メール</span>
                 </button>
@@ -565,7 +569,7 @@
     </main>
 
     <footer class="footer">
-      <span id="footer-version">Research Studio v1.8.2</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span><span class="sep">·</span><a href="https://github.com/yuuki16dev/research_system/issues" target="_blank" rel="noopener" class="footer-link"><span data-icon="github"></span>GitHubでお問い合わせ</a>
+      <span id="footer-version">Research Studio v1.9.0</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span><span class="sep">·</span><a href="https://github.com/yuuki16dev/research_system/issues" target="_blank" rel="noopener" class="footer-link"><span data-icon="github"></span>GitHubでお問い合わせ</a>
     </footer>
   </div>
 
@@ -574,7 +578,7 @@
     <div class="modal-backdrop" data-close></div>
     <div class="modal-card glass">
       <header class="modal-head">
-        <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v1.8.2</small></h2>
+        <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v1.9.0</small></h2>
         <div style="display: flex; gap: 8px; align-items: center; margin-left: auto;">
           <button class="btn btn-ghost btn-sm" type="button" id="btn-settings-changelog" title="アップデート履歴 &amp; リリースノート"><span data-icon="book-open"></span><span class="label">更新履歴</span></button>
           <button class="btn btn-ghost btn-sm" type="button" id="btn-open-guide-from-settings" title="APIキー取得ガイド &amp; GitHubお問い合わせ"><span data-icon="help-circle"></span><span class="label">ガイド・問い合わせ</span></button>
@@ -1075,6 +1079,98 @@
         <div class="changelog-foot-meta" style="font-size: 11px; opacity: 0.65;">
           <span>※ 本アプリは Semantic Versioning 2.0.0 に準拠して開発されています。</span>
         </div>
+        <button class="btn btn-ghost" data-close type="button">閉じる</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- ============================================== PRESENTATION STUDIO MODAL -->
+  <div class="modal" id="modal-presentation" role="dialog" aria-modal="true" aria-labelledby="presentation-modal-title" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card glass modal-lg" id="presentation-modal-card">
+      <header class="modal-head">
+        <div class="modal-head-title-group" style="display: flex; align-items: center; gap: 8px;">
+          <h2 class="modal-title" id="presentation-modal-title"><span data-icon="monitor"></span>AIプレゼン・スライド生成スタジオ</h2>
+          <span class="chip-status" style="font-size: 11px;">NEW v1.9.0</span>
+        </div>
+        <button class="icon-btn" data-close type="button" aria-label="閉じる"><span data-icon="x"></span></button>
+      </header>
+
+      <div class="modal-body" style="padding: 20px; display: flex; flex-direction: column; gap: 18px;">
+        <!-- 企画書・資料入力エリア -->
+        <div class="setting-block" style="margin-bottom: 0;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <label class="field-label sm" for="pres-document-input" style="margin: 0; font-weight: 700;">
+              <span data-icon="file-text"></span> 企画書・ドキュメント・メモの入力
+            </label>
+            <button type="button" class="btn btn-ghost btn-xs" id="btn-pres-import-report" title="直近のリサーチ結果を自動で読み込む" style="font-size: 11.5px;">
+              <span data-icon="sparkles"></span> 直近のレポート内容を引用
+            </button>
+          </div>
+          <textarea id="pres-document-input" class="textarea" rows="6" placeholder="企画書、設計書、議事録、新機能の仕様メモなどをここに貼り付けてください…（マークダウンや箇条書きも歓迎）" style="width: 100%; resize: vertical; min-height: 120px;"></textarea>
+        </div>
+
+        <!-- 発表対象（オーディエンス）の指定 -->
+        <div class="setting-block" style="margin-bottom: 0;">
+          <label class="field-label sm" style="font-weight: 700; margin-bottom: 6px;">
+            <span data-icon="users"></span> 誰に向けて発表しますか？（発表対象・オーディエンス）
+          </label>
+          <div class="pres-audience-chips" id="pres-audience-chips" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px;">
+            <button type="button" class="chip chip-selectable active" data-audience="開発チーム・エンジニア">👨‍💻 開発チーム・エンジニア</button>
+            <button type="button" class="chip chip-selectable" data-audience="経営陣・役員">👔 経営陣・役員</button>
+            <button type="button" class="chip chip-selectable" data-audience="ビジネス・営業部門">💼 ビジネス・営業部門</button>
+            <button type="button" class="chip chip-selectable" data-audience="クライアント・外部ステークホルダー">🤝 クライアント・外部</button>
+            <button type="button" class="chip chip-selectable" data-audience="custom">✍️ 自由入力</button>
+          </div>
+          <div id="pres-audience-custom-wrap" hidden>
+            <input type="text" id="pres-audience-custom-input" class="input" placeholder="例: 社内新人研修向け、ハッカソン審査員向け、提携先企業など" />
+          </div>
+        </div>
+
+        <!-- 発表の目的・達成したいゴール（任意） -->
+        <div class="setting-block" style="margin-bottom: 0;">
+          <label class="field-label sm" for="pres-goal-input" style="font-weight: 700; margin-bottom: 6px;">
+            <span data-icon="target"></span> 発表の目的・ゴール（任意）
+          </label>
+          <input type="text" id="pres-goal-input" class="input" placeholder="例: 新アーキテクチャ採用の合意を取りたい / 開発進捗と今後の計画を共有したい" />
+        </div>
+
+        <!-- 生成アクションエリア（2大ボタン） -->
+        <div class="pres-action-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 6px;">
+          <div class="pres-action-card glass" style="padding: 16px; border-radius: 12px; display: flex; flex-direction: column; justify-content: space-between; border: 1px solid rgba(255,255,255,0.12);">
+            <div>
+              <div style="font-size: 14px; font-weight: 700; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+                <span data-icon="copy"></span> Claude / ChatGPT 用プロンプト
+              </div>
+              <p style="font-size: 12px; opacity: 0.75; line-height: 1.5; margin: 0 0 12px;">対象者に最適化された超高精度のスライド作成指示書を瞬時に構築し、クリップボードにコピーします。</p>
+            </div>
+            <button type="button" class="btn btn-secondary btn-block" id="btn-pres-generate-prompt">
+              <span data-icon="copy"></span> プロンプトを生成・コピー
+            </button>
+          </div>
+
+          <div class="pres-action-card glass" style="padding: 16px; border-radius: 12px; display: flex; flex-direction: column; justify-content: space-between; border: 1px solid rgba(37, 99, 235, 0.4); background: rgba(37, 99, 235, 0.08);">
+            <div>
+              <div style="font-size: 14px; font-weight: 700; margin-bottom: 6px; color: var(--accent-light, #60a5fa); display: flex; align-items: center; gap: 6px;">
+                <span data-icon="sparkles"></span> AIスライド即時生成（直接スライド化）
+              </div>
+              <p style="font-size: 12px; opacity: 0.75; line-height: 1.5; margin: 0 0 12px;">Gemini が資料を解析して商用A4横スライドを直接構築。その場でプレビュー＆PDF保存が可能です。</p>
+            </div>
+            <button type="button" class="btn btn-primary-gradient btn-block" id="btn-pres-generate-slides">
+              <span data-icon="monitor"></span> 🚀 AIスライドを生成する
+            </button>
+          </div>
+        </div>
+
+        <!-- 進行状況インジケーター（スライド生成中） -->
+        <div id="pres-loading-indicator" style="display: none; padding: 16px; background: rgba(0,0,0,0.3); border-radius: 8px; text-align: center;">
+          <div class="loading-spinner" style="margin: 0 auto 10px;"></div>
+          <div style="font-weight: 600; font-size: 13px;" id="pres-loading-text">Gemini が企画書を解析し、発表対象向けA4横スライドを自動構成中…</div>
+          <div style="font-size: 11px; opacity: 0.65; margin-top: 4px;">通常 10〜20秒で高品質スライドが完成します</div>
+        </div>
+      </div>
+
+      <footer class="modal-foot" style="display: flex; justify-content: flex-end;">
         <button class="btn btn-ghost" data-close type="button">閉じる</button>
       </footer>
     </div>

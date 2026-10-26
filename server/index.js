@@ -41,6 +41,7 @@ const { tavilySearch } = require('./search');
 const deepdive = require('./deepdive');
 const pdf = require('./pdf');
 const excel = require('./excel');
+const presentation = require('./presentation');
 const { getFullUsageSummary } = require('./usage');
 
 
@@ -431,6 +432,32 @@ app.post('/api/export/excel', async (req, res) => {
   } catch (err) {
     console.error('Excel export error:', err);
     res.status(500).json({ error: err.message || 'Excelの生成に失敗しました' });
+  }
+});
+
+/* ---------------------------------------------------- presentation studio */
+app.post('/api/presentation/prompt', (req, res) => {
+  const { document, audience, goal } = req.body || {};
+  try {
+    const prompt = presentation.generatePrompt({ document, audience, goal });
+    res.json({ prompt });
+  } catch (err) {
+    res.status(400).json({ error: err.message || 'プロンプト生成に失敗しました' });
+  }
+});
+
+app.post('/api/presentation/generate', async (req, res) => {
+  const { document, audience, goal } = req.body || {};
+  if (!document || !document.trim()) {
+    return res.status(400).json({ error: '企画書・資料のテキストを入力してください' });
+  }
+
+  try {
+    const slidesData = await presentation.generateSlides({ document, audience, goal });
+    res.json(slidesData);
+  } catch (err) {
+    console.error('Presentation generate error:', err);
+    res.status(500).json({ error: err.message || 'スライドの生成に失敗しました' });
   }
 });
 
