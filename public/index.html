@@ -102,17 +102,31 @@
                 <!-- 出力スタイル・方向性セレクター（案A） -->
                 <div class="style-selector-wrap" id="style-selector-wrap">
                   <button type="button" class="btn-style-selector" id="btn-style-selector" aria-haspopup="listbox" aria-expanded="false" title="出力形式・方向性を選択">
-                    <span class="style-icon" id="style-current-icon">📊</span>
-                    <span class="style-name" id="style-current-name">ビジネス・戦略</span>
+                    <span class="style-icon" id="style-current-icon">🌟</span>
+                    <span class="style-name" id="style-current-name">AIおまかせ（自動最適化）</span>
                     <span data-icon="chevron-down" class="style-arrow"></span>
                   </button>
                   
                   <div class="style-dropdown-menu" id="style-dropdown-menu" role="listbox" hidden>
-                    <button type="button" class="style-opt active" data-style="business" role="option" aria-selected="true">
+                    <button type="button" class="style-opt active" data-style="auto" role="option" aria-selected="true">
+                      <span class="so-icon">🌟</span>
+                      <div class="so-info">
+                        <strong>AIおまかせ（自動最適化・推奨）</strong>
+                        <small>検索ワードの意図を分析し、最も伝わる構造を動的設計</small>
+                      </div>
+                    </button>
+                    <button type="button" class="style-opt" data-style="business" role="option">
                       <span class="so-icon">📊</span>
                       <div class="so-info">
-                        <strong>ビジネス・戦略資料（標準）</strong>
+                        <strong>ビジネス・戦略資料</strong>
                         <small>エグゼクティブサマリー・市場KPI・競合比較表</small>
+                      </div>
+                    </button>
+                    <button type="button" class="style-opt" data-style="decision" role="option">
+                      <span class="so-icon">🧭</span>
+                      <div class="so-info">
+                        <strong>意思決定・稟議・ROI重視</strong>
+                        <small>「結局どれを選ぶべき？」・選定基準・定量的根拠</small>
                       </div>
                     </button>
                     <button type="button" class="style-opt" data-style="tech" role="option">
@@ -127,13 +141,6 @@
                       <div class="so-info">
                         <strong>3分クイック要約・箇条書き</strong>
                         <small>3行サマリー・要点トップ5・結論ファースト</small>
-                      </div>
-                    </button>
-                    <button type="button" class="style-opt" data-style="decision" role="option">
-                      <span class="so-icon">🧭</span>
-                      <div class="so-info">
-                        <strong>意思決定・比較導入ガイド</strong>
-                        <small>「結局どれを選ぶべき？」・タイプ別おすすめ・実態評判</small>
                       </div>
                     </button>
                     <button type="button" class="style-opt" data-style="academic" role="option">
@@ -152,7 +159,7 @@
                       </div>
                     </button>
                   </div>
-                  <input type="hidden" name="purpose" id="purpose-input" value="business" />
+                  <input type="hidden" name="purpose" id="purpose-input" value="auto" />
                 </div>
 
                 <!-- モード切り替え（クイック vs ディープ） -->
@@ -162,7 +169,7 @@
                     <span class="depth-seg-btn">
                       <span data-icon="zap"></span>
                       <span class="d-label">クイック</span>
-                      <span class="d-time">約35秒</span>
+                      <span class="d-time">約15〜25秒</span>
                     </span>
                   </label>
                   <label class="depth-seg-opt" for="depth-deep">
@@ -170,7 +177,7 @@
                     <span class="depth-seg-btn depth-seg-deep">
                       <span data-icon="layers"></span>
                       <span class="d-label">ディープ推論</span>
-                      <span class="d-time">深層思考・約60〜90秒</span>
+                      <span class="d-time">動的構造化・約50〜80秒</span>
                     </span>
                   </label>
                 </div>
@@ -569,7 +576,7 @@
     </main>
 
     <footer class="footer">
-      <span id="footer-version">Research Studio v1.10.0</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span><span class="sep">·</span><a href="https://github.com/yuuki16dev/research_system/issues" target="_blank" rel="noopener" class="footer-link"><span data-icon="github"></span>GitHubでお問い合わせ</a>
+      <span id="footer-version">Research Studio v1.11.0</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span><span class="sep">·</span><a href="https://github.com/yuuki16dev/research_system/issues" target="_blank" rel="noopener" class="footer-link"><span data-icon="github"></span>GitHubでお問い合わせ</a>
     </footer>
   </div>
 
@@ -578,7 +585,7 @@
     <div class="modal-backdrop" data-close></div>
     <div class="modal-card glass">
       <header class="modal-head">
-        <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v1.10.0</small></h2>
+        <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v1.11.0</small></h2>
         <div style="display: flex; gap: 8px; align-items: center; margin-left: auto;">
           <button class="btn btn-ghost btn-sm" type="button" id="btn-settings-changelog" title="アップデート履歴 &amp; リリースノート"><span data-icon="book-open"></span><span class="label">更新履歴</span></button>
           <button class="btn btn-ghost btn-sm" type="button" id="btn-open-guide-from-settings" title="APIキー取得ガイド &amp; GitHubお問い合わせ"><span data-icon="help-circle"></span><span class="label">ガイド・問い合わせ</span></button>

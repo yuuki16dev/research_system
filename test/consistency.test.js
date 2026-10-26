@@ -180,6 +180,7 @@ test('style selector and custom style field consistency: DOM elements and CSS ru
   // 1. index.html に案Aのスタイルセレクターとカスタム入力欄が存在すること
   assert.ok(html.includes('id="btn-style-selector"'), 'btn-style-selector must exist');
   assert.ok(html.includes('id="style-dropdown-menu"'), 'style-dropdown-menu must exist');
+  assert.ok(html.includes('data-style="auto"'), 'auto style option must exist');
   assert.ok(html.includes('data-style="business"'), 'business style option must exist');
   assert.ok(html.includes('data-style="tech"'), 'tech style option must exist');
   assert.ok(html.includes('data-style="brief"'), 'brief style option must exist');

@@ -155,6 +155,8 @@ function normalizeResult(raw = {}, meta = {}) {
     sites: arr(meta.sites),
     depth: meta.depth,
     depthLabel: DEPTH_LABELS[meta.depth] || meta.depth,
+    focus: meta.focus || 'auto',
+    focusLabel: meta.focusLabel || FOCUS_LABELS[meta.focus] || FOCUS_LABELS.auto,
     purpose: meta.purpose || 'business',
     purposeLabel:
       meta.purpose === 'custom' && meta.customPurpose
@@ -247,15 +249,38 @@ function normalizeResult(raw = {}, meta = {}) {
             .filter((r) => r.phase || r.focus),
         }
       : null,
+    framework: raw.framework
+      ? {
+          focus: str(raw.framework.focus || raw.framework.focusKey),
+          focusLabel: str(raw.framework.focusLabel || FOCUS_LABELS[raw.framework.focus] || 'AI自動最適化'),
+          rationale: str(raw.framework.rationale),
+          dynamicHeadings: arr(raw.framework.dynamicHeadings)
+            .map((dh) => ({
+              heading: str(dh && dh.heading),
+              keyQuestion: str(dh && dh.keyQuestion),
+            }))
+            .filter((dh) => dh.heading),
+          tableComparisonAxis: str(raw.framework.tableComparisonAxis),
+        }
+      : null,
     sources,
   };
 }
+
+const FOCUS_LABELS = {
+  auto: 'AI自動最適化（推奨）',
+  decision: '意思決定・稟議・ROI重視',
+  tech: '技術比較・選定・アーキテクチャ',
+  market: '市場動向・競合ベンチマーク',
+  problem: '課題解決・根本原因・リスク分析',
+};
 
 module.exports = {
   SCOPE_LABELS,
   DEPTH_LABELS,
   PERIOD_LABELS,
   PURPOSE_LABELS,
+  FOCUS_LABELS,
   SNS_DOMAINS,
   domainOf,
   classifyDomain,

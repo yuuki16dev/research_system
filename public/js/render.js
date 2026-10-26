@@ -52,6 +52,7 @@ export function renderReport(data, container) {
       <span class="tag"><span data-icon="layers"></span>${esc(data.scopeLabel)}</span>
       <span class="tag tag-period"><span data-icon="calendar"></span>期間: ${esc(data.periodLabel || '直近1年（最新推奨）')}</span>
       <span class="tag"><span data-icon="zap"></span>${esc(data.depthLabel)}</span>
+      ${data.framework ? `<span class="tag tag-framework" style="background: rgba(37,99,235,0.12); color: var(--primary-light); border-color: rgba(37,99,235,0.35); font-weight: 600;"><span data-icon="sparkles"></span>${esc(data.framework.focusLabel || 'AI動的構造化')}</span>` : ''}
       <span class="tag"><span data-icon="clock"></span>${esc(createdStr)} (${durationSec}秒)</span>
     </div>
     <h2>${esc(data.title)}</h2>
@@ -143,6 +144,35 @@ export function renderReport(data, container) {
         <h3>アナリストの深層推論 &amp; 構造的因果力学</h3>
         <span class="badge-deep-only">ディープ専用分析</span>
       </div>
+
+      ${
+        data.framework
+          ? `
+      <div class="framework-banner glass" style="margin-bottom: 22px; padding: 14px 18px; border-radius: 10px; border: 1px solid rgba(147, 51, 234, 0.28); background: rgba(147, 51, 234, 0.08);">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; flex-wrap: wrap;">
+          <strong style="color: #c084fc; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;">
+            <span data-icon="sparkles"></span>AI特化型動的分析構造: ${esc(data.framework.focusLabel || '自動最適化')}
+          </strong>
+          ${data.framework.rationale ? `<span style="font-size: 12px; color: var(--muted);">${esc(data.framework.rationale)}</span>` : ''}
+        </div>
+        ${
+          data.framework.dynamicHeadings && data.framework.dynamicHeadings.length
+            ? `
+        <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px;">
+          ${data.framework.dynamicHeadings
+            .map(
+              (dh, i) => `
+            <span style="font-size: 11px; padding: 4px 10px; border-radius: 6px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); color: var(--text);">
+              <strong style="color: var(--primary-light);">${i + 1}.</strong> ${esc(dh.heading)}
+            </span>`
+            )
+            .join('')}
+        </div>`
+            : ''
+        }
+      </div>`
+          : ''
+      }
 
       ${
         dt.analystNote

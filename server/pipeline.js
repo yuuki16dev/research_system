@@ -4,7 +4,7 @@ const { generateJSON } = require('./gemini');
 const search = require('./search');
 const { buildMock } = require('./mock');
 const memory = require('./memory');
-const { normalizeResult, parseSites, domainOf, arr, str, SCOPE_LABELS, SNS_DOMAINS } = require('./util');
+const { normalizeResult, parseSites, domainOf, arr, str, SCOPE_LABELS, SNS_DOMAINS, FOCUS_LABELS } = require('./util');
 
 function sleep(ms, signal) {
   return new Promise((resolve, reject) => {
@@ -171,24 +171,60 @@ async function runLive(p, s, ctx) {
     ctx.log(`🌐 特定URLダイレクト分析モード: ${urlDomain} の競合・特徴・評判を多角調査します`, 'plan');
   }
 
-  ctx.log(`AI多角クエリ展開（Sub-queries Planner）を実行中（目的: ${purpose} / 期間: ${dateParams.label}）…`, 'plan');
+  const focus = (p.focus && FOCUS_LABELS[p.focus]) ? p.focus : 'auto';
+  let focusInstruction = '';
+  if (focus === 'decision') {
+    focusInstruction = '【分析フォーカス: 意思決定・稟議・ROI重視】経営陣や事業責任者が「選択肢を決定し、Go/No-Goを判断する」ための比較軸、費用対効果、リスク緩和策、意思決定マトリクスに特化した分析構造を設計してください。';
+  } else if (focus === 'tech') {
+    focusInstruction = '【分析フォーカス: 技術比較・選定・アーキテクチャ】エンジニアや技術責任者が「技術選定・システム設計」を行うための仕様差、パフォーマンス、開発生産性、運用の落とし穴、移行ステップに特化した分析構造を設計してください。';
+  } else if (focus === 'market') {
+    focusInstruction = '【分析フォーカス: 市場動向・競合ベンチマーク】事業企画やマーケターが「市場機会とポジショニング」を掴むための市場規模推移、主要プレイヤーシェア、成長ドライバー、参入障壁に特化した分析構造を設計してください。';
+  } else if (focus === 'problem') {
+    focusInstruction = '【分析フォーカス: 課題解決・根本原因・リスク分析】問題解決や品質改善のための、なぜなぜ分析、根本的ボトルネック、失敗事例の教訓、回避策・恒久対策に特化した分析構造を設計してください。';
+  } else {
+    focusInstruction = '【分析フォーカス: AI自動最適化】このテーマを調査する読者が「最も知りたい核心的な問い」「最も納得感を得られる論理構造」をAIが深く推論し、テーマに特化した独自の動的分析見出し・構造を自動設計してください。';
+  }
+
+  ctx.log(`AI多角クエリ展開 ＆ 動的分析構造の設計中（フォーカス: ${FOCUS_LABELS[focus] || '自動最適化'} / 期間: ${dateParams.label}）…`, 'plan');
   const nQ = deep ? 7 : 4;
+  const nHeadings = deep ? '4〜5' : '3〜4';
   const plan = await ai(
-    `あなたはトップティア戦略コンサルタントのシニアリサーチャーです。次のテーマについて、人間が手作業で何時間もかけて複数回検索する作業を完全に代替するため、多角的で質の高いWeb検索サブクエリを${nQ}個作成してください。\n` +
+    `あなたはトップティア戦略コンサルタントのシニアリサーチディレクターです。次のテーマについて、人間が手作業で何時間もかけて複数回検索する作業を完全に代替するため、多角的で質の高いWeb検索サブクエリを${nQ}個作成すると同時に、このテーマに最も適した動的分析構造（フレームワーク）を設計してください。\n` +
       `テーマ: ${p.theme}\n調査範囲: ${SCOPE_LABELS[p.scope]}\n` +
       `${urlDirectInstruction ? urlDirectInstruction + '\n' : ''}` +
       `${purposeInstruction}\n` +
+      `${focusInstruction}\n` +
       `${periodInstruction}\n` +
       `- 日本語クエリを中心に、世界的・海外事例が有用なら英語クエリを1〜2個含める\n` +
       `- 視点を分散させる（①最新動向/市場、②料金・具体的数値、③導入事例・代表サービス、④課題・失敗・リスク等）\n` +
       `- site: 演算子は使わない。各クエリは短く的確に（2〜6語）\n` +
-      `出力JSON: {"queries":["..."],"angles":["調査観点（15字以内）"]}`,
+      `- dynamicHeadings: テーマの核心を多角的に解明するためのセクション見出し${nHeadings}個と、各見出しで解明すべき核心的問い\n` +
+      `出力JSON:\n` +
+      `{\n` +
+      `  "queries": ["..."],\n` +
+      `  "angles": ["調査観点（15字以内）"],\n` +
+      `  "framework": {\n` +
+      `    "focus": "${focus}",\n` +
+      `    "focusLabel": "${FOCUS_LABELS[focus] || 'テーマ特化型最適構造'}",\n` +
+      `    "rationale": "この分析構造を選定した理由（40字以内）",\n` +
+      `    "dynamicHeadings": [{"heading": "見出し（25字以内）", "keyQuestion": "このセクションで解明すべき論点（50字以内）"}],\n` +
+      `    "tableComparisonAxis": "推奨される比較表の切り口（例: 機能 vs コスト vs 運用難易度）"\n` +
+      `  }\n` +
+      `}`,
     { temperature: 0.4 }
   );
   let queries = arr(plan.queries).map((q) => str(q)).filter(Boolean).slice(0, nQ);
   if (!queries.length) queries = [p.theme];
   arr(plan.angles).slice(0, 5).forEach((a) => ctx.log(`調査観点: ${str(a)}`, 'plan'));
   queries.forEach((q, idx) => ctx.log(`サブクエリ[${idx + 1}/${queries.length}]: ${q}`, 'plan'));
+
+  let framework = plan.framework || null;
+  if (framework && framework.dynamicHeadings && framework.dynamicHeadings.length) {
+    ctx.log(`🧠 AI動的構造設計 [${framework.focusLabel || FOCUS_LABELS[focus]}]: ${framework.rationale || '最適な分析軸を設計しました'}`, 'ai');
+    arr(framework.dynamicHeadings).slice(0, 4).forEach((dh, idx) => {
+      ctx.log(`  └ 構造[${idx + 1}]: ${dh.heading}`, 'plan');
+    });
+  }
   ctx.progress(10, 'plan');
 
   /* ---- 2. 専門サイトの自動特定 */
@@ -373,7 +409,7 @@ async function runLive(p, s, ctx) {
   let raw;
   try {
     try {
-      raw = await ai(synthPrompt(p, sources, sites, deep), {
+      raw = await ai(synthPrompt(p, sources, sites, deep, framework), {
         temperature: deep ? 0.4 : 0.35,
         timeoutMs: deep ? 180000 : 90000,
       });
@@ -381,7 +417,7 @@ async function runLive(p, s, ctx) {
       if (signal.aborted) throw err;
       ctx.log(`レポート構造化でエラーを検知しました。AI修復を試行中… (${err.message})`, 'warn');
       try {
-        const repairPrompt = `あなたはJSON修復の専門家です。以下のリサーチレポートのテキストから、構文的に完全に正しいJSONオブジェクトのみを作成してください。マークダウンや解説は含めず、純粋なJSONのみを出力してください。\n\n${err.rawText || synthPrompt(p, sources, sites, deep)}`;
+        const repairPrompt = `あなたはJSON修復の専門家です。以下のリサーチレポートのテキストから、構文的に完全に正しいJSONオブジェクトのみを作成してください。マークダウンや解説は含めず、純粋なJSONのみを出力してください。\n\n${err.rawText || synthPrompt(p, sources, sites, deep, framework)}`;
         raw = await ai(repairPrompt, { temperature: 0.2, timeoutMs: deep ? 120000 : 60000 });
       } catch (e2) {
         if (signal.aborted) throw e2;
@@ -405,13 +441,28 @@ async function runLive(p, s, ctx) {
   }
   ctx.log('レポートの構造化が完了しました', 'ok');
 
-  return { raw, sources, queries, sites, provider, notices };
+  if (framework) {
+    raw.framework = raw.framework || framework;
+  }
+
+  return { raw, sources, queries, sites, provider, notices, framework };
 }
 
-function synthPrompt(p, sources, sites, deep) {
+function synthPrompt(p, sources, sites, deep, framework = null) {
   const currentYear = new Date().getFullYear();
   const dateParams = resolveSearchDateParams(p.period, p.customPeriod);
   const purpose = p.purpose || 'general';
+
+  let frameworkFocus = '';
+  if (framework && framework.dynamicHeadings && framework.dynamicHeadings.length) {
+    frameworkFocus = `
+# 【AI設計による特化型動的分析構造（最優先遵守）】
+本レポートの sections および deepThinking は、検索テーマから導き出された以下の分析フレームワーク（フォーカス: ${framework.focusLabel || '自動最適化'}）に厳密に従って執筆してください：
+${framework.dynamicHeadings.map((dh, i) => `${i + 1}. 【${dh.heading}】: ${dh.keyQuestion || '核心的問いを多角的に解明'}`).join('\n')}
+${framework.tableComparisonAxis ? `比較表（table）の推奨切り口: ${framework.tableComparisonAxis}\n` : ''}
+${framework.rationale ? `設計理由: ${framework.rationale}\n` : ''}
+※ 固定的な決まり文句ではなく、上記で設計された見出しと問いに真正面から答える形で各セクションを構成してください。`;
+  }
 
   let purposeFocus = '';
   if (purpose === 'business') {
@@ -594,6 +645,7 @@ ${p.referenceContext.trim().slice(0, 3000)}
 本リサーチは、商用A4レポート・公式報告書（Executive Intelligence Report）として経営陣やクライアントへ直接提出される原本となります。
 Webサイトの簡易スナップショットのような走り書きや抽象的解説を徹底的に排除し、読者がそのまま意思決定・事業戦略・稟議に使用できる、圧倒的な品格・情報密度・論理構造を持つ格調高いレポートを日本語で執筆してください。
 ${purposeFocus}
+${frameworkFocus}
 ${deepInstructions}
 # テーマ
 ${p.theme}
@@ -606,18 +658,18 @@ ${urlContextBlock}
 - 印刷・配布レポートとして読まれる前提の格調高い文体を貫き、主語と結論を明瞭にすること
 ${recencyRule}
 - 必ず構文的に完全に正しい単一のJSONオブジェクトを出力すること。プロパティ間・配列要素間のカンマ（,）の付け忘れや、末尾の余計なカンマは厳禁
-- 文字列値の中に改行を含める場合は必ず \\n とエスケープすること（生の改行文字を文字列中に含めない）
+- 文字列値の中に改行を含める場合は必ず \n とエスケープすること（生の改行文字を文字列中に含めない）
 - 文中の引用や強調には「」や『』を使用すること（二重引用符 " はJSON構文のみに使用）
 - 【超重要: 出典インライン引用番号の完全義務化】:
   読者が即座にファクトチェックを行えるよう、事実・数値・サービス名・価格・統計・主張を含む記述には、必ず対応するソース番号 [1] [2] を文中および表のセル内にインラインで埋め込んでください（例: 「月額980円から利用可能 [3]」「市場規模は前年比18%増 [1][4]」）。引用番号のない根拠不明な記述は避けてください。
 - ソースにない推測は「推定」「示唆される」と明記する
 
 【各項目の分量と品質基準】
-- summary: ${deep ? '500〜700' : '300〜400'} 字。エグゼクティブサマリーとして、①調査背景と核心的結論、②市場・技術動向の要約、③主要な課題やボトルネック、④今後の展望までを網羅し、根拠となる箇所に出典 [番号] を明記し、${deep ? 'これだけで意思決定できる濃密な総括とする' : '要点を明快かつ高密度に凝縮した総括とする'}（段落の区切りには \\n\\n を使用）
+- summary: ${deep ? '500〜700' : '300〜400'} 字。エグゼクティブサマリーとして、①調査背景と核心的結論、②市場・技術動向の要約、③主要な課題やボトルネック、④今後の展望までを網羅し、根拠となる箇所に出典 [番号] を明記し、${deep ? 'これだけで意思決定できる濃密な総括とする' : '要点を明快かつ高密度に凝縮した総括とする'}（段落の区切りには \n\n を使用）
 - keyPoints: ${deep ? '4〜5' : '3〜4'} 個。「【要点見出し】具体的なファクトや数値・根拠 [番号]（${deep ? '70〜110' : '50〜80'}字程度）」の形式で記述し、高い情報密度を担保する
 - metrics: 定量的データ・統計・数値指標を優先して ${deep ? '4〜5' : '3〜4'} 個。value は「38.5%」「約1,200億円」「980円/月」「70Bパラメータ」など具体的に、note に算出根拠や文脈、出典 [番号] を明記
 - table: 主要な選択肢、競合企業、代表的サービス、時代区分などの比較（${deep ? '5〜8行 × 4〜6列' : '3〜5行 × 4〜5列'}）。1列目は比較対象名。各セルには具体的な機能名・金額・特徴を明記し、出典があるセルには [番号] を付与する
-- sections: ${deep ? '4〜5' : '3'} 個。各セクションの body は ${deep ? '400〜650' : '300〜450'} 字（段落の区切りには \\n\\n を使用）。各文に積極的に [番号] を付与すること。
+- sections: ${deep ? '4〜5' : '3'} 個。AI設計の動的分析構造（framework）が指定されている場合は、その dynamicHeadings（見出しと核心的問い）に厳密に沿って各セクションを構成すること。各セクションの body は ${deep ? '400〜650' : '300〜450'} 字（段落の区切りには \n\n を使用）。各文に積極的に [番号] を付与すること。
   各セクションでは単なる要約にとどまらず、以下の要素を盛り込んで多角的に論述すること：
   1. 現状・背景の整理と基本ファクト・動向
   2. 具体的な企業名・サービス名・ツール名・技術仕様・事例の詳述 [番号]
@@ -744,6 +796,8 @@ async function runResearch(job, settings) {
     scope: p.scope,
     sites: out.sites,
     depth: p.depth,
+    focus: p.focus || 'auto',
+    focusLabel: FOCUS_LABELS[p.focus] || FOCUS_LABELS.auto,
     purpose: p.purpose || 'business',
     customPurpose: p.customPurpose || '',
     referenceContext: p.referenceContext || '',

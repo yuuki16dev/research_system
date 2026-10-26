@@ -102,19 +102,21 @@ export function bindFormControls() {
   const styleOptions = $$('.style-opt');
 
   const STYLE_NAMES = {
+    auto: { icon: '🌟', name: 'AIおまかせ' },
     business: { icon: '📊', name: 'ビジネス・戦略' },
+    decision: { icon: '🧭', name: '意思決定・ROI' },
     tech: { icon: '💻', name: '技術・実装' },
     brief: { icon: '⚡', name: '3分要約' },
-    decision: { icon: '🧭', name: '意思決定・比較' },
     academic: { icon: '🎓', name: '学術サーベイ' },
     custom: { icon: '✏️', name: 'カスタム自由' },
   };
 
   const STYLE_PLACEHOLDERS = {
+    auto: '何について調べますか？（例: 個人開発ツールのマネタイズ事例、TypeScript 5.x 新機能、EV市場動向...）',
     business: '何について調べますか？（例: 個人開発ツールのマネタイズ事例と価格設定、国内SaaS市場規模...）',
+    decision: '何について調べますか？（例: 個人開発におすすめの決済サービス Stripe vs LemonSqueezy vs PAY.JP...）',
     tech: '何について調べますか？（例: Rust vs Go のバックエンド性能比較、Next.js 15 Server Actions の実装例...）',
     brief: '何について調べますか？（例: 2026年の自律型AIエージェントの現在地、新NISAの要点...）',
-    decision: '何について調べますか？（例: 個人開発におすすめの決済サービス Stripe vs LemonSqueezy vs PAY.JP...）',
     academic: '何について調べますか？（例: Transformer の Attention 機構の数学的原理、強化学習の歴史的変遷...）',
     custom: '希望のテーマと調査内容を自由に入力してください',
   };
@@ -377,11 +379,18 @@ export function bindFormControls() {
         `${cpStartSelect ? cpStartSelect.value : '2020'}〜${cpEndSelect ? cpEndSelect.value : '2023'}年`;
     }
 
-    const purpose = ($('#purpose-input') && $('#purpose-input').value) || 'business';
+    const purpose = ($('#purpose-input') && $('#purpose-input').value) || 'auto';
+    const focus = purpose === 'decision'
+      ? 'decision'
+      : purpose === 'tech'
+      ? 'tech'
+      : purpose === 'academic'
+      ? 'problem'
+      : 'auto';
     const customPurpose = ($('#custom-style-input') && $('#custom-style-input').value.trim()) || '';
     const referenceContext = ($('#reference-context-input') && $('#reference-context-input').value.trim()) || '';
 
-    await startResearch({ theme, scope, depth, sites, period, customPeriod, purpose, customPurpose, referenceContext });
+    await startResearch({ theme, scope, depth, sites, period, customPeriod, purpose, focus, customPurpose, referenceContext });
   });
 
   // 中止ボタンのバインド（プログレス内・フォーム内・トップバー内）

@@ -442,6 +442,28 @@ function buildMock(p) {
     };
   }
 
+  const focus = p.focus || 'auto';
+  raw.framework = {
+    focus,
+    focusLabel: focus === 'tech'
+      ? '技術比較・選定・アーキテクチャ'
+      : focus === 'decision'
+      ? '意思決定・稟議・ROI重視'
+      : focus === 'market'
+      ? '市場動向・競合ベンチマーク'
+      : focus === 'problem'
+      ? '課題解決・根本原因・リスク分析'
+      : 'テーマ特化型最適構造',
+    rationale: `「${kw}」の文脈からAIが最適な分析軸と論理展開を自動設計`,
+    dynamicHeadings: [
+      { heading: `${kw}の現状と基本構造・市場環境`, keyQuestion: '基本的な前提と現在の普及状況はどうなっているか' },
+      { heading: `${kw}における主要アプローチと性能・機能比較`, keyQuestion: 'どのような選択肢があり、何が決め手となるのか' },
+      { heading: `導入・実践に伴う課題・落とし穴と回避策`, keyQuestion: '現場で直面するボトルネックと対策は何か' },
+      { heading: `今後の進化予測と意思決定の指針`, keyQuestion: '将来シナリオと取るべき具体的ステップ' },
+    ],
+    tableComparisonAxis: '機能性 vs コスト vs 導入難易度',
+  };
+
   return {
     raw,
     sources,
