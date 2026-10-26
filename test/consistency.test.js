@@ -566,6 +566,38 @@ test('v1.7.0 in-app changelog modal and start.bat auto-repair consistency', () =
   assert.ok(startJs.includes('127.0.0.1') && startJs.includes('localhost'), 'server/start.js must test both IPv4 and localhost');
 });
 
+test('v1.12.0 dual pdf templates and commercial excel engine consistency', () => {
+  // 1. PDF Preview switcher & AI Recommendation badge in index.html
+  const html = fs.readFileSync(path.join(ROOT, 'public', 'index.html'), 'utf8');
+  assert.ok(html.includes('id="pdf-template-select"'), 'index.html must include #pdf-template-select');
+  assert.ok(html.includes('value="slide-deck"'), 'index.html must include slide-deck option');
+  assert.ok(html.includes('value="decision-brief"'), 'index.html must include decision-brief option');
+  assert.ok(html.includes('id="pdf-template-ai-badge"'), 'index.html must include #pdf-template-ai-badge');
+
+  // 2. Dual templates export functions in public/js/exporters.js
+  const exportersJs = fs.readFileSync(path.join(ROOT, 'public', 'js', 'exporters.js'), 'utf8');
+  assert.ok(exportersJs.includes('export function resolveOptimalPdfTemplate'), 'exporters.js must export resolveOptimalPdfTemplate');
+  assert.ok(exportersJs.includes('export function buildDecisionBriefHtml'), 'exporters.js must export buildDecisionBriefHtml');
+  assert.ok(exportersJs.includes('export function buildSlideDeckHtml'), 'exporters.js must export buildSlideDeckHtml');
+
+  // 3. Dynamic orientation support in server/pdf.js and public/css/print.css
+  const pdfJs = fs.readFileSync(path.join(ROOT, 'server', 'pdf.js'), 'utf8');
+  assert.ok(pdfJs.includes('isPortrait'), 'server/pdf.js must detect portrait orientation');
+  assert.ok(pdfJs.includes('size: A4 portrait'), 'server/pdf.js must inject A4 portrait rule when needed');
+
+  const printCss = fs.readFileSync(path.join(ROOT, 'public', 'css', 'print.css'), 'utf8');
+  assert.ok(printCss.includes('.doc .page'), 'print.css must define scoped .doc .page styles');
+  assert.ok(printCss.includes('.doc .masthead'), 'print.css must define .doc .masthead styles');
+
+  // 4. Commercial grade Excel engine in server/excel.js
+  const excelJs = fs.readFileSync(path.join(ROOT, 'server', 'excel.js'), 'utf8');
+  assert.ok(excelJs.includes('Executive_Summary'), 'server/excel.js must generate Executive_Summary sheet');
+  assert.ok(excelJs.includes('Comparison_Matrix'), 'server/excel.js must generate Comparison_Matrix sheet');
+  assert.ok(excelJs.includes('Source_Index'), 'server/excel.js must generate Source_Index sheet');
+  assert.ok(excelJs.includes('transformDataToExcelFormat'), 'server/excel.js must export transformDataToExcelFormat');
+});
+
+
 
 
 

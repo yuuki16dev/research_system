@@ -397,12 +397,12 @@ app.post('/api/research/deep-dive', async (req, res) => {
 
 /* ------------------------------------------------------------- PDF export */
 app.post('/api/export/pdf', async (req, res) => {
-  const { html, filename } = req.body || {};
+  const { html, filename, orientation } = req.body || {};
   if (!html) return res.status(400).json({ error: 'html は必須です' });
-  console.log(`[PDF出力] ファイル名: "${filename || 'Research_Report.pdf'}" の生成開始`);
+  console.log(`[PDF出力] ファイル名: "${filename || 'Research_Report.pdf'}" (${orientation || 'auto'}) の生成開始`);
 
   try {
-    const pdfPath = await pdf.generatePdfFromHtml(html);
+    const pdfPath = await pdf.generatePdfFromHtml(html, { orientation });
     const safeName = encodeURIComponent((filename || 'Research_Report.pdf').replace(/[\\/:*?"<>|\r\n]+/g, '_'));
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${safeName}"; filename*=UTF-8''${safeName}`);

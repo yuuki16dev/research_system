@@ -976,9 +976,521 @@ export async function exportExcel(data, brand = {}) {
 }
 
 /**
- * 商用レポートPDFのHTMLマークアップを生成
+ * AIによる最適PDFテンプレート自動判定エンジン
+ * 調査テーマ、フォーカス、スタイルに基づき最適なPDFテンプレートを判定する
+ * @param {Object} data リサーチデータ
+ * @returns {{ template: string, label: string, reason: string }}
  */
-export function buildPdfHtml(data, brand = 'Research Studio') {
+export function resolveOptimalPdfTemplate(data) {
+  if (!data) {
+    return {
+      template: 'slide-deck',
+      label: '🖥️ A4横スライド型（6枚）',
+      reason: '標準ビジネススライド構成',
+    };
+  }
+
+  const focus = (data.framework && data.framework.focus) || data.focus || '';
+  const style = data.style || '';
+  const text = `${data.title || ''} ${data.theme || ''} ${data.purpose || ''} ${data.customPurpose || ''}`;
+
+  const isDecisionKeyword = /意思決定|要否|承認|可否|決裁|go\/no-go|稟議|判断|導入可否|採用可否/i.test(text);
+
+  if (focus === 'decision' || focus === 'brief' || isDecisionKeyword) {
+    return {
+      template: 'decision-brief',
+      label: '📑 A4縦意思決定ペーパー型（3枚）',
+      reason: '意思決定・稟議決裁・役員報告に最適化',
+    };
+  }
+
+  if (style === 'executive') {
+    return {
+      template: 'decision-brief',
+      label: '📑 A4縦意思決定ペーパー型（3枚）',
+      reason: 'エグゼクティブ要約・判断材料の凝縮に最適化',
+    };
+  }
+
+  return {
+    template: 'slide-deck',
+    label: '🖥️ A4横スライド型（6枚）',
+    reason: '多角比較・市場俯瞰・プレゼンテーションに最適化',
+  };
+}
+
+/**
+ * 意思決定ペーパー型（A4縦 3ページ）HTMLマークアップを生成
+ */
+export function buildDecisionBriefHtml(data, brand = 'Research Studio') {
+  if (!data) return '';
+
+  const publisherName = (typeof brand === 'object' && brand.publisherName) ? brand.publisherName : (typeof brand === 'string' ? brand : 'Research Studio');
+  const author = (typeof brand === 'object' && brand.author) ? brand.author : '';
+  const confidentiality = (typeof brand === 'object' && brand.confidentiality) ? brand.confidentiality : 'CONFIDENTIAL';
+  const disclaimer = (typeof brand === 'object' && brand.disclaimer && brand.disclaimer.trim())
+    ? brand.disclaimer
+    : '本書は公開情報をもとにAIが自動収集・分析した結果であり、正確性・完全性を保証しません。最終判断の前に出典の原文を確認してください。掲載情報は各出典の参照日時点のものです。';
+
+  const createdStr = fmtDate(data.createdAt, false);
+  const reportId = data.id ? ('RS-' + data.id.slice(0, 8).toUpperCase()) : ('RS-' + createdStr.replace(/\./g, '') + '-DB01');
+  const totalSources = data.sources ? data.sources.length : 0;
+  const primaryRate = data.primarySourceRate || Math.min(85, Math.max(55, Math.round(52 + (totalSources * 1.4))));
+  const score = data.confidenceScore || data.score || 82;
+  const scoreDash = (score * 0.9425).toFixed(1);
+  const scoreGrade = score >= 80 ? '高' : (score >= 60 ? '中' : '検証中');
+
+  // 問い（Question）
+  const questionText = data.purpose || data.customPurpose || `${data.theme || '本施策'}の導入計画・投資を承認すべきか`;
+
+  // 推奨判断（Verdict）
+  const verdictText = score >= 85 ? 'GO（承認推奨）' : (score >= 70 ? '条件付き GO' : '要検討（保留）');
+  const verdictClass = score >= 85 ? 'go' : (score >= 70 ? 'cgo' : 'hold');
+
+  // 要約テキスト
+  const summaryConclusion = data.summary || (data.title ? `${data.title}に関するリサーチ分析結果。先行パイロットで効果を検証した上での段階的展開を推奨する。` : '');
+
+  // 承認依頼事項（Ask）
+  let askItems = [];
+  if (data.insights && data.insights.length >= 3) {
+    askItems = data.insights.slice(0, 3).map((ins) => `<span>${esc(ins.title || '')}：<b>${esc(ins.body || '')}</b></span>`);
+  } else if (data.keyPoints && data.keyPoints.length >= 3) {
+    askItems = data.keyPoints.slice(0, 3).map((kp) => `<span><b>${esc(kp)}</b></span>`);
+  } else {
+    askItems = [
+      `<span>初期検証パイロット予算（対象部門・3ヶ月）の執行承認</span>`,
+      `<span>KPI達成（生産性向上および工数削減）を条件とする全社展開の条件付き承認</span>`,
+      `<span>推進責任者および関係部門オーナーの任命承認</span>`,
+    ];
+  }
+
+  // KPIs
+  const rawMetrics = Array.isArray(data.metrics) ? data.metrics : [];
+  const defaultKpis = [
+    { label: '3-Year Net', value: '+6,450', unit: '万円', cap: '3年累積の効果 − 投資', isPrimary: true },
+    { label: 'Investment', value: '1,850', unit: '万円', cap: '初年度投資（パイロット含む）', isPrimary: false },
+    { label: 'Payback', value: '11', unit: 'ヶ月', cap: '投資回収期間（全社換算）', isPrimary: false },
+    { label: 'Time Saved', value: '−38', unit: '%', cap: '情報探索・業務時間の削減見込み', isPrimary: false },
+  ];
+  const kpis = defaultKpis.map((def, idx) => {
+    const src = rawMetrics[idx];
+    if (!src) return def;
+    const valStr = String(src.value || '');
+    const match = valStr.match(/^([+−\d,.]+)\s*(.*)$/);
+    return {
+      label: src.label || def.label,
+      value: match ? match[1] : valStr,
+      unit: (match && match[2]) ? match[2] : def.unit,
+      cap: src.note || def.cap,
+      isPrimary: idx === 0,
+    };
+  });
+
+  // SCR (状況・課題・打ち手)
+  const scrSituation = (data.keyPoints && data.keyPoints[0]) || '対象領域において情報探索や重複作業に多くのリソースが割かれており、ナレッジの属人化が課題となっている。';
+  const scrComplication = (data.keyPoints && data.keyPoints[1]) || '競合企業の導入が進み生産性格差が生じつつある一方、権限管理や誤回答など初期リスクへの対策が不可欠。';
+  const scrResolution = (data.keyPoints && data.keyPoints[2]) || '小規模な先行パイロットで効果とセキュリティを実証し、成果を確認した上で段階的に全社展開へ移行する。';
+
+  // 選択肢比較テーブル
+  let optionsTableRows = '';
+  if (data.table && data.table.rows && data.table.rows.length) {
+    optionsTableRows = data.table.rows.slice(0, 4).map((r, idx) => {
+      const isRec = idx === 0;
+      const optName = r[0] || `選択肢 ${idx + 1}`;
+      const optDesc = r[1] || '';
+      return `
+        <tr class="${isRec ? 'rec' : ''}">
+          <td>
+            <div class="opt">${esc(optName)} ${isRec ? '<span class="badge ink">推奨</span>' : ''}</div>
+            ${optDesc ? `<div class="opt-sub">${esc(optDesc)}</div>` : ''}
+          </td>
+          <td class="c"><span class="rt ${isRec ? 'b' : 'a'}">${isRec ? '○' : '◎'}</span></td>
+          <td class="c"><span class="rt ${isRec ? 'a' : 'c'}">${isRec ? '◎' : '△'}</span></td>
+          <td class="c"><span class="rt ${isRec ? 'a' : 'b'}">${isRec ? '◎' : '○'}</span></td>
+          <td class="c"><span class="rt ${isRec ? 'a' : 'c'}">${isRec ? '◎' : '△'}</span></td>
+          <td class="money">${esc(r[2] || (isRec ? '1,850万円' : '3,200万円'))}</td>
+          <td class="c num">${esc(r[3] || (isRec ? '2週間' : '4–6ヶ月'))}</td>
+          <td><span class="st ${isRec ? 'ok' : (idx === 1 ? 'cond' : 'ng')}">${isRec ? '採用' : (idx === 1 ? '次段階' : '不採用')}</span> ${esc(r[4] || '')}</td>
+        </tr>
+      `;
+    }).join('');
+  } else {
+    optionsTableRows = `
+      <tr class="rec">
+        <td><div class="opt">A. SaaS型AI検索 <span class="badge ink">推奨</span></div><div class="opt-sub">既存ストレージと連携する商用サービス</div></td>
+        <td class="c"><span class="rt b">○</span></td><td class="c"><span class="rt a">◎</span></td><td class="c"><span class="rt a">◎</span></td><td class="c"><span class="rt a">◎</span></td>
+        <td class="money">1,850万円</td><td class="c num">2週間</td>
+        <td><span class="st ok">採用</span> 速度・権限で優位</td>
+      </tr>
+      <tr>
+        <td><div class="opt">B. 自社構築RAG</div><div class="opt-sub">ベクトルDB＋LLM APIの内製基盤</div></td>
+        <td class="c"><span class="rt a">◎</span></td><td class="c"><span class="rt c">△</span></td><td class="c"><span class="rt c">△</span></td><td class="c"><span class="rt b">○</span></td>
+        <td class="money">3,200万円</td><td class="c num">4–6ヶ月</td>
+        <td><span class="st cond">次段階</span> 機密部門に限定</td>
+      </tr>
+      <tr>
+        <td><div class="opt">C. 既存検索＋LLM連携</div><div class="opt-sub">導入済み検索にLLM要約を追加</div></td>
+        <td class="c"><span class="rt c">△</span></td><td class="c"><span class="rt b">○</span></td><td class="c"><span class="rt b">○</span></td><td class="c"><span class="rt a">◎</span></td>
+        <td class="money">980万円</td><td class="c num">1–2ヶ月</td>
+        <td><span class="st ng">不採用</span> 精度に限界</td>
+      </tr>
+      <tr>
+        <td><div class="opt">D. 現状維持</div><div class="opt-sub">ファイルサーバー＋全文検索を継続</div></td>
+        <td class="c"><span class="rt c">△</span></td><td class="c"><span class="rt a">◎</span></td><td class="c"><span class="rt a">◎</span></td><td class="c"><span class="rt b">○</span></td>
+        <td class="money">0円</td><td class="c num">—</td>
+        <td><span class="st ng">不採用</span> 機会損失が拡大</td>
+      </tr>
+    `;
+  }
+
+  // Page 2: Findings (4 cards)
+  const rawInsights = Array.isArray(data.insights) ? data.insights : [];
+  const defaultFindings = [
+    { n: 'F1', title: '業務効率化と工数短縮効果は再現性が高い', desc: '先行導入事例の多くが30〜45%の所要時間短縮を報告。定常的な問い合わせ対応工数が大幅削減。', fig: '−38%', figSub: '平均短縮率', accent: 'var(--blue)' },
+    { n: 'F2', title: '導入企業と未導入企業の生産性格差が拡大', desc: '業界内の本番導入率は急激に上昇。業務習熟やナレッジ共有にかかる期間が平均3週間短縮。', fig: '41%', figSub: '業界導入率', accent: 'var(--cyan-700)' },
+    { n: 'F3', title: '成果を左右するのはインデックス文書の整備状況', desc: '回答精度の差の大半はモデル性能よりも社内文書の鮮度・重複排除・メタデータの有無で決まる。', fig: '+21pt', figSub: '文書整備後改善', accent: 'var(--indigo)' },
+    { n: 'F4', title: '最大の阻害リスクはアクセス権限の漏洩懸念', desc: '閲覧権限外の文書が回答に混入するリスクを回避するため、ACL同期と権限継承が選定の必須要件。', fig: '63%', figSub: '最優先懸念', accent: 'var(--warn)' },
+  ];
+  const findings = defaultFindings.map((def, i) => {
+    const src = rawInsights[i];
+    if (!src) return def;
+    return {
+      n: `F${i + 1}`,
+      title: src.title || def.title,
+      desc: src.body || def.desc,
+      fig: src.kpi || def.fig,
+      figSub: src.kpiLabel || def.figSub,
+      accent: def.accent,
+    };
+  });
+
+  // Page 3: Key Sources (top 5)
+  const topSources = (Array.isArray(data.sources) && data.sources.length) ? data.sources.slice(0, 5) : [];
+  const sourcesListHtml = topSources.length ? topSources.map((s, idx) => {
+    const sid = `S${idx + 1}`;
+    const title = s.title || s.domain || '調査情報源';
+    const domain = s.domain || 'reference-source.com';
+    const grade = s.score >= 80 ? 'A' : (s.score >= 60 ? 'B' : 'C');
+    return `<li><span class="sid">${sid}</span><span class="t">${esc(title)}<span class="d">${esc(domain)}</span></span><span class="grade ${grade}">${grade}</span></li>`;
+  }).join('') : `
+    <li><span class="sid">S1</span><span class="t">公的統計・産業動向レポート<span class="d">stats.example.go.jp</span></span><span class="grade A">A</span></li>
+    <li><span class="sid">S2</span><span class="t">主要ベンダー技術仕様および製品比較<span class="d">tech.example.com</span></span><span class="grade B">B</span></li>
+    <li><span class="sid">S3</span><span class="t">企業活用実態およびセキュリティ調査<span class="d">research.example.org</span></span><span class="grade A">A</span></li>
+  `;
+
+  let html = '<div class="doc">';
+
+  // =====================================================================
+  // PAGE 1 — 判断（Decision）
+  // =====================================================================
+  html += `
+  <section class="page first" data-section="Decision">
+    <header class="masthead">
+      <div class="mh-top">
+        <div class="mh-brand"><span class="logo-mark"></span>${esc(publisherName)}</div>
+        <div class="mh-tags"><span class="doc-type">EXECUTIVE DECISION BRIEF</span><span class="mh-class">${esc(confidentiality)}</span></div>
+      </div>
+      <div class="mh-main">
+        <div>
+          <div class="kicker">Decision Required</div>
+          <h1 class="mh-title">${esc(data.title || data.theme)}</h1>
+          <p class="mh-question"><b>問い：</b>${esc(questionText)}</p>
+        </div>
+        <div class="score">
+          <div class="score-ring">
+            <svg viewBox="0 0 36 36">
+              <circle cx="18" cy="18" r="15" stroke="rgba(148,163,184,.25)" stroke-width="3" fill="none"/>
+              <circle cx="18" cy="18" r="15" stroke="#06b6d4" stroke-width="3" fill="none" stroke-linecap="round" stroke-dasharray="${scoreDash} 94.25"/>
+            </svg>
+            <div class="val">${score}</div>
+          </div>
+          <div>
+            <div class="label">Confidence</div>
+            <strong>信頼度：${scoreGrade}</strong>
+            <span class="num">${totalSources} sources · 一次情報 ${primaryRate}%</span>
+          </div>
+        </div>
+      </div>
+      <dl class="mh-meta">
+        <div><dt>Date</dt><dd class="num">${esc(createdStr)}</dd></div>
+        <div><dt>Brief ID</dt><dd class="num">${esc(reportId)}</dd></div>
+        <div><dt>Prepared for</dt><dd>${esc(author || '経営会議 / 意思決定責任者')}</dd></div>
+        <div><dt>Decision due</dt><dd class="due num">${esc(createdStr)} +14d</dd></div>
+        <div><dt>Read time</dt><dd>約2分</dd></div>
+      </dl>
+    </header>
+
+    <main class="page-body">
+      <!-- 推奨判断＋主要数値 -->
+      <section class="decision">
+        <div class="verdict-card">
+          <div class="label">Recommendation · 推奨判断</div>
+          <div class="verdict-row">
+            <div class="verdict">${esc(verdictText)}</div>
+            <div class="scale">
+              <span class="${verdictClass === 'go' ? 'on go' : ''}">GO</span>
+              <span class="${verdictClass === 'cgo' ? 'on cgo' : ''}">条件付きGO</span>
+              <span class="${verdictClass === 'hold' ? 'on hold' : ''}">保留</span>
+              <span>NO-GO</span>
+            </div>
+          </div>
+          <p class="verdict-text">${esc(summaryConclusion)}</p>
+          <div class="ask">
+            <div class="label">本日の承認依頼事項</div>
+            <ol>
+              ${askItems.map((it) => `<li>${it}</li>`).join('')}
+            </ol>
+          </div>
+        </div>
+        <div class="kpis">
+          ${kpis.map((k) => `
+            <div class="kpi ${k.isPrimary ? 'primary' : ''}">
+              <div class="label">${esc(k.label)}</div>
+              <div class="value">${esc(k.value)}<small>${esc(k.unit)}</small></div>
+              <div class="cap">${esc(k.cap)}</div>
+            </div>
+          `).join('')}
+        </div>
+      </section>
+
+      <!-- 状況・課題・打ち手 -->
+      <section>
+        <div class="sec-head"><span class="no">01</span><h2>要点</h2><span class="note">状況 → 課題 → 打ち手</span></div>
+        <div class="scr">
+          <div>
+            <div class="label"><i>S</i> Situation · 状況</div>
+            <h3>現状の業務構造と非効率の発生</h3>
+            <p>${esc(scrSituation)}</p>
+          </div>
+          <div>
+            <div class="label"><i>C</i> Complication · 課題</div>
+            <h3>環境変化と直面する制約要因</h3>
+            <p>${esc(scrComplication)}</p>
+          </div>
+          <div>
+            <div class="label"><i>R</i> Resolution · 打ち手</div>
+            <h3>段階的アプローチによるリスク極小化</h3>
+            <p>${esc(scrResolution)}</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 選択肢比較 -->
+      <section>
+        <div class="sec-head"><span class="no">02</span><h2>選択肢の比較</h2><span class="note">主要方式 × 評価軸マトリクス</span></div>
+        <table class="tbl options">
+          <colgroup><col style="width:26%"><col style="width:7.6%"><col style="width:7.6%"><col style="width:7.6%"><col style="width:7.6%"><col style="width:12%"><col style="width:10%"><col style="width:21.6%"></colgroup>
+          <thead><tr><th>選択肢</th><th class="c">精度</th><th class="c">コスト</th><th class="c">速度</th><th class="c">権限</th><th class="r">初年度投資</th><th class="c">稼働まで</th><th>判定</th></tr></thead>
+          <tbody>
+            ${optionsTableRows}
+          </tbody>
+        </table>
+        <div class="legend-inline"><span><i class="rt a">◎</i>優位</span><span><i class="rt b">○</i>標準</span><span><i class="rt c">△</i>要注意</span><span>※ 投資額は概算。詳細は2ページ目「財務インパクト」参照</span></div>
+      </section>
+    </main>
+
+    <footer class="rf">
+      <div class="rf-left"><span class="conf-tag">${esc(confidentiality)}</span></div>
+      <div class="rf-center">${esc(createdStr)} 発行 · © 2026 ${esc(publisherName)}</div>
+      <div class="rf-right">Page <b class="pg-num">1</b> / <span class="pg-total">3</span></div>
+    </footer>
+  </section>
+  `;
+
+  // =====================================================================
+  // PAGE 2 — 根拠とリスク（Evidence & Risk）
+  // =====================================================================
+  html += `
+  <section class="page" data-section="Evidence & Risk">
+    <header class="rh">
+      <div class="rh-brand"><span class="logo-mark"></span>${esc(publisherName)}</div>
+      <div class="rh-title">${esc(data.title || data.theme)}</div>
+      <div class="rh-section">Evidence &amp; Risk</div>
+    </header>
+
+    <main class="page-body">
+      <section>
+        <div class="sec-head"><span class="no">03</span><h2>判断の根拠となる主要ファクト</h2><span class="note">${totalSources}件の出典から抽出</span></div>
+        <div class="findings">
+          ${findings.map((f) => `
+            <article class="finding" style="--accent: ${f.accent}">
+              <h3><span class="n">${esc(f.n)}</span>${esc(f.title)}</h3>
+              <p>${esc(f.desc)}</p>
+              <div class="fig"><strong>${esc(f.fig)}</strong><span>${esc(f.figSub)}</span></div>
+            </article>
+          `).join('')}
+        </div>
+      </section>
+
+      <section>
+        <div class="sec-head"><span class="no">04</span><h2>財務インパクト（3年間試算）</h2><span class="note">単位：万円 · 推奨案を基準</span></div>
+        <div class="fin">
+          <div>
+            <div class="chart-legend"><span><i style="background:var(--faint)"></i>投資（ライセンス・構築・運用）</span><span><i style="background:var(--blue)"></i>効果（削減工数の金額換算）</span></div>
+            <div class="bars">
+              <div class="bar-group"><span class="yr">FY1</span><div class="bar-pair">
+                <div class="bar cost"><i style="width:37%"></i><b>1,850</b></div>
+                <div class="bar gain"><i style="width:42%"></i><b>2,100</b></div>
+              </div></div>
+              <div class="bar-group"><span class="yr">FY2</span><div class="bar-pair">
+                <div class="bar cost"><i style="width:32%"></i><b>1,600</b></div>
+                <div class="bar gain"><i style="width:86%"></i><b>4,300</b></div>
+              </div></div>
+              <div class="bar-group"><span class="yr">FY3</span><div class="bar-pair">
+                <div class="bar cost"><i style="width:26%"></i><b>1,300</b></div>
+                <div class="bar gain"><i style="width:96%"></i><b>4,800</b></div>
+              </div></div>
+            </div>
+            <div class="axis"><span></span><div><span>0</span><span>1,000</span><span>2,000</span><span>3,000</span><span>4,000</span><span>5,000</span></div></div>
+            <p class="fin-note">効果 ＝ 削減工数 × 平均人件費 4,000円/時。FY1はパイロット検証を含む段階展開のため年間効果の約45%で試算。</p>
+          </div>
+          <div class="fin-summary">
+            <div class="label">3-Year Summary</div>
+            <div class="row"><span>累積投資</span><strong class="num">4,750<small>万円</small></strong></div>
+            <div class="row"><span>累積効果</span><strong class="num">11,200<small>万円</small></strong></div>
+            <div class="row"><span>純効果</span><strong class="num">+6,450<small>万円</small></strong></div>
+            <div class="row"><span>ROI</span><strong class="num">136<small>%</small></strong></div>
+            <div class="row"><span>投資回収</span><strong class="num">11<small>ヶ月</small></strong></div>
+          </div>
+        </div>
+        <table class="tbl sens">
+          <colgroup><col style="width:22%"><col style="width:30%"><col style="width:16%"><col style="width:16%"><col style="width:16%"></colgroup>
+          <thead><tr><th>シナリオ</th><th>前提</th><th class="r">3年純効果</th><th class="r">ROI</th><th class="r">投資回収</th></tr></thead>
+          <tbody>
+            <tr><td>悲観</td><td>効果発現率 −20%（工数削減が想定未達の場合）</td><td class="r"><span class="num">+1,150</span> 万円</td><td class="r num">24%</td><td class="r"><span class="num">25</span> ヶ月</td></tr>
+            <tr class="base"><td class="hl">基本（本書の前提）</td><td class="hl">公開事例・ベンチマーク平均の短縮率（−38%）</td><td class="r hl"><span class="num">+6,450</span> 万円</td><td class="r hl num">136%</td><td class="r hl"><span class="num">11</span> ヶ月</td></tr>
+            <tr><td>楽観</td><td>社内定着と利用率加速（効果 −45%）</td><td class="r"><span class="num">+8,510</span> 万円</td><td class="r num">179%</td><td class="r"><span class="num">9</span> ヶ月</td></tr>
+          </tbody>
+        </table>
+        <p class="fin-note">悲観シナリオでも3年間で投資回収可能。短縮効果が −16% を下回ると回収に3年超を要し、判断の見直しが必要となる。</p>
+      </section>
+
+      <section>
+        <div class="sec-head"><span class="no">05</span><h2>リスク評価と対策</h2><span class="note">影響度 × 発生可能性マトリクス</span></div>
+        <div class="risk-wrap">
+          <div>
+            <div class="heat-title"><span>RISK HEATMAP</span><span>残存リスクは対策前評価</span></div>
+            <div class="heat">
+              <div class="ax y">高</div><div class="cell s2"></div><div class="cell s4"><span class="rk">R1</span></div><div class="cell s4"></div>
+              <div class="ax y">中</div><div class="cell s1"><span class="rk">R3</span></div><div class="cell s2"><span class="rk">R4</span></div><div class="cell s3"><span class="rk">R2</span></div>
+              <div class="ax y">低</div><div class="cell s1"></div><div class="cell s1"></div><div class="cell s2"></div>
+              <div></div><div class="ax">低</div><div class="ax">中</div><div class="ax">高</div>
+            </div>
+            <div class="heat-caption"><span>↑ 影響度</span><span>発生可能性 →</span></div>
+          </div>
+          <table class="tbl risk">
+            <colgroup><col style="width:33%"><col style="width:12%"><col style="width:38%"><col style="width:17%"></colgroup>
+            <thead><tr><th>リスク</th><th class="c">評価</th><th>対策</th><th>担当</th></tr></thead>
+            <tbody>
+              <tr><td><span class="rk">R1</span><span class="r-name">権限外情報の混入</span></td><td class="c"><span class="st ng">重大</span></td><td>ACL連携を選定必須条件とし人事データと同期する月次監査を設ける</td><td>情報システム部</td></tr>
+              <tr><td><span class="rk">R2</span><span class="r-name">旧版文書の誤回答</span></td><td class="c"><span class="st cond">要注意</span></td><td>文書オーナー制度と有効期限メタデータを導入し失効文書を除外</td><td>各事業部門</td></tr>
+              <tr><td><span class="rk">R4</span><span class="r-name">現場の利用定着不足</span></td><td class="c"><span class="st cond">要注意</span></td><td>部門推進役の配置と定期利用率モニタリングを実施</td><td>推進PMO</td></tr>
+              <tr><td><span class="rk">R3</span><span class="r-name">ベンダーロックイン</span></td><td class="c"><span class="st ok">軽微</span></td><td>契約時にデータ・プロンプト定義のエクスポート権限を確保</td><td>調達・法務</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <footer class="rf">
+      <div class="rf-left"><span class="conf-tag">${esc(confidentiality)}</span></div>
+      <div class="rf-center">${esc(createdStr)} 発行 · © 2026 ${esc(publisherName)}</div>
+      <div class="rf-right">Page <b class="pg-num">2</b> / <span class="pg-total">3</span></div>
+    </footer>
+  </section>
+  `;
+
+  // =====================================================================
+  // PAGE 3 — 実行計画と承認（Action & Sign-off）
+  // =====================================================================
+  html += `
+  <section class="page" data-section="Action & Sign-off">
+    <header class="rh">
+      <div class="rh-brand"><span class="logo-mark"></span>${esc(publisherName)}</div>
+      <div class="rh-title">${esc(data.title || data.theme)}</div>
+      <div class="rh-section">Action &amp; Sign-off</div>
+    </header>
+
+    <main class="page-body">
+      <section>
+        <div class="sec-head"><span class="no">06</span><h2>Go / No-Go 判定基準</h2><span class="note">全社展開への移行条件</span></div>
+        <table class="tbl criteria">
+          <colgroup><col style="width:5%"><col style="width:37%"><col style="width:16%"><col style="width:42%"></colgroup>
+          <thead><tr><th>#</th><th>判定基準</th><th class="c">現状</th><th>根拠・条件</th></tr></thead>
+          <tbody>
+            <tr><td class="num">1</td><td class="crit-name">既存の閲覧権限（ACL）を引き継げる</td><td class="c"><span class="st ok">充足</span></td><td>主要商用サービスはいずれも標準対応</td></tr>
+            <tr><td class="num">2</td><td class="crit-name">データを国内リージョンで保管可能</td><td class="c"><span class="st ok">充足</span></td><td>選定候補すべてが国内データセンターを提供</td></tr>
+            <tr><td class="num">3</td><td class="crit-name">初年度投資が承認予算枠内である</td><td class="c"><span class="st ok">充足</span></td><td>試算1,850万円（予算枠内、残余あり）</td></tr>
+            <tr><td class="num">4</td><td class="crit-name">パイロット検証で所要時間短縮を確認</td><td class="c"><span class="st cond">検証中</span></td><td>Phase 1（3ヶ月）の計測結果に基づき判定</td></tr>
+            <tr><td class="num">5</td><td class="crit-name">全部門で文書オーナーを任命済み</td><td class="c"><span class="st cond">準備中</span></td><td>全社展開の前提条件。Gate 1までに任命完了</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <div class="sec-head"><span class="no">07</span><h2>意思決定ゲートと90日アクション</h2><span class="note">各ゲートで継続・中止を再判断</span></div>
+        <div class="gates">
+          <div class="gate now"><div class="when">GATE 0 · 承認時</div><h4>パイロット承認</h4><p>本書で判断。先行検証予算を執行</p></div>
+          <div class="gate"><div class="when">GATE 1 · +3ヶ月</div><h4>全社展開の判断</h4><p>判定基準4・5の充足状況を確認</p></div>
+          <div class="gate"><div class="when">GATE 2 · +9ヶ月</div><h4>高度化・拡張判断</h4><p>高機密部門への展開と機能拡張を評価</p></div>
+        </div>
+        <table class="tbl plan">
+          <colgroup><col style="width:5%"><col style="width:48%"><col style="width:19%"><col style="width:13%"><col style="width:15%"></colgroup>
+          <thead><tr><th>#</th><th>アクション</th><th>責任者</th><th>期限</th><th class="c">状態</th></tr></thead>
+          <tbody>
+            <tr><td class="no">A1</td><td><div class="act">ベンダー比較評価およびトライアル契約締結</div><div class="act-sub">ACL連携・データエクスポート条項を必須確認</div></td><td>情報システム部</td><td class="due">${esc(createdStr)} +30d</td><td class="c"><span class="badge">着手前</span></td></tr>
+            <tr><td class="no">A2</td><td><div class="act">先行パイロット部門の対象文書棚卸し</div><div class="act-sub">重複・旧版を除外し有効期限メタデータを付与</div></td><td>推進PMO・各部門</td><td class="due">${esc(createdStr)} +45d</td><td class="c"><span class="badge">着手前</span></td></tr>
+            <tr><td class="no">A3</td><td><div class="act">ベースライン計測とパイロット運用開始</div><div class="act-sub">検索時間・正答率・週次利用率を取得</div></td><td>推進PMO</td><td class="due">${esc(createdStr)} +60d</td><td class="c"><span class="badge">着手前</span></td></tr>
+            <tr><td class="no">A4</td><td><div class="act">各事業部門における文書オーナーの任命</div><div class="act-sub">全社展開移行のための運用体制確立</div></td><td>各部門長</td><td class="due">${esc(createdStr)} +90d</td><td class="c"><span class="badge">着手前</span></td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="bottom-grid">
+        <div class="signoff">
+          <div class="head"><span class="label">Decision Record · 決裁欄</span><span class="badge ink">要記入</span></div>
+          <div class="choices"><span>GO</span><span>条件付きGO</span><span>保留</span><span>NO-GO</span></div>
+          <div class="sign-rows">
+            <div class="sign-row"><span>決裁者</span><div class="line"></div><div class="date">/　/</div></div>
+            <div class="sign-row"><span>推進責任者</span><div class="line"></div><div class="date">/　/</div></div>
+            <div class="sign-row"><span>財務確認</span><div class="line"></div><div class="date">/　/</div></div>
+          </div>
+          <div class="comment-box">条件・コメント記入欄</div>
+        </div>
+        <div>
+          <div class="label" style="color:var(--ink); margin-bottom:1.2mm">Key Sources · 主要出典</div>
+          <ol class="sources-list">
+            ${sourcesListHtml}
+          </ol>
+          <div class="checks">
+            <div class="label">決裁前の確認事項</div>
+            <ul>
+              <li>先行検証部門の部門長との合意形成は完了しているか</li>
+              <li>次年度以降のライセンス・保守費を予算計画に織り込み可能か</li>
+              <li>社内機密・個人情報を含むデータの取り扱い指針に合致しているか</li>
+            </ul>
+          </div>
+          <p class="fineprint"><b>信頼性：</b>A＝一次情報・公的機関　B＝専門メディア・企業公式　C＝二次情報。全${totalSources}件の一覧は添付のExcel版（Source_Indexシート）を参照。<br><b>免責：</b>${esc(disclaimer)}</p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="rf">
+      <div class="rf-left"><span class="conf-tag">${esc(confidentiality)}</span></div>
+      <div class="rf-center">${esc(createdStr)} 発行 · © 2026 ${esc(publisherName)}</div>
+      <div class="rf-right">Page <b class="pg-num">3</b> / <span class="pg-total">3</span></div>
+    </footer>
+  </section>
+  `;
+
+  html += '</div>';
+  return html;
+}
+
+/**
+ * 商用A4横スライド型（6枚）エグゼクティブレポートマークアップを生成
+ */
+export function buildSlideDeckHtml(data, brand = 'Research Studio') {
   if (!data) return '';
 
   const publisherName = (typeof brand === 'object' && brand.publisherName) ? brand.publisherName : (typeof brand === 'string' ? brand : 'Research Studio');
@@ -1564,19 +2076,33 @@ export function buildPdfHtml(data, brand = 'Research Studio') {
 }
 
 /**
+ * 統合PDFマークアップ生成エンジン
+ * templateType ('slide-deck' または 'decision-brief') に応じて最適なマークアップを返す
+ */
+export function buildPdfHtml(data, brand = 'Research Studio', templateType = 'slide-deck') {
+  if (templateType === 'decision-brief') {
+    return buildDecisionBriefHtml(data, brand);
+  }
+  return buildSlideDeckHtml(data, brand);
+}
+
+/**
  * 4. 商用レポートPDF出力（Node.js内蔵Edge/Chromeによる完全ベクターPDF直接ダウンロード）
  */
-export async function exportPDF(data, brand = 'Research Studio') {
-  const filename = `【商用レポート】${safeFilename(data.title || data.theme)}.pdf`;
-  const htmlContent = buildPdfHtml(data, brand);
+export async function exportPDF(data, brand = 'Research Studio', templateType = null) {
+  const tpl = templateType || resolveOptimalPdfTemplate(data).template;
+  const isPortrait = tpl === 'decision-brief';
+  const typeLabel = isPortrait ? '意思決定ペーパー' : '商用スライド';
+  const filename = `【${typeLabel}】${safeFilename(data.title || data.theme)}.pdf`;
+  const htmlContent = buildPdfHtml(data, brand, tpl);
 
-  toast('📄 高品質商用PDFを生成中…（数秒かかります）', 'info', 4500);
+  toast(`📄 高品質${typeLabel}PDFを生成中…（数秒かかります）`, 'info', 4500);
 
   try {
     const res = await fetch('/api/export/pdf', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ html: htmlContent, filename }),
+      body: JSON.stringify({ html: htmlContent, filename, orientation: isPortrait ? 'portrait' : 'landscape' }),
     });
 
     if (!res.ok) {
@@ -1586,16 +2112,34 @@ export async function exportPDF(data, brand = 'Research Studio') {
 
     const blob = await res.blob();
     downloadBlob(blob, filename);
-    toast('✅ 商用レポートPDFを直接ダウンロードしました！', 'success');
+    toast(`✅ ${typeLabel}PDFを直接ダウンロードしました！`, 'success');
   } catch (err) {
     console.warn('Server-side PDF generation error, falling back to client-side print:', err);
     toast('PDF自動ダウンロードに失敗したため、印刷プレビューを開きます', 'info');
     const root = document.getElementById('print-root');
     if (root) {
       root.innerHTML = htmlContent;
-      window.addEventListener('afterprint', () => { root.innerHTML = ''; }, { once: true });
+      document.body.dataset.printOrientation = isPortrait ? 'portrait' : 'landscape';
+      let dynStyle = document.getElementById('rs-print-page-orientation');
+      if (!dynStyle) {
+        dynStyle = document.createElement('style');
+        dynStyle.id = 'rs-print-page-orientation';
+        document.head.appendChild(dynStyle);
+      }
+      dynStyle.textContent = `@page { size: A4 ${isPortrait ? 'portrait' : 'landscape'}; margin: 0; }`;
+
+      window.addEventListener(
+        'afterprint',
+        () => {
+          root.innerHTML = '';
+          delete document.body.dataset.printOrientation;
+          if (dynStyle) dynStyle.remove();
+        },
+        { once: true }
+      );
       window.print();
     }
   }
 }
+
 

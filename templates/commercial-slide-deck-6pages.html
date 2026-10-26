@@ -1,0 +1,1047 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Research Studio Report — A4 Landscape Template</title>
+<!--
+  Research Studio — A4横スライド型レポート雛形 v1.0
+  ------------------------------------------------------------
+  ・1スライド = 1ページ（297mm × 210mm 固定、overflow: hidden）
+  ・ランニングヘッダー／フッターはスライドの上下余白（padding領域）に絶対配置
+  ・ページ番号は CSS counter（X）＋ 末尾スクリプト（Y）で自動計算
+  ・本文がはみ出したスライドは、画面表示時に赤枠で警告（印刷には出ない）
+    window.__RS_LAYOUT__ に検査結果が入るので、Puppeteer等から取得可能
+  ・差し替え箇所は「SLOT:」で始まるHTMLコメントで示しています
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=Outfit:wght@300;400;500;600;700;800&display=block" rel="stylesheet">
+<style>
+/* =========================================================
+   1. Design tokens
+   ========================================================= */
+:root {
+  /* base */
+  --white:   #ffffff;
+  --paper:   #f8fafc;
+  --ink:     #0f172a;
+  --ink-2:   #1e293b;
+  --text:    #334155;
+  --muted:   #64748b;
+  --faint:   #94a3b8;
+  --line:    #e2e8f0;
+  --line-2:  #cbd5e1;
+
+  /* accents */
+  --blue:    #2563eb;
+  --cyan:    #06b6d4;
+  --indigo:  #4f46e5;
+  --blue-50: #eff6ff;
+  --blue-100:#dbeafe;
+  --cyan-50: #ecfeff;
+  --cyan-700:#0e7490;
+  --indigo-50:#eef2ff;
+
+  /* status (常にラベル／記号とセットで使う) */
+  --good:    #047857;  --good-50: #ecfdf5;
+  --warn:    #b45309;  --warn-50: #fffbeb;
+  --crit:    #b91c1c;  --crit-50: #fef2f2;
+
+  --grad: linear-gradient(90deg, var(--blue) 0%, var(--cyan) 55%, var(--indigo) 100%);
+
+  --font: "Outfit", "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Yu Gothic UI", sans-serif;
+  --font-jp: "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Yu Gothic UI", sans-serif;
+
+  --radius: 2.2mm;
+}
+
+/* =========================================================
+   2. Page / print foundation
+   ========================================================= */
+@page { size: A4 landscape; margin: 0; }
+
+* { box-sizing: border-box; margin: 0; padding: 0;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+html, body { background: #cbd5e1; }
+body {
+  font-family: var(--font);
+  color: var(--text);
+  font-size: 8.8pt;
+  line-height: 1.6;
+  font-feature-settings: "palt" 1;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+  counter-reset: slide;
+}
+
+.deck { display: flex; flex-direction: column; align-items: center; gap: 10mm; padding: 10mm 0 16mm; }
+
+.slide {
+  width: 297mm;
+  height: 210mm;
+  max-height: 210mm;
+  box-sizing: border-box;
+  padding: 14mm 18mm 12mm 18mm;
+  page-break-after: always;
+  break-after: page;
+  position: relative;
+  overflow: hidden;
+  background: #ffffff;
+
+  display: flex;
+  flex-direction: column;
+  counter-increment: slide;
+  box-shadow: 0 1mm 4mm rgba(15, 23, 42, .12), 0 0 0 .2mm rgba(15, 23, 42, .06);
+}
+.slide:last-child { page-break-after: auto; break-after: auto; }
+
+@media print {
+  html, body { background: #ffffff; }
+  .deck { display: block; padding: 0; gap: 0; }
+  .slide { box-shadow: none; }
+}
+
+/* 画面表示時のみ：はみ出し警告 */
+@media screen {
+  .slide[data-overflow="true"] { outline: 1mm solid var(--crit); }
+  .slide[data-overflow="true"]::after {
+    content: "OVERFLOW — 本文が枠を超えています";
+    position: absolute; top: 2mm; left: 50%; transform: translateX(-50%);
+    background: var(--crit); color: #fff; font: 600 7pt var(--font);
+    padding: .8mm 3mm; border-radius: 1mm; letter-spacing: .06em; z-index: 9;
+  }
+}
+
+/* =========================================================
+   3. Running header / footer (padding領域に配置)
+   ========================================================= */
+.slide::before {               /* 上端のアクセントライン */
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 1mm;
+  background: var(--grad);
+}
+
+.rh, .rf {
+  position: absolute; left: 18mm; right: 18mm;
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+  font-size: 6.6pt; letter-spacing: .06em; color: var(--muted);
+  white-space: nowrap;
+}
+.rh { top: 4.2mm; height: 6mm; border-bottom: .2mm solid var(--line); }
+.rf { bottom: 3.6mm; height: 5.4mm; border-top: .2mm solid var(--line); }
+
+.rh-brand { display: flex; align-items: center; gap: 1.8mm; font-weight: 700; color: var(--ink); letter-spacing: .04em; font-size: 7pt; }
+.logo-mark {
+  width: 3.6mm; height: 3.6mm; border-radius: .9mm; background: var(--grad);
+  display: inline-grid; place-items: center; flex: none;
+}
+.logo-mark::after { content: ""; width: 1.4mm; height: 1.4mm; border: .35mm solid #fff; border-radius: 50%; }
+.rh-title { text-align: center; font-family: var(--font-jp); font-weight: 500; color: var(--text); letter-spacing: .02em; max-width: 140mm; overflow: hidden; text-overflow: ellipsis; }
+.rh-section { text-align: right; text-transform: uppercase; font-weight: 600; color: var(--blue); }
+
+.rf-left { display: flex; align-items: center; gap: 2mm; }
+.rf-center { text-align: center; }
+.rf-right { text-align: right; font-variant-numeric: tabular-nums; }
+.rf-right b { color: var(--ink); font-weight: 600; }
+.pg-num::before { content: counter(slide); }
+
+.conf-tag {
+  display: inline-flex; align-items: center; gap: 1.2mm;
+  font-weight: 700; font-size: 6.2pt; letter-spacing: .14em; color: var(--crit);
+}
+.conf-tag::before { content: ""; width: 1.4mm; height: 1.4mm; border-radius: 50%; background: currentColor; }
+
+/* =========================================================
+   4. Slide heading & generic components
+   ========================================================= */
+.slide-head { flex: none; margin: 1mm 0 5mm; }
+.eyebrow {
+  display: flex; align-items: center; gap: 2.4mm;
+  font-size: 7pt; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: var(--blue);
+}
+.eyebrow::before { content: ""; width: 7mm; height: .5mm; background: var(--grad); border-radius: .3mm; }
+.eyebrow .num { color: var(--ink); }
+.slide-title {
+  margin-top: 2mm; font-size: 18pt; font-weight: 700; color: var(--ink);
+  line-height: 1.38; letter-spacing: .005em; font-family: var(--font);
+}
+.slide-title em { font-style: normal; color: var(--blue); }
+.slide-lead { margin-top: 1.4mm; font-size: 9pt; color: var(--muted); max-width: 210mm; }
+
+.slide-body { flex: 1 1 auto; min-height: 0; position: relative; }
+
+.label {
+  font-size: 6.6pt; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--muted);
+}
+.card {
+  background: var(--white); border: .25mm solid var(--line); border-radius: var(--radius);
+  padding: 4.2mm 4.6mm; position: relative; overflow: hidden;
+}
+.card.soft { background: var(--paper); }
+
+.badge {
+  display: inline-flex; align-items: center; gap: 1mm; white-space: nowrap;
+  font-size: 6.4pt; font-weight: 600; letter-spacing: .06em; line-height: 1;
+  padding: 1.1mm 2mm; border-radius: 10mm;
+  background: var(--blue-50); color: var(--blue);
+}
+.badge.cyan   { background: var(--cyan-50);   color: var(--cyan-700); }
+.badge.indigo { background: var(--indigo-50); color: var(--indigo); }
+.badge.ink    { background: var(--ink); color: #fff; }
+.badge.good   { background: var(--good-50); color: var(--good); }
+.badge.warn   { background: var(--warn-50); color: var(--warn); }
+.badge.crit   { background: var(--crit-50); color: var(--crit); }
+
+.src { /* 出典参照タグ [S1] */
+  display: inline-block; font-size: 5.8pt; font-weight: 600; color: var(--muted);
+  border: .2mm solid var(--line-2); border-radius: .6mm; padding: 0 .9mm; line-height: 1.5;
+  vertical-align: .25em; margin-left: .8mm; letter-spacing: .02em;
+}
+
+.clamp-2, .clamp-3, .clamp-4, .clamp-5 { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
+.clamp-2 { -webkit-line-clamp: 2; } .clamp-3 { -webkit-line-clamp: 3; }
+.clamp-4 { -webkit-line-clamp: 4; } .clamp-5 { -webkit-line-clamp: 5; }
+
+.num-font { font-family: "Outfit", var(--font-jp); font-variant-numeric: tabular-nums; }
+
+/* =========================================================
+   5. COVER
+   ========================================================= */
+.slide.cover {
+  background: var(--ink); color: #e2e8f0;
+  padding: 14mm 18mm 12mm 18mm;
+}
+.slide.cover::before { height: 1.2mm; }
+.cover-art {               /* 右側の幾何学グリッド */
+  position: absolute; top: 0; right: 0; bottom: 0; width: 46%;
+  background:
+    radial-gradient(120mm 120mm at 100% 0%, rgba(37,99,235,.55), transparent 70%),
+    radial-gradient(90mm 90mm at 70% 100%, rgba(6,182,212,.28), transparent 70%),
+    radial-gradient(80mm 80mm at 100% 70%, rgba(79,70,229,.35), transparent 70%);
+}
+.cover-art::before {
+  content: ""; position: absolute; inset: 0;
+  background-image:
+    linear-gradient(rgba(148,163,184,.12) .2mm, transparent .2mm),
+    linear-gradient(90deg, rgba(148,163,184,.12) .2mm, transparent .2mm);
+  background-size: 9mm 9mm;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 45%);
+          mask-image: linear-gradient(90deg, transparent 0%, #000 45%);
+}
+.cover-art svg { position: absolute; right: 18mm; top: 26mm; width: 92mm; height: 92mm; opacity: .9; }
+
+.cover-top { position: relative; display: flex; justify-content: space-between; align-items: center; }
+.cover-brand { display: flex; align-items: center; gap: 2.4mm; font-weight: 700; font-size: 10pt; color: #fff; letter-spacing: .03em; }
+.cover-brand .logo-mark { width: 5.4mm; height: 5.4mm; border-radius: 1.3mm; }
+.cover-brand .logo-mark::after { width: 2.1mm; height: 2.1mm; border-width: .5mm; }
+.cover-brand small { font-weight: 400; color: var(--faint); font-size: 7.4pt; letter-spacing: .1em; margin-left: 1mm; }
+.cover-class {
+  font-size: 6.8pt; font-weight: 700; letter-spacing: .24em; color: #fecaca;
+  border: .3mm solid rgba(254,202,202,.55); padding: 1.3mm 3mm; border-radius: .8mm;
+}
+
+.cover-main { position: relative; margin-top: 34mm; max-width: 160mm; }
+.cover-kicker {
+  display: inline-flex; align-items: center; gap: 2.4mm;
+  font-size: 7.4pt; font-weight: 600; letter-spacing: .26em; color: #67e8f9; text-transform: uppercase;
+}
+.cover-kicker::before { content: ""; width: 9mm; height: .5mm; background: var(--grad); }
+.cover-title {
+  margin-top: 5.5mm; font-size: 31pt; line-height: 1.3; font-weight: 700; color: #fff; letter-spacing: .01em;
+}
+.cover-sub { margin-top: 5mm; font-size: 12pt; line-height: 1.7; color: #cbd5e1; font-weight: 400; max-width: 150mm; }
+
+.cover-bottom {
+  position: absolute; left: 18mm; right: 18mm; bottom: 14mm;
+  display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 10mm;
+}
+.cover-meta { display: grid; grid-template-columns: repeat(4, auto); gap: 0; justify-content: start; }
+.cover-meta div { padding: 0 7mm 0 0; margin-right: 7mm; border-right: .2mm solid rgba(148,163,184,.28); }
+.cover-meta div:last-child { border-right: 0; margin-right: 0; }
+.cover-meta dt { font-size: 6.2pt; font-weight: 600; letter-spacing: .2em; color: var(--faint); text-transform: uppercase; }
+.cover-meta dd { margin-top: 1.4mm; font-size: 9pt; color: #f1f5f9; font-weight: 500; white-space: nowrap; }
+
+.score-badge {
+  display: flex; align-items: center; gap: 4mm;
+  background: rgba(15,23,42,.55); border: .25mm solid rgba(148,163,184,.3);
+  border-radius: 3mm; padding: 3.6mm 5.4mm 3.6mm 3.6mm;
+  backdrop-filter: blur(2mm);
+}
+.score-ring { position: relative; width: 19mm; height: 19mm; flex: none; }
+.score-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.score-ring .val {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  font-size: 15pt; font-weight: 700; color: #fff; line-height: 1;
+}
+.score-text .label { color: var(--faint); }
+.score-text strong { display: block; margin-top: 1mm; font-size: 11pt; color: #fff; font-weight: 600; }
+.score-text span { display: block; font-size: 7pt; color: var(--faint); margin-top: .6mm; }
+
+.cover .rf { border-top-color: rgba(148,163,184,.22); color: var(--faint); }
+.cover .rf-right b { color: #fff; }
+
+/* =========================================================
+   6. EXECUTIVE SUMMARY
+   ========================================================= */
+.exec { display: grid; grid-template-columns: 1.72fr 1fr; grid-template-rows: 1fr auto; gap: 4.5mm; height: 100%; }
+
+.bottom-line {
+  background: var(--ink); color: #e2e8f0; border-radius: var(--radius);
+  padding: 6mm 7mm; position: relative; overflow: hidden;
+  display: flex; flex-direction: column; justify-content: center;
+}
+.bottom-line::after {
+  content: ""; position: absolute; right: -22mm; bottom: -26mm; width: 70mm; height: 70mm;
+  background: radial-gradient(closest-side, rgba(37,99,235,.45), transparent);
+}
+.bottom-line .label { color: #67e8f9; position: relative; }
+.bottom-line h3 { position: relative; margin-top: 2.6mm; font-size: 14pt; line-height: 1.6; color: #fff; font-weight: 700; }
+.bottom-line ol { position: relative; list-style: none; margin-top: 4.4mm; padding-top: 4mm; border-top: .2mm solid rgba(148,163,184,.25); display: grid; gap: 2.4mm; counter-reset: bl; }
+.bottom-line li { display: grid; grid-template-columns: 7mm 1fr; font-size: 9.4pt; line-height: 1.6; color: #cbd5e1; counter-increment: bl; }
+.bottom-line li::before {
+  content: counter(bl, decimal-leading-zero); font-family: "Outfit", var(--font-jp);
+  font-weight: 600; color: #67e8f9; font-size: 9pt;
+}
+.bottom-line li b { color: #fff; font-weight: 600; }
+
+.metrics { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 3mm; }
+.metric { background: var(--paper); border: .25mm solid var(--line); border-radius: var(--radius); padding: 3.4mm 3.8mm; display: flex; flex-direction: column; }
+.metric .value { margin-top: 1.4mm; font-family: "Outfit", var(--font-jp); font-size: 26pt; font-weight: 600; color: var(--ink); line-height: 1; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+.metric .value small { font-size: 9pt; font-weight: 500; color: var(--muted); margin-left: .6mm; letter-spacing: 0; }
+.metric .cap { margin-top: auto; padding-top: 1.6mm; font-size: 7.2pt; color: var(--muted); line-height: 1.45; }
+.meter { margin-top: 2.2mm; height: 1.4mm; border-radius: 1mm; background: var(--line); overflow: hidden; }
+.meter i { display: block; height: 100%; border-radius: 1mm; background: var(--blue); }
+.metric.primary { background: var(--blue-50); border-color: var(--blue-100); }
+.metric.primary .label { color: var(--blue); }
+
+.insights { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 3.6mm; min-height: 0; }
+.insight { display: flex; flex-direction: column; padding: 4.4mm 4.6mm 4mm; min-height: 60mm; }
+.insight::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: .8mm; background: var(--accent, var(--blue)); }
+.insight .top { display: flex; justify-content: space-between; align-items: center; }
+.insight .idx { font-family: "Outfit", var(--font-jp); font-size: 15pt; font-weight: 300; color: var(--line-2); line-height: 1; }
+.insight h4 { margin-top: 2.8mm; font-size: 11pt; line-height: 1.5; color: var(--ink); font-weight: 700; }
+.insight p { margin-top: 2mm; font-size: 8.5pt; line-height: 1.7; color: var(--text); }
+.insight .kpi { margin-top: auto; padding-top: 3mm; border-top: .2mm dashed var(--line-2); display: flex; align-items: baseline; gap: 1.6mm; }
+.insight .kpi strong { font-family: "Outfit", var(--font-jp); font-size: 17pt; font-weight: 600; color: var(--ink); line-height: 1; font-variant-numeric: tabular-nums; }
+.insight .kpi span { font-size: 6.8pt; color: var(--muted); line-height: 1.35; }
+
+/* =========================================================
+   7. COMPARISON MATRIX
+   ========================================================= */
+.matrix-wrap { display: flex; flex-direction: column; gap: 3.6mm; height: 100%; }
+.matrix-area { flex: 1 1 auto; min-height: 0; }
+table.matrix { width: 100%; height: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; font-size: 8.6pt; }
+.matrix thead tr { height: 1px; }
+.matrix th, .matrix td { text-align: left; vertical-align: top; }
+.matrix thead th {
+  font-size: 6.4pt; font-weight: 600; letter-spacing: .1em; color: var(--muted);
+  padding: 1.6mm 2.4mm; border-bottom: .5mm solid var(--ink); white-space: nowrap;
+}
+.matrix thead tr.group th { border-bottom: .2mm solid var(--line-2); padding-bottom: 1.2mm; color: var(--ink); letter-spacing: .14em; }
+.matrix thead tr.group th.blank { border-bottom: 0; }
+.matrix thead th.c { text-align: center; }
+.matrix tbody td { padding: 3mm 2.6mm; border-bottom: .2mm solid var(--line); line-height: 1.65; color: var(--text); vertical-align: middle; }
+.matrix tbody td.c { text-align: center; vertical-align: middle; }
+.matrix tbody tr:last-child td { border-bottom: .3mm solid var(--line-2); }
+.matrix .opt-name { font-size: 10.8pt; font-weight: 700; color: var(--ink); line-height: 1.4; display: flex; align-items: center; gap: 1.6mm; flex-wrap: wrap; }
+.matrix .opt-desc { margin-top: 1.2mm; font-size: 7.4pt; color: var(--muted); line-height: 1.5; }
+.matrix tr.recommended td { background: var(--blue-50); }
+.matrix tr.recommended td:first-child { box-shadow: inset .9mm 0 0 var(--blue); }
+.matrix td ul { list-style: none; display: grid; gap: .8mm; }
+.matrix td li { position: relative; padding-left: 2.6mm; }
+.matrix td li::before { content: ""; position: absolute; left: 0; top: .62em; width: 1.1mm; height: 1.1mm; border-radius: 50%; background: var(--line-2); }
+.matrix td.pro li::before { background: var(--cyan); }
+.matrix td.con li::before { background: var(--warn); }
+
+/* 評価記号 ◎/○/△/×：記号そのものが意味を持ち、色は補助 */
+.rt {
+  display: inline-grid; place-items: center; width: 7.8mm; height: 7.8mm; border-radius: 50%;
+  font-family: var(--font-jp); font-size: 11pt; font-weight: 700; line-height: 1;
+}
+.rt.a { background: var(--blue); color: #fff; }
+.rt.b { background: var(--cyan-50); color: var(--cyan-700); box-shadow: inset 0 0 0 .25mm #a5f3fc; }
+.rt.c { background: var(--warn-50); color: var(--warn); box-shadow: inset 0 0 0 .25mm #fde68a; }
+.rt.d { background: var(--crit-50); color: var(--crit); box-shadow: inset 0 0 0 .25mm #fecaca; }
+
+.matrix-foot { display: grid; grid-template-columns: auto 1fr; gap: 6mm; align-items: stretch; margin-top: auto; }
+.legend { display: flex; flex-direction: column; justify-content: center; gap: 1.4mm; font-size: 7pt; color: var(--muted); padding-right: 6mm; border-right: .2mm solid var(--line); }
+.legend-row { display: flex; gap: 4.5mm; }
+.legend-row span { display: inline-flex; align-items: center; gap: 1.4mm; }
+.legend .rt { width: 5.6mm; height: 5.6mm; font-size: 8pt; }
+
+.callout {
+  display: grid; grid-template-columns: auto 1fr; gap: 4mm; align-items: center;
+  background: var(--paper); border: .25mm solid var(--line); border-left: 1mm solid var(--blue);
+  border-radius: 0 var(--radius) var(--radius) 0; padding: 3.2mm 4.6mm;
+}
+.callout .label { color: var(--blue); }
+.callout p { font-size: 9.2pt; color: var(--ink); line-height: 1.6; }
+.callout p b { color: var(--blue); }
+
+/* =========================================================
+   8. DETAILED ANALYSIS
+   ========================================================= */
+.analysis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4.2mm; height: 100%; }
+.facet { display: flex; flex-direction: column; padding: 0; }
+.facet-head { padding: 4mm 4.6mm 3.4mm; border-bottom: .2mm solid var(--line); display: flex; gap: 3mm; align-items: flex-start; }
+.icon {
+  width: 8.4mm; height: 8.4mm; border-radius: 2mm; flex: none; display: grid; place-items: center;
+  background: var(--tint, var(--blue-50)); color: var(--accent, var(--blue));
+}
+.icon svg { width: 4.6mm; height: 4.6mm; }
+.facet-head .label { color: var(--accent, var(--blue)); }
+.facet-head h4 { margin-top: .6mm; font-size: 11pt; line-height: 1.45; color: var(--ink); font-weight: 700; }
+
+.stat-row { display: flex; align-items: flex-end; gap: 3mm; padding: 4.4mm 4.6mm 0; }
+.stat-row strong { font-family: "Outfit", var(--font-jp); font-size: 30pt; font-weight: 600; color: var(--ink); line-height: .95; letter-spacing: -.015em; font-variant-numeric: tabular-nums; }
+.stat-row strong small { font-size: 10pt; font-weight: 500; color: var(--muted); margin-left: .5mm; }
+.stat-row span { font-size: 7.4pt; color: var(--muted); line-height: 1.45; padding-bottom: .4mm; }
+
+.facts { list-style: none; padding: 4mm 4.6mm 0; display: grid; gap: 2.8mm; }
+.facts li { display: grid; grid-template-columns: 4.2mm 1fr; font-size: 8.6pt; line-height: 1.65; color: var(--text); }
+.facts li::before {
+  content: ""; width: 1.6mm; height: 1.6mm; margin-top: .5em; border-radius: .4mm;
+  background: var(--accent, var(--blue)); transform: rotate(45deg);
+}
+.facts li b { color: var(--ink); font-weight: 600; }
+
+.sowhat {
+  margin: auto 4.6mm 4.2mm; padding: 2.8mm 3.4mm; border-radius: 1.6mm;
+  background: var(--tint, var(--blue-50)); font-size: 8.3pt; line-height: 1.6; color: var(--ink);
+}
+.evidence { margin: 4.2mm 4.6mm 0; padding-top: 3.4mm; border-top: .2mm dashed var(--line-2); display: grid; gap: 2.2mm; }
+.evidence .label { font-size: 6pt; }
+.ev-row { display: grid; grid-template-columns: 19mm 1fr 13mm; align-items: center; gap: 2.4mm; font-size: 7.4pt; color: var(--text); }
+.ev-bar { height: 2.2mm; background: var(--line); border-radius: 1mm; overflow: hidden; }
+.ev-bar i { display: block; height: 100%; background: var(--accent, var(--blue)); border-radius: 0 1mm 1mm 0; }
+.ev-row.base .ev-bar i { background: var(--faint); }
+.ev-row b { text-align: right; font-family: "Outfit", var(--font-jp); font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.sowhat .label { color: var(--accent, var(--blue)); display: block; margin-bottom: .6mm; font-size: 6pt; }
+
+/* =========================================================
+   9. RECOMMENDATIONS
+   ========================================================= */
+.reco { display: grid; grid-template-rows: 1fr auto; gap: 6mm; height: 100%; }
+.roadmap { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; }
+.phase { display: flex; flex-direction: column; }
+.phase-chevron {
+  height: 11mm; display: flex; align-items: center; gap: 2.4mm; padding: 0 9mm 0 5mm;
+  background: var(--accent); color: #fff;
+  clip-path: polygon(0 0, calc(100% - 4.5mm) 0, 100% 50%, calc(100% - 4.5mm) 100%, 0 100%, 4.5mm 50%);
+  margin-right: -2.5mm;
+}
+.phase:last-child .phase-chevron { margin-right: 0; }
+.phase:first-child .phase-chevron { clip-path: polygon(0 0, calc(100% - 4.5mm) 0, 100% 50%, calc(100% - 4.5mm) 100%, 0 100%); border-radius: 1.4mm 0 0 1.4mm; }
+.phase-chevron b { font-family: "Outfit", var(--font-jp); font-size: 7pt; letter-spacing: .18em; font-weight: 600; opacity: .85; }
+.phase-chevron span { font-size: 10.4pt; font-weight: 700; }
+.phase-chevron em { font-style: normal; margin-left: auto; font-size: 7.2pt; font-weight: 500; opacity: .9; font-variant-numeric: tabular-nums; }
+.phase-body { padding: 4.2mm 5mm 0 0; margin-left: 1mm; display: flex; flex-direction: column; flex: 1; }
+.phase + .phase .phase-body { padding-left: 4.5mm; border-left: .2mm dashed var(--line-2); }
+.phase-goal { font-size: 10.4pt; font-weight: 700; color: var(--ink); line-height: 1.5; }
+.phase ul { list-style: none; margin-top: 3mm; display: grid; gap: 2.2mm; }
+.phase .deliv { margin-top: 3mm; font-size: 7.8pt; color: var(--muted); }
+.phase .deliv b { color: var(--ink); font-weight: 600; }
+.phase li { display: grid; grid-template-columns: 4.8mm 1fr; font-size: 8.7pt; line-height: 1.6; }
+.phase li::before {
+  content: ""; width: 2.4mm; height: 2.4mm; margin-top: .32em; border-radius: .6mm;
+  border: .35mm solid var(--accent); background: #fff;
+}
+.phase .kpi-box {
+  margin-top: auto; display: flex; gap: 2.4mm; align-items: center;
+  padding: 2.6mm 3.4mm; background: var(--paper); border: .2mm solid var(--line); border-radius: 1.4mm;
+  font-size: 8pt; color: var(--text);
+}
+.phase .kpi-box .label { font-size: 5.8pt; color: var(--accent); }
+.phase .kpi-box b { color: var(--ink); }
+
+.risk-block { display: flex; flex-direction: column; min-height: 0; }
+.risk-block > .label { margin-bottom: 2mm; color: var(--ink); }
+table.risk { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; font-size: 8.4pt; }
+.risk thead th { font-size: 6.3pt; font-weight: 600; letter-spacing: .1em; color: var(--muted); text-align: left; padding: 1.4mm 2.4mm; background: var(--paper); border-top: .2mm solid var(--line); border-bottom: .2mm solid var(--line); white-space: nowrap; }
+.risk thead th.c { text-align: center; }
+.risk tbody td { padding: 3mm 2.6mm; border-bottom: .2mm solid var(--line); vertical-align: middle; line-height: 1.55; }
+.risk tbody td.c { text-align: center; }
+.risk .r-name { font-weight: 700; color: var(--ink); font-size: 9pt; }
+.risk .r-desc { font-size: 7.4pt; color: var(--muted); margin-top: .4mm; }
+.level { display: inline-flex; align-items: center; gap: 1mm; font-size: 6.6pt; font-weight: 600; padding: .9mm 2mm; border-radius: 10mm; line-height: 1; white-space: nowrap; }
+.level::before { font-size: 6pt; }
+.level.high { background: var(--crit-50); color: var(--crit); }  .level.high::before { content: "▲"; }
+.level.mid  { background: var(--warn-50); color: var(--warn); }  .level.mid::before  { content: "■"; }
+.level.low  { background: var(--good-50); color: var(--good); }  .level.low::before  { content: "▼"; }
+
+/* =========================================================
+   10. SOURCES & APPENDIX
+   ========================================================= */
+.appendix { display: grid; grid-template-columns: 1.85fr 1fr; gap: 6mm; height: 100%; }
+table.sources { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; font-size: 8.2pt; }
+.sources thead th { font-size: 6.3pt; font-weight: 600; letter-spacing: .1em; color: var(--muted); text-align: left; padding: 1.4mm 2mm; border-bottom: .5mm solid var(--ink); white-space: nowrap; }
+.sources thead th.c, .sources td.c { text-align: center; }
+.sources tbody td { padding: 2.75mm 2mm; border-bottom: .2mm solid var(--line); vertical-align: middle; line-height: 1.45; }
+.sources tbody tr:nth-child(even) td { background: var(--paper); }
+.sources .sid { font-family: "Outfit", var(--font-jp); font-weight: 600; color: var(--blue); font-size: 7.4pt; }
+.sources .s-title { color: var(--ink); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sources .s-dom { font-family: "Outfit", var(--font-jp); color: var(--muted); font-size: 7pt; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sources .s-date { font-family: "Outfit", var(--font-jp); color: var(--muted); font-size: 7pt; font-variant-numeric: tabular-nums; }
+.grade { display: inline-grid; place-items: center; width: 5.4mm; height: 5.4mm; border-radius: 1.2mm; font-family: "Outfit", var(--font-jp); font-weight: 700; font-size: 7.6pt; line-height: 1; }
+.grade.A { background: var(--blue); color: #fff; }
+.grade.B { background: var(--cyan-50); color: var(--cyan-700); box-shadow: inset 0 0 0 .25mm #a5f3fc; }
+.grade.C { background: var(--paper); color: var(--muted); box-shadow: inset 0 0 0 .25mm var(--line-2); }
+.sources-note { margin-top: 2.4mm; font-size: 6.6pt; color: var(--muted); }
+
+.side { display: flex; flex-direction: column; gap: 3.6mm; min-height: 0; }
+.side .card { padding: 3.6mm 4.2mm; }
+.side h5 { font-size: 6.6pt; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--ink); margin-bottom: 2mm; }
+dl.method { display: grid; grid-template-columns: auto 1fr; gap: 1.4mm 4mm; font-size: 7.8pt; }
+dl.method dt { color: var(--muted); white-space: nowrap; }
+dl.method dd { color: var(--ink); font-weight: 500; }
+.grade-legend { display: grid; gap: 1.6mm; font-size: 7.6pt; }
+.grade-legend div { display: grid; grid-template-columns: 7mm 1fr; align-items: center; }
+.disclaimer { font-size: 7.1pt; line-height: 1.7; color: var(--muted); }
+.disclaimer p + p { margin-top: 1.2mm; }
+.copyright { margin-top: auto; font-size: 6.6pt; color: var(--muted); display: flex; align-items: center; gap: 2mm; padding-top: 2mm; border-top: .2mm solid var(--line); }
+.copyright b { color: var(--ink); font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="deck">
+
+<!-- =====================================================================
+     01  COVER
+     ===================================================================== -->
+<section class="slide cover" data-section="Cover">
+  <div class="cover-art" aria-hidden="true">
+    <svg viewBox="0 0 200 200" fill="none">
+      <defs>
+        <linearGradient id="cg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#2563eb"/><stop offset=".55" stop-color="#06b6d4"/><stop offset="1" stop-color="#4f46e5"/>
+        </linearGradient>
+      </defs>
+      <circle cx="100" cy="100" r="96" stroke="rgba(148,163,184,.22)" stroke-width=".6"/>
+      <circle cx="100" cy="100" r="72" stroke="rgba(148,163,184,.18)" stroke-width=".6"/>
+      <circle cx="100" cy="100" r="48" stroke="rgba(148,163,184,.16)" stroke-width=".6"/>
+      <path d="M100 4 A96 96 0 0 1 196 100" stroke="url(#cg)" stroke-width="2.2" stroke-linecap="round"/>
+      <path d="M28 100 A72 72 0 0 1 100 28" stroke="url(#cg)" stroke-width="1.6" stroke-linecap="round" opacity=".8"/>
+      <path d="M148 100 A48 48 0 0 1 100 148" stroke="#67e8f9" stroke-width="1.2" stroke-linecap="round" opacity=".7"/>
+      <circle cx="196" cy="100" r="3" fill="#06b6d4"/>
+      <circle cx="100" cy="28" r="2.4" fill="#2563eb"/>
+      <circle cx="100" cy="148" r="2" fill="#67e8f9"/>
+      <line x1="100" y1="100" x2="196" y2="100" stroke="rgba(148,163,184,.25)" stroke-width=".5" stroke-dasharray="2 3"/>
+      <line x1="100" y1="100" x2="100" y2="4" stroke="rgba(148,163,184,.25)" stroke-width=".5" stroke-dasharray="2 3"/>
+      <circle cx="100" cy="100" r="2.2" fill="#fff"/>
+    </svg>
+  </div>
+
+  <div class="cover-top">
+    <div class="cover-brand"><span class="logo-mark"></span>Research Studio <small>AI RESEARCH &amp; DECISION INTELLIGENCE</small></div>
+    <div class="cover-class"><!-- SLOT: classification -->CONFIDENTIAL</div>
+  </div>
+
+  <div class="cover-main">
+    <div class="cover-kicker"><!-- SLOT: report_type -->Strategic Research Report</div>
+    <h1 class="cover-title"><!-- SLOT: title -->社内ナレッジ検索への<br>生成AI（RAG）導入評価</h1>
+    <p class="cover-sub"><!-- SLOT: subtitle -->主要4方式の比較分析と、18ヶ月で全社展開に至る段階的導入ロードマップ</p>
+  </div>
+
+  <div class="cover-bottom">
+    <dl class="cover-meta">
+      <div><dt>Research Theme</dt><dd><!-- SLOT: theme -->ナレッジマネジメント / 生成AI</dd></div>
+      <div><dt>Date</dt><dd class="num-font"><!-- SLOT: date -->2026.10.25</dd></div>
+      <div><dt>Report ID</dt><dd class="num-font"><!-- SLOT: report_id -->RS-2026-1025-014</dd></div>
+      <div><dt>Prepared by</dt><dd>Research Studio</dd></div>
+    </dl>
+    <div class="score-badge">
+      <div class="score-ring">
+        <!-- SLOT: score → stroke-dasharray の1つ目を score × 0.9425（r=15 の円周 94.25）にする -->
+        <svg viewBox="0 0 36 36">
+          <circle cx="18" cy="18" r="15" stroke="rgba(148,163,184,.25)" stroke-width="2.6" fill="none"/>
+          <circle cx="18" cy="18" r="15" stroke="#06b6d4" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-dasharray="77.3 94.25"/>
+        </svg>
+        <div class="val num-font">82</div>
+      </div>
+      <div class="score-text">
+        <div class="label">Confidence Score</div>
+        <strong>信頼度：高</strong>
+        <span class="num-font">47 sources · 一次情報 68%</span>
+      </div>
+    </div>
+  </div>
+
+  <footer class="rf">
+    <div class="rf-left"><span class="conf-tag">CONFIDENTIAL</span></div>
+    <div class="rf-center">© 2026 Research Studio. All rights reserved.</div>
+    <div class="rf-right">Page <b class="pg-num"></b> / <span class="pg-total">6</span></div>
+  </footer>
+</section>
+
+<!-- =====================================================================
+     02  EXECUTIVE SUMMARY
+     ===================================================================== -->
+<section class="slide" data-section="Executive Summary">
+  <header class="rh">
+    <div class="rh-brand"><span class="logo-mark"></span>Research Studio</div>
+    <div class="rh-title">社内ナレッジ検索への生成AI（RAG）導入評価</div>
+    <div class="rh-section">02 · Executive Summary</div>
+  </header>
+
+  <div class="slide-head">
+    <div class="eyebrow"><span class="num">02</span> Executive Summary</div>
+    <h2 class="slide-title">結論：<em>SaaS型AI検索で小さく始め</em>、効果検証後に自社RAGへ段階移行すべき</h2>
+  </div>
+
+  <main class="slide-body exec">
+    <div class="bottom-line">
+      <div class="label">Bottom Line</div>
+      <h3>初期投資を抑えつつ3ヶ月で効果を実証できるSaaS型が最適解。機密文書の比率が高い部門のみ、中期で自社RAGへ切り替える二段構えを推奨する。</h3>
+      <ol>
+        <li><span><b>検索時間は平均38%短縮</b>が見込め、全社で年間約1.2万時間の工数削減に相当する。</span></li>
+        <li><span><b>精度の差は方式より「文書整備」で決まる</b>。導入前のメタデータ付与が成否を分ける。</span></li>
+        <li><span><b>最大のリスクは権限管理</b>。閲覧権限をインデックスに反映できない方式は除外すべき。</span></li>
+      </ol>
+    </div>
+
+    <div class="metrics">
+      <div class="metric primary">
+        <div class="label">Confidence</div>
+        <div class="value">82<small>/100</small></div>
+        <div class="meter" role="img" aria-label="信頼度 82/100"><i style="width:82%"></i></div>
+        <div class="cap">複数の一次情報で主要論点を裏付け</div>
+      </div>
+      <div class="metric">
+        <div class="label">Sources</div>
+        <div class="value">47<small>件</small></div>
+        <div class="cap">公的機関12・業界団体9・企業IR等26</div>
+      </div>
+      <div class="metric">
+        <div class="label">Primary Data</div>
+        <div class="value">68<small>%</small></div>
+        <div class="meter" role="img" aria-label="一次情報比率 68%"><i style="width:68%"></i></div>
+        <div class="cap">一次情報（統計・原典）の比率</div>
+      </div>
+      <div class="metric">
+        <div class="label">Coverage</div>
+        <div class="value">4<small>方式 × 6軸</small></div>
+        <div class="cap">調査期間 2026.09.01 – 10.20</div>
+      </div>
+    </div>
+
+    <div class="insights">
+      <article class="card insight" style="--accent: var(--blue)">
+        <div class="top"><span class="badge">市場</span><span class="idx">01</span></div>
+        <h4>大企業の導入率は1年で2倍超に</h4>
+        <p class="clamp-4">従業員1,000名以上の企業で社内検索への生成AI適用が急拡大。PoC止まりから本番運用への移行が今年の主要トレンド。</p>
+        <div class="kpi"><strong>41%</strong><span>大企業の<br>本番導入率</span></div>
+      </article>
+      <article class="card insight" style="--accent: var(--cyan)">
+        <div class="top"><span class="badge cyan">効果</span><span class="idx">02</span></div>
+        <h4>検索時間の短縮効果は再現性が高い</h4>
+        <p class="clamp-4">公開事例の多くで30〜45%の短縮を報告。問い合わせ一次対応の削減など、副次効果も複数確認された。</p>
+        <div class="kpi"><strong>−38%</strong><span>平均<br>検索時間</span></div>
+      </article>
+      <article class="card insight" style="--accent: var(--indigo)">
+        <div class="top"><span class="badge indigo">技術</span><span class="idx">03</span></div>
+        <h4>精度のボトルネックは文書側にある</h4>
+        <p class="clamp-4">回答精度の差の大半は、モデル性能ではなく文書の鮮度・重複・メタデータの有無で説明できる。</p>
+        <div class="kpi"><strong>+21pt</strong><span>文書整備後の<br>正答率改善</span></div>
+      </article>
+      <article class="card insight" style="--accent: var(--warn)">
+        <div class="top"><span class="badge warn">リスク</span><span class="idx">04</span></div>
+        <h4>権限漏洩が最大の導入阻害要因</h4>
+        <p class="clamp-4">閲覧権限のない文書が回答に混入する事故が複数報告。ACL連携は方式選定の必須要件となる。</p>
+        <div class="kpi"><strong>63%</strong><span>が懸念事項の<br>1位に選択</span></div>
+      </article>
+    </div>
+  </main>
+
+  <footer class="rf">
+    <div class="rf-left"><span class="conf-tag">CONFIDENTIAL</span></div>
+    <div class="rf-center">2026.10.25 発行 · © 2026 Research Studio</div>
+    <div class="rf-right">Page <b class="pg-num"></b> / <span class="pg-total">6</span></div>
+  </footer>
+</section>
+
+<!-- =====================================================================
+     03  COMPARISON MATRIX
+     ===================================================================== -->
+<section class="slide" data-section="Comparison Matrix">
+  <header class="rh">
+    <div class="rh-brand"><span class="logo-mark"></span>Research Studio</div>
+    <div class="rh-title">社内ナレッジ検索への生成AI（RAG）導入評価</div>
+    <div class="rh-section">03 · Comparison Matrix</div>
+  </header>
+
+  <div class="slide-head">
+    <div class="eyebrow"><span class="num">03</span> Comparison Matrix</div>
+    <h2 class="slide-title">4方式のうち、導入速度と権限管理を両立するのは<em>SaaS型AI検索</em>のみ</h2>
+  </div>
+
+  <main class="slide-body matrix-wrap">
+    <div class="matrix-area">
+    <table class="matrix">
+      <colgroup>
+        <col style="width:20%">
+        <col style="width:6.2%"><col style="width:6.2%"><col style="width:6.2%"><col style="width:6.2%"><col style="width:6.2%">
+        <col style="width:15%"><col style="width:17%"><col style="width:16.8%">
+      </colgroup>
+      <thead>
+        <tr class="group">
+          <th class="blank"></th>
+          <th colspan="5" class="c">評価（◎ / ○ / △）</th>
+          <th colspan="3">定性評価</th>
+        </tr>
+        <tr>
+          <th>選択肢</th>
+          <th class="c">総合</th><th class="c">精度</th><th class="c">コスト</th><th class="c">導入速度</th><th class="c">権限管理</th>
+          <th>現状</th><th>メリット</th><th>課題</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="recommended">
+          <td><div class="opt-name">A. SaaS型AI検索 <span class="badge ink">推奨</span></div><div class="opt-desc">既存のクラウドストレージと連携する商用サービス</div></td>
+          <td class="c"><span class="rt a">◎</span></td><td class="c"><span class="rt b">○</span></td><td class="c"><span class="rt a">◎</span></td><td class="c"><span class="rt a">◎</span></td><td class="c"><span class="rt a">◎</span></td>
+          <td>主要ベンダー各社が提供。国内データセンター対応が進む</td>
+          <td class="pro"><ul><li>最短2週間で稼働</li><li>既存ACLをそのまま継承</li></ul></td>
+          <td class="con"><ul><li>カスタマイズ余地が小さい</li><li>従量課金で利用増に比例</li></ul></td>
+        </tr>
+        <tr>
+          <td><div class="opt-name">B. 自社構築RAG</div><div class="opt-desc">ベクトルDBとLLM APIを組み合わせた内製基盤</div></td>
+          <td class="c"><span class="rt b">○</span></td><td class="c"><span class="rt a">◎</span></td><td class="c"><span class="rt c">△</span></td><td class="c"><span class="rt c">△</span></td><td class="c"><span class="rt b">○</span></td>
+          <td>技術的には成熟。運用人材の確保が各社の課題</td>
+          <td class="pro"><ul><li>精度チューニングが自在</li><li>機密データを社外に出さない</li></ul></td>
+          <td class="con"><ul><li>構築に4〜6ヶ月</li><li>専任エンジニア2名以上が必要</li></ul></td>
+        </tr>
+        <tr>
+          <td><div class="opt-name">C. 既存検索＋LLM連携</div><div class="opt-desc">導入済みエンタープライズ検索にLLM要約を追加</div></td>
+          <td class="c"><span class="rt b">○</span></td><td class="c"><span class="rt c">△</span></td><td class="c"><span class="rt b">○</span></td><td class="c"><span class="rt b">○</span></td><td class="c"><span class="rt a">◎</span></td>
+          <td>既存ベンダーがオプションとして順次提供中</td>
+          <td class="pro"><ul><li>既存投資を活かせる</li><li>利用者の学習コストが低い</li></ul></td>
+          <td class="con"><ul><li>キーワード検索依存で精度に限界</li></ul></td>
+        </tr>
+        <tr>
+          <td><div class="opt-name">D. 現状維持</div><div class="opt-desc">ファイルサーバー＋全文検索の運用を継続</div></td>
+          <td class="c"><span class="rt c">△</span></td><td class="c"><span class="rt c">△</span></td><td class="c"><span class="rt a">◎</span></td><td class="c"><span class="rt a">◎</span></td><td class="c"><span class="rt b">○</span></td>
+          <td>検索に1日平均47分を費やしている</td>
+          <td class="pro"><ul><li>追加コスト・リスクなし</li></ul></td>
+          <td class="con"><ul><li>属人化と機会損失が拡大</li><li>競合との生産性格差</li></ul></td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+
+    <div class="matrix-foot">
+      <div class="legend">
+        <div class="label">Legend</div>
+        <div class="legend-row">
+          <span><i class="rt a">◎</i>優位</span>
+          <span><i class="rt b">○</i>標準</span>
+          <span><i class="rt c">△</i>要注意</span>
+        </div>
+      </div>
+      <div class="callout">
+        <div class="label">So What</div>
+        <p>精度だけなら自社構築RAG（B）が最上位だが、<b>導入速度・コスト・権限管理の3軸でAが上回る</b>。まずAで効果を実証し、機密性の高い部門だけをBへ移す構成が、リスク調整後の期待値を最大化する。</p>
+      </div>
+    </div>
+  </main>
+
+  <footer class="rf">
+    <div class="rf-left"><span class="conf-tag">CONFIDENTIAL</span></div>
+    <div class="rf-center">2026.10.25 発行 · © 2026 Research Studio</div>
+    <div class="rf-right">Page <b class="pg-num"></b> / <span class="pg-total">6</span></div>
+  </footer>
+</section>
+
+<!-- =====================================================================
+     04  DETAILED FACT ANALYSIS
+     ===================================================================== -->
+<section class="slide" data-section="Detailed Analysis">
+  <header class="rh">
+    <div class="rh-brand"><span class="logo-mark"></span>Research Studio</div>
+    <div class="rh-title">社内ナレッジ検索への生成AI（RAG）導入評価</div>
+    <div class="rh-section">04 · Detailed Analysis</div>
+  </header>
+
+  <div class="slide-head">
+    <div class="eyebrow"><span class="num">04</span> Detailed Fact Analysis</div>
+    <h2 class="slide-title">技術・市場・リスクの3視点で見ると、<em>今が導入の適期</em>と判断できる</h2>
+  </div>
+
+  <main class="slide-body analysis">
+    <article class="card facet" style="--accent: var(--blue); --tint: var(--blue-50)">
+      <div class="facet-head">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9zM9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"/></svg></div>
+        <div><div class="label">Technology</div><h4>検索精度は実用水準に到達</h4></div>
+      </div>
+      <div class="stat-row"><strong>89<small>%</small></strong><span>ハイブリッド検索＋再ランキング構成での<br>社内QA正答率（ベンチマーク中央値）</span></div>
+      <ul class="facts">
+        <li><span><b>ハイブリッド検索</b>（キーワード＋ベクトル）が標準構成として定着<span class="src">S2</span></span></li>
+        <li><span>長文コンテキスト対応により、<b>表・図を含む文書</b>の扱いが大きく改善<span class="src">S5</span></span></li>
+        <li><span>回答への<b>出典リンク付与</b>が主要製品で標準機能化し、検証が容易に<span class="src">S3</span></span></li>
+      </ul>
+      <div class="evidence"><span class="label">Key Evidence · 社内QA正答率</span>
+        <div class="ev-row base"><span>キーワード検索</span><div class="ev-bar"><i style="width:58%"></i></div><b>58%</b></div>
+        <div class="ev-row base"><span>ベクトル検索</span><div class="ev-bar"><i style="width:74%"></i></div><b>74%</b></div>
+        <div class="ev-row"><span>ハイブリッド</span><div class="ev-bar"><i style="width:89%"></i></div><b>89%</b></div>
+      </div>
+      <div class="sowhat"><span class="label">Implication</span>技術成熟度は導入の制約ではない。差がつくのは文書整備と運用設計。</div>
+    </article>
+
+    <article class="card facet" style="--accent: var(--cyan-700); --tint: var(--cyan-50)">
+      <div class="facet-head">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 6-7"/><path d="M15 7h5v5"/></svg></div>
+        <div><div class="label">Market Impact</div><h4>導入企業と未導入企業の差が拡大</h4></div>
+      </div>
+      <div class="stat-row"><strong>2.3<small>倍</small></strong><span>大企業における本番導入率の<br>前年比伸び率</span></div>
+      <ul class="facts">
+        <li><span>国内市場は<b>年率30%超</b>で拡大し、価格競争によりSaaS単価は下落傾向<span class="src">S1</span></span></li>
+        <li><span>導入企業では<b>新人の立ち上がり期間が平均3週間短縮</b>との報告<span class="src">S4</span></span></li>
+        <li><span>採用市場では「AI活用環境」が<b>候補者の企業選択要因</b>として浮上<span class="src">S7</span></span></li>
+      </ul>
+      <div class="evidence"><span class="label">Key Evidence · 大企業の本番導入率</span>
+        <div class="ev-row base"><span>2024年</span><div class="ev-bar"><i style="width:9%"></i></div><b>9%</b></div>
+        <div class="ev-row base"><span>2025年</span><div class="ev-bar"><i style="width:18%"></i></div><b>18%</b></div>
+        <div class="ev-row"><span>2026年</span><div class="ev-bar"><i style="width:41%"></i></div><b>41%</b></div>
+      </div>
+      <div class="sowhat"><span class="label">Implication</span>導入の遅れは生産性だけでなく採用競争力の差として顕在化しつつある。</div>
+    </article>
+
+    <article class="card facet" style="--accent: var(--warn); --tint: var(--warn-50)">
+      <div class="facet-head">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 16H3z"/><path d="M12 10v4M12 17.5v.01"/></svg></div>
+        <div><div class="label">Risk Factors</div><h4>権限・品質・依存の3リスクに集約</h4></div>
+      </div>
+      <div class="stat-row"><strong>3<small>領域</small></strong><span>公開インシデントを分類すると<br>権限漏洩・誤回答・ベンダー依存に集中</span></div>
+      <ul class="facts">
+        <li><span><b>権限漏洩</b>：ACL同期の遅延により、異動者が旧部署文書を参照できた事例<span class="src">S6</span></span></li>
+        <li><span><b>誤回答</b>：改訂前の規程を根拠に回答。文書の版管理不備が原因<span class="src">S3</span></span></li>
+        <li><span><b>ベンダー依存</b>：インデックスの移行手段がなく、乗り換えコストが高止まり<span class="src">S8</span></span></li>
+      </ul>
+      <div class="evidence"><span class="label">Key Evidence · 公開インシデントの内訳</span>
+        <div class="ev-row"><span>権限漏洩</span><div class="ev-bar"><i style="width:46%"></i></div><b>46%</b></div>
+        <div class="ev-row"><span>誤回答</span><div class="ev-bar"><i style="width:35%"></i></div><b>35%</b></div>
+        <div class="ev-row"><span>ベンダー依存</span><div class="ev-bar"><i style="width:19%"></i></div><b>19%</b></div>
+      </div>
+      <div class="sowhat"><span class="label">Implication</span>いずれも事前の要件定義で回避可能。選定基準に明記することが前提条件。</div>
+    </article>
+  </main>
+
+  <footer class="rf">
+    <div class="rf-left"><span class="conf-tag">CONFIDENTIAL</span></div>
+    <div class="rf-center">2026.10.25 発行 · © 2026 Research Studio</div>
+    <div class="rf-right">Page <b class="pg-num"></b> / <span class="pg-total">6</span></div>
+  </footer>
+</section>
+
+<!-- =====================================================================
+     05  RECOMMENDATIONS & NEXT STEPS
+     ===================================================================== -->
+<section class="slide" data-section="Recommendations">
+  <header class="rh">
+    <div class="rh-brand"><span class="logo-mark"></span>Research Studio</div>
+    <div class="rh-title">社内ナレッジ検索への生成AI（RAG）導入評価</div>
+    <div class="rh-section">05 · Recommendations</div>
+  </header>
+
+  <div class="slide-head">
+    <div class="eyebrow"><span class="num">05</span> Recommendations &amp; Next Steps</div>
+    <h2 class="slide-title">3フェーズ・18ヶ月で、<em>パイロットから全社展開</em>まで段階的に進める</h2>
+  </div>
+
+  <main class="slide-body reco">
+    <div class="roadmap">
+      <div class="phase" style="--accent: var(--blue)">
+        <div class="phase-chevron"><b>PHASE 1</b><span>短期</span><em>0–3ヶ月</em></div>
+        <div class="phase-body">
+          <div class="phase-goal">パイロットで効果を定量実証する</div>
+          <ul>
+            <li>SaaS型（方式A）を2部門・計150名で試験導入</li>
+            <li>対象文書を棚卸しし、重複・旧版を整理</li>
+            <li>検索時間と正答率のベースラインを計測</li>
+            <li>利用ガイドラインと問い合わせ窓口を整備</li>
+          </ul>
+          <div class="deliv">成果物：<b>効果検証レポート・全社展開判断資料</b></div>
+          <div class="kpi-box"><span class="label">KPI</span><span>検索時間 <b>−30%</b> ／ 正答率 <b>80%以上</b></span></div>
+        </div>
+      </div>
+      <div class="phase" style="--accent: var(--cyan-700)">
+        <div class="phase-chevron"><b>PHASE 2</b><span>中期</span><em>3–9ヶ月</em></div>
+        <div class="phase-body">
+          <div class="phase-goal">全社展開と運用体制の確立</div>
+          <ul>
+            <li>全部門へ展開し、部門ごとに文書オーナーを任命</li>
+            <li>ACL同期の監査を月次で実施</li>
+            <li>機密性の高い部門向けに自社RAGを設計</li>
+            <li>利用ログから頻出質問を分析し文書を補強</li>
+          </ul>
+          <div class="deliv">成果物：<b>運用規程・文書オーナー体制</b></div>
+          <div class="kpi-box"><span class="label">KPI</span><span>月間利用率 <b>70%</b> ／ 権限事故 <b>0件</b></span></div>
+        </div>
+      </div>
+      <div class="phase" style="--accent: var(--indigo)">
+        <div class="phase-chevron"><b>PHASE 3</b><span>長期</span><em>9–18ヶ月</em></div>
+        <div class="phase-body">
+          <div class="phase-goal">ハイブリッド構成で最適化する</div>
+          <ul>
+            <li>機密部門のみ自社RAGへ移行（方式B）</li>
+            <li>業務システムと連携し、回答から申請まで自動化</li>
+            <li>投資対効果を検証し、次年度計画に反映</li>
+            <li>グループ会社への横展開を検討</li>
+          </ul>
+          <div class="deliv">成果物：<b>ハイブリッド基盤・ROI評価書</b></div>
+          <div class="kpi-box"><span class="label">KPI</span><span>年間削減工数 <b>1.2万時間</b></span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="risk-block">
+      <div class="label">Key Risks &amp; Mitigation</div>
+      <table class="risk">
+        <colgroup><col style="width:27%"><col style="width:9%"><col style="width:10%"><col style="width:40%"><col style="width:14%"></colgroup>
+        <thead><tr><th>リスク</th><th class="c">影響度</th><th class="c">発生可能性</th><th>対策</th><th>担当 / 時期</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><div class="r-name">閲覧権限のない文書の混入</div><div class="r-desc">ACL同期遅延・設定漏れによる情報漏洩</div></td>
+            <td class="c"><span class="level high">高</span></td><td class="c"><span class="level mid">中</span></td>
+            <td>ACL連携を選定要件に明記。人事異動日と同期する運用ルールと月次監査を設ける</td>
+            <td>情報システム部 / Phase 1〜</td>
+          </tr>
+          <tr>
+            <td><div class="r-name">旧版文書に基づく誤回答</div><div class="r-desc">版管理の不備で改訂前の情報を引用</div></td>
+            <td class="c"><span class="level mid">中</span></td><td class="c"><span class="level high">高</span></td>
+            <td>文書オーナー制度と有効期限メタデータを導入し、期限切れ文書を検索対象から除外</td>
+            <td>各部門 / Phase 2</td>
+          </tr>
+          <tr>
+            <td><div class="r-name">ベンダーロックイン</div><div class="r-desc">移行手段がなく、乗り換えが困難に</div></td>
+            <td class="c"><span class="level mid">中</span></td><td class="c"><span class="level low">低</span></td>
+            <td>契約時にデータ・設定のエクスポート条項を確保。Phase 3の自社RAGを代替手段として準備</td>
+            <td>調達部 / 契約時</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <footer class="rf">
+    <div class="rf-left"><span class="conf-tag">CONFIDENTIAL</span></div>
+    <div class="rf-center">2026.10.25 発行 · © 2026 Research Studio</div>
+    <div class="rf-right">Page <b class="pg-num"></b> / <span class="pg-total">6</span></div>
+  </footer>
+</section>
+
+<!-- =====================================================================
+     06  SOURCES & APPENDIX
+     ===================================================================== -->
+<section class="slide" data-section="Sources & Appendix">
+  <header class="rh">
+    <div class="rh-brand"><span class="logo-mark"></span>Research Studio</div>
+    <div class="rh-title">社内ナレッジ検索への生成AI（RAG）導入評価</div>
+    <div class="rh-section">06 · Sources &amp; Appendix</div>
+  </header>
+
+  <div class="slide-head">
+    <div class="eyebrow"><span class="num">06</span> Sources &amp; Appendix</div>
+    <h2 class="slide-title">参照ソース・出典一覧</h2>
+  </div>
+
+  <main class="slide-body appendix">
+    <div>
+      <table class="sources">
+        <colgroup><col style="width:6%"><col style="width:42%"><col style="width:13%"><col style="width:20%"><col style="width:11%"><col style="width:8%"></colgroup>
+        <thead><tr><th>ID</th><th>タイトル</th><th>種別</th><th>ドメイン</th><th>参照日</th><th class="c">信頼性</th></tr></thead>
+        <tbody>
+          <tr><td class="sid">S1</td><td class="s-title">国内AIソリューション市場規模予測 2026–2030</td><td>調査会社</td><td class="s-dom">market.example.com</td><td class="s-date">2026.10.02</td><td class="c"><span class="grade A">A</span></td></tr>
+          <tr><td class="sid">S2</td><td class="s-title">検索拡張生成（RAG）の評価手法に関する技術報告</td><td>学術論文</td><td class="s-dom">papers.example.org</td><td class="s-date">2026.09.18</td><td class="c"><span class="grade A">A</span></td></tr>
+          <tr><td class="sid">S3</td><td class="s-title">企業向けAI検索サービス 製品比較ガイド</td><td>専門メディア</td><td class="s-dom">tech.example.net</td><td class="s-date">2026.10.11</td><td class="c"><span class="grade B">B</span></td></tr>
+          <tr><td class="sid">S4</td><td class="s-title">企業におけるAI活用実態調査 2026</td><td>公的機関</td><td class="s-dom">stats.example.go.jp</td><td class="s-date">2026.09.05</td><td class="c"><span class="grade A">A</span></td></tr>
+          <tr><td class="sid">S5</td><td class="s-title">長文コンテキストLLMの文書理解性能ベンチマーク</td><td>技術ブログ</td><td class="s-dom">ai-lab.example.com</td><td class="s-date">2026.09.27</td><td class="c"><span class="grade B">B</span></td></tr>
+          <tr><td class="sid">S6</td><td class="s-title">生成AI導入に伴う情報セキュリティインシデント事例集</td><td>業界団体</td><td class="s-dom">security.example.or.jp</td><td class="s-date">2026.10.08</td><td class="c"><span class="grade A">A</span></td></tr>
+          <tr><td class="sid">S7</td><td class="s-title">新卒・中途採用における企業選択要因アンケート</td><td>人材企業</td><td class="s-dom">career.example.jp</td><td class="s-date">2026.08.30</td><td class="c"><span class="grade B">B</span></td></tr>
+          <tr><td class="sid">S8</td><td class="s-title">AI検索ツール乗り換えの実体験レポート</td><td>個人ブログ</td><td class="s-dom">blog.example.com</td><td class="s-date">2026.10.14</td><td class="c"><span class="grade C">C</span></td></tr>
+          <tr><td class="sid">S9</td><td class="s-title">文書管理とメタデータ設計の実務ガイドライン</td><td>業界団体</td><td class="s-dom">docs.example.or.jp</td><td class="s-date">2026.09.22</td><td class="c"><span class="grade A">A</span></td></tr>
+          <tr><td class="sid">S10</td><td class="s-title">主要AI検索ベンダー 決算説明資料（2026年度上期）</td><td>企業IR</td><td class="s-dom">ir.example.com</td><td class="s-date">2026.10.16</td><td class="c"><span class="grade B">B</span></td></tr>
+        </tbody>
+      </table>
+      <p class="sources-note">※ 主要出典10件を掲載。全47件の一覧は添付のExcel版（Sources シート）を参照。</p>
+    </div>
+
+    <aside class="side">
+      <div class="card soft">
+        <h5>Methodology</h5>
+        <dl class="method">
+          <dt>収集期間</dt><dd class="num-font">2026.09.01 – 2026.10.20</dd>
+          <dt>収集ソース</dt><dd>47件（うち一次情報 32件）</dd>
+          <dt>分析モデル</dt><dd>Gemini による構造化分析</dd>
+          <dt>信頼度算出</dt><dd>出典の信頼性 × 裏付け件数</dd>
+        </dl>
+      </div>
+      <div class="card">
+        <h5>Source Rating</h5>
+        <div class="grade-legend">
+          <div><span class="grade A">A</span><span>一次情報・公的機関・査読済み論文</span></div>
+          <div><span class="grade B">B</span><span>業界団体・専門メディア・企業公式</span></div>
+          <div><span class="grade C">C</span><span>二次情報・個人の見解（参考扱い）</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <h5>Glossary</h5>
+        <dl class="method">
+          <dt>RAG</dt><dd>検索拡張生成。社内文書を検索し、その内容を根拠にAIが回答する方式</dd>
+          <dt>ACL</dt><dd>アクセス制御リスト。文書ごとの閲覧権限の設定</dd>
+        </dl>
+      </div>
+      <div class="disclaimer">
+        <h5>Disclaimer</h5>
+        <p>本レポートは公開情報をもとにAIが自動収集・分析した結果をまとめたものであり、内容の正確性・完全性を保証するものではありません。意思決定にあたっては、出典の原文を確認のうえ、専門家の助言を併せてご活用ください。</p>
+        <p>掲載情報は各出典の参照日時点のものです。各出典の著作権はそれぞれの権利者に帰属します。</p>
+      </div>
+      <div class="copyright"><span class="logo-mark"></span><span><b>Research Studio</b> · © 2026 All rights reserved.</span></div>
+    </aside>
+  </main>
+
+  <footer class="rf">
+    <div class="rf-left"><span class="conf-tag">CONFIDENTIAL</span></div>
+    <div class="rf-center">2026.10.25 発行 · © 2026 Research Studio</div>
+    <div class="rf-right">Page <b class="pg-num"></b> / <span class="pg-total">6</span></div>
+  </footer>
+</section>
+
+</div>
+
+<script>
+/* ページ総数の自動設定 ＋ はみ出し検査
+   結果は window.__RS_LAYOUT__ に格納（Puppeteer等から page.evaluate で取得可能） */
+(function () {
+  function run() {
+    var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+    document.querySelectorAll('.pg-total').forEach(function (el) { el.textContent = slides.length; });
+
+    var report = slides.map(function (s, i) {
+      var r = s.getBoundingClientRect();
+      var cs = getComputedStyle(s);
+      var limitBottom = r.bottom - parseFloat(cs.paddingBottom) + 0.5;
+      var limitRight  = r.right  - parseFloat(cs.paddingRight)  + 0.5;
+      var over = [];
+      s.querySelectorAll('.slide-body *, .slide-head *, .cover-main *').forEach(function (el) {
+        var b = el.getBoundingClientRect();
+        if (b.height === 0 && b.width === 0) return;
+        if (b.bottom > limitBottom || b.right > limitRight) over.push(el);
+      });
+      /* line-clamp で切れたテキストも検出 */
+      var clipped = Array.prototype.filter.call(
+        s.querySelectorAll('[class*="clamp-"]'),
+        function (el) { return el.scrollHeight > el.clientHeight + 1; }
+      );
+      if (over.length) {
+        s.dataset.overflow = 'true';
+        console.warn('[Research Studio] Slide ' + (i + 1) + ' overflows (' + over.length + ' elements)');
+      }
+      return { page: i + 1, section: s.dataset.section, overflow: over.length > 0, overflowCount: over.length, clampedTexts: clipped.length };
+    });
+    window.__RS_LAYOUT__ = { pages: slides.length, slides: report, ok: report.every(function (r) { return !r.overflow; }) };
+  }
+  if (document.fonts && document.fonts.ready) { document.fonts.ready.then(run); } else { window.addEventListener('load', run); }
+})();
+</script>
+</body>
+</html>

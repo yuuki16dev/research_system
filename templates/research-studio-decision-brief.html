@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Research Studio — Executive Decision Brief</title>
+<!--
+  Research Studio — Executive Decision Brief（A4縦）v1.0
+  ------------------------------------------------------------
+  ・1ページ = 210mm × 297mm 固定（overflow: hidden）。2〜3ページ構成
+    3ページ目（実行計画と承認）は <section class="page"> ごと削除すれば2ページ版になります
+  ・ページ総数（Page X / Y）は自動計算
+  ・本文のはみ出しは window.__RS_LAYOUT__ に格納（画面表示時は赤枠で警告。印刷には出ない）
+  ・差し替え箇所は「SLOT:」で始まるHTMLコメントで示しています
+  ・トークン／ヘッダー・フッター／バッジ類は A4横スライド版と共通
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=Outfit:wght@300;400;500;600;700&display=block" rel="stylesheet">
+<style>
+/* =========================================================
+   1. Design tokens（スライド版と共通）
+   ========================================================= */
+:root {
+  --white:   #ffffff;
+  --paper:   #f8fafc;
+  --ink:     #0f172a;
+  --ink-2:   #1e293b;
+  --text:    #334155;
+  --muted:   #64748b;
+  --line:    #e2e8f0;
+  --blue:    #2563eb;
+  --cyan:    #06b6d4;
+  --indigo:  #4f46e5;
+  --good:    #047857;
+  --warn:    #b45309;
+  --crit:    #b91c1c;
+  --grad: linear-gradient(90deg, #2563eb 0%, #06b6d4 55%, #4f46e5 100%);
+
+  /* 派生トークン（淡色・補助） */
+  --faint:    #94a3b8;
+  --line-2:   #cbd5e1;
+  --blue-50:  #eff6ff;
+  --blue-100: #dbeafe;
+  --cyan-50:  #ecfeff;
+  --cyan-700: #0e7490;
+  --indigo-50:#eef2ff;
+  --good-50:  #ecfdf5;
+  --warn-50:  #fffbeb;
+  --crit-50:  #fef2f2;
+
+  --font: "Outfit", "Segoe UI", -apple-system, BlinkMacSystemFont, "Yu Gothic UI", "Yu Gothic", "Meiryo", "Noto Sans JP", sans-serif;
+  --num:  "Outfit", "Segoe UI", sans-serif;
+  --radius: 1.8mm;
+}
+
+/* =========================================================
+   2. Page / print foundation
+   ========================================================= */
+@page { size: A4 portrait; margin: 0; }
+
+* { box-sizing: border-box; margin: 0; padding: 0;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+html, body { background: #cbd5e1; }
+body {
+  font-family: var(--font);
+  color: var(--text);
+  font-size: 8.2pt;
+  line-height: 1.6;
+  font-feature-settings: "palt" 1;
+  -webkit-font-smoothing: antialiased;
+  counter-reset: page;
+}
+
+.doc { display: flex; flex-direction: column; align-items: center; gap: 10mm; padding: 10mm 0 16mm; }
+
+.page {
+  width: 210mm;
+  height: 297mm;
+  max-height: 297mm;
+  padding: 17mm 15mm 14mm 15mm;
+  position: relative;
+  overflow: hidden;
+  background: #ffffff;
+  page-break-after: always;
+  break-after: page;
+  display: flex;
+  flex-direction: column;
+  counter-increment: page;
+  box-shadow: 0 1mm 4mm rgba(15, 23, 42, .12), 0 0 0 .2mm rgba(15, 23, 42, .06);
+}
+/* 最終ページに改ページを付けると、Chromiumは末尾に白紙ページを追加する */
+.page:last-child { page-break-after: auto; break-after: auto; }
+
+@media print {
+  html, body { background: #ffffff; }
+  .doc { display: block; padding: 0; gap: 0; }
+  .page { box-shadow: none; }
+}
+@media screen {
+  .page[data-overflow="true"] { outline: 1mm solid var(--crit); }
+  .page[data-overflow="true"]::after {
+    content: "OVERFLOW — 本文が枠を超えています";
+    position: absolute; top: 2mm; left: 50%; transform: translateX(-50%);
+    background: var(--crit); color: #fff; font: 600 7pt var(--font);
+    padding: .8mm 3mm; border-radius: 1mm; letter-spacing: .06em; z-index: 9;
+  }
+}
+
+.page::before {
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 1mm;
+  background: var(--grad); z-index: 2;
+}
+.page-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 4.6mm; }
+
+/* =========================================================
+   3. Running header / footer（スライド版と共通の構成）
+   ========================================================= */
+.rh, .rf {
+  position: absolute; left: 15mm; right: 15mm;
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+  font-size: 6.4pt; letter-spacing: .06em; color: var(--muted); white-space: nowrap;
+}
+.rh { top: 5mm; height: 6.5mm; border-bottom: .2mm solid var(--line); }
+.rf { bottom: 4mm; height: 5.6mm; border-top: .2mm solid var(--line); }
+
+.rh-brand { display: flex; align-items: center; gap: 1.8mm; font-weight: 700; color: var(--ink); font-size: 6.9pt; letter-spacing: .04em; }
+.logo-mark { width: 3.6mm; height: 3.6mm; border-radius: .9mm; background: var(--grad); display: inline-grid; place-items: center; flex: none; }
+.logo-mark::after { content: ""; width: 1.4mm; height: 1.4mm; border: .35mm solid #fff; border-radius: 50%; }
+.rh-title { text-align: center; font-weight: 500; color: var(--text); letter-spacing: .02em; max-width: 100mm; overflow: hidden; text-overflow: ellipsis; }
+.rh-section { text-align: right; text-transform: uppercase; font-weight: 600; color: var(--blue); }
+
+.rf-left { display: flex; align-items: center; }
+.rf-center { text-align: center; }
+.rf-right { text-align: right; font-variant-numeric: tabular-nums; }
+.rf-right b { color: var(--ink); font-weight: 600; }
+.pg-num::before { content: counter(page); }
+.conf-tag { display: inline-flex; align-items: center; gap: 1.2mm; font-weight: 700; font-size: 6pt; letter-spacing: .14em; color: var(--crit); }
+.conf-tag::before { content: ""; width: 1.4mm; height: 1.4mm; border-radius: 50%; background: currentColor; }
+
+/* =========================================================
+   4. Shared components
+   ========================================================= */
+.label { font-size: 6.2pt; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+
+.sec-head { display: flex; align-items: baseline; gap: 2.6mm; padding-bottom: 1.4mm; border-bottom: .3mm solid var(--ink); margin-bottom: 2.6mm; }
+.sec-head .no { font-family: var(--num); font-size: 9pt; font-weight: 600; color: var(--blue); letter-spacing: .04em; }
+.sec-head h2 { font-size: 11pt; font-weight: 700; color: var(--ink); line-height: 1.3; }
+.sec-head .note { margin-left: auto; font-size: 6.8pt; color: var(--muted); }
+
+.badge {
+  display: inline-flex; align-items: center; gap: 1mm; white-space: nowrap;
+  font-size: 6.2pt; font-weight: 600; letter-spacing: .05em; line-height: 1;
+  padding: 1mm 1.8mm; border-radius: 10mm; background: var(--blue-50); color: var(--blue);
+}
+.badge.ink  { background: var(--ink); color: #fff; }
+.badge.good { background: var(--good-50); color: var(--good); }
+.badge.warn { background: var(--warn-50); color: var(--warn); }
+.badge.crit { background: var(--crit-50); color: var(--crit); }
+
+.src {
+  display: inline-block; font-family: var(--num); font-size: 5.6pt; font-weight: 600; color: var(--muted);
+  border: .2mm solid var(--line-2); border-radius: .6mm; padding: 0 .8mm; line-height: 1.5;
+  vertical-align: .2em; margin-left: .6mm;
+}
+.num { font-family: var(--num); font-variant-numeric: tabular-nums; }
+
+/* 評価記号：記号そのものが意味を持ち、色は補助 */
+.rt { display: inline-grid; place-items: center; width: 5.4mm; height: 5.4mm; border-radius: 50%; font-size: 8pt; font-weight: 700; line-height: 1; }
+.rt.a { background: var(--blue); color: #fff; }
+.rt.b { background: var(--cyan-50); color: var(--cyan-700); box-shadow: inset 0 0 0 .25mm #a5f3fc; }
+.rt.c { background: var(--warn-50); color: var(--warn); box-shadow: inset 0 0 0 .25mm #fde68a; }
+
+/* 状態ラベル：アイコン＋文字＋色の三重表現 */
+.st { display: inline-flex; align-items: center; gap: 1mm; font-size: 6.6pt; font-weight: 600; padding: .9mm 1.9mm; border-radius: 10mm; line-height: 1; white-space: nowrap; }
+.st.ok   { background: var(--good-50); color: var(--good); }  .st.ok::before   { content: "✓"; }
+.st.cond { background: var(--warn-50); color: var(--warn); }  .st.cond::before { content: "!"; font-weight: 800; }
+.st.ng   { background: var(--crit-50); color: var(--crit); }  .st.ng::before   { content: "✕"; }
+
+table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
+.tbl thead th { font-size: 6pt; font-weight: 600; letter-spacing: .1em; color: var(--muted); text-align: left; padding: 1.3mm 2mm; background: var(--paper); border-top: .2mm solid var(--line); border-bottom: .2mm solid var(--line); white-space: nowrap; }
+.tbl tbody td { padding: 2.3mm 2mm; border-bottom: .2mm solid var(--line); vertical-align: middle; font-size: 7.6pt; line-height: 1.5; }
+.tbl .c { text-align: center; }
+.tbl .r { text-align: right; }
+.tbl b { color: var(--ink); font-weight: 600; }
+
+/* 和文見出しは文節単位で改行（Chromium 119+） */
+.mh-title, .sec-head h2, .scr h3, .finding h3, .verdict-text, .gate h4 { word-break: auto-phrase; text-wrap: balance; }
+
+/* =========================================================
+   5. PAGE 1 — Masthead & Decision
+   ========================================================= */
+.page.first { padding-top: 0; }
+.masthead {
+  margin: 0 -15mm; padding: 9mm 15mm 6.5mm;
+  background: var(--ink); color: #e2e8f0; position: relative; overflow: hidden; flex: none;
+}
+.masthead::before {
+  content: ""; position: absolute; inset: 0;
+  background:
+    radial-gradient(90mm 70mm at 100% 0%, rgba(37,99,235,.55), transparent 70%),
+    radial-gradient(60mm 50mm at 78% 120%, rgba(6,182,212,.28), transparent 70%);
+}
+.masthead::after {
+  content: ""; position: absolute; top: 0; right: 0; bottom: 0; width: 70mm;
+  background-image:
+    linear-gradient(rgba(148,163,184,.12) .2mm, transparent .2mm),
+    linear-gradient(90deg, rgba(148,163,184,.12) .2mm, transparent .2mm);
+  background-size: 7mm 7mm;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 60%); mask-image: linear-gradient(90deg, transparent, #000 60%);
+}
+.masthead > * { position: relative; z-index: 1; }
+.mh-top { display: flex; justify-content: space-between; align-items: center; }
+.mh-brand { display: flex; align-items: center; gap: 2mm; font-weight: 700; font-size: 8.4pt; color: #fff; letter-spacing: .03em; }
+.mh-brand .logo-mark { width: 4.4mm; height: 4.4mm; border-radius: 1.1mm; }
+.mh-brand .logo-mark::after { width: 1.7mm; height: 1.7mm; border-width: .45mm; }
+.mh-tags { display: flex; gap: 2.4mm; align-items: center; }
+.doc-type { font-size: 6.4pt; font-weight: 600; letter-spacing: .22em; color: #67e8f9; }
+.mh-class { font-size: 6.2pt; font-weight: 700; letter-spacing: .22em; color: #fecaca; border: .3mm solid rgba(254,202,202,.55); padding: 1mm 2.4mm; border-radius: .7mm; }
+
+.mh-main { margin-top: 6mm; display: grid; grid-template-columns: 1fr auto; gap: 8mm; align-items: end; }
+.kicker { display: inline-flex; align-items: center; gap: 2mm; font-size: 6.6pt; font-weight: 600; letter-spacing: .22em; color: #67e8f9; text-transform: uppercase; }
+.kicker::before { content: ""; width: 7mm; height: .5mm; background: var(--grad); }
+.mh-title { margin-top: 2.4mm; font-size: 19pt; line-height: 1.35; font-weight: 700; color: #fff; letter-spacing: .01em; }
+.mh-question { margin-top: 2.6mm; font-size: 9pt; line-height: 1.6; color: #cbd5e1; }
+.mh-question b { color: #fff; font-weight: 600; }
+
+.score { display: flex; align-items: center; gap: 3mm; background: rgba(15,23,42,.55); border: .25mm solid rgba(148,163,184,.3); border-radius: 2.4mm; padding: 2.6mm 4mm 2.6mm 2.6mm; }
+.score-ring { position: relative; width: 14mm; height: 14mm; flex: none; }
+.score-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.score-ring .val { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--num); font-size: 12pt; font-weight: 700; color: #fff; line-height: 1; }
+.score .label { color: var(--faint); font-size: 5.8pt; }
+.score strong { display: block; margin-top: .6mm; font-size: 9pt; color: #fff; font-weight: 600; }
+.score span { display: block; font-size: 6.2pt; color: var(--faint); }
+
+.mh-meta { margin-top: 5.5mm; padding-top: 3mm; border-top: .2mm solid rgba(148,163,184,.25); display: grid; grid-template-columns: repeat(5, auto); justify-content: space-between; }
+.mh-meta dt { font-size: 5.6pt; font-weight: 600; letter-spacing: .18em; color: var(--faint); text-transform: uppercase; }
+.mh-meta dd { margin-top: .6mm; font-size: 7.8pt; color: #f1f5f9; font-weight: 500; white-space: nowrap; }
+.mh-meta dd.due { color: #fde68a; }
+
+/* Decision panel */
+.page.first .page-body { padding-top: 5mm; gap: 4.6mm; }
+.decision { display: grid; grid-template-columns: 1.32fr 1fr; gap: 4mm; }
+.verdict-card { border: .25mm solid var(--line); border-radius: var(--radius); padding: 4mm 4.4mm; position: relative; overflow: hidden; }
+.verdict-card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 1mm; background: var(--blue); }
+.verdict-row { display: flex; align-items: center; gap: 3mm; margin-top: 1.6mm; }
+.verdict { font-size: 16pt; font-weight: 800; color: var(--blue); letter-spacing: .02em; line-height: 1.1; white-space: nowrap; }
+.scale { display: grid; grid-template-columns: repeat(4, 1fr); flex: 1; border: .25mm solid var(--line); border-radius: 1.2mm; overflow: hidden; }
+.scale span { text-align: center; font-size: 6.2pt; font-weight: 600; color: var(--faint); padding: 1.2mm .5mm; letter-spacing: .03em; white-space: nowrap; }
+.scale span + span { border-left: .25mm solid var(--line); }
+.scale span.on { color: #fff; }
+.scale span.on.go   { background: var(--good); }
+.scale span.on.cgo  { background: var(--blue); }
+.scale span.on.hold { background: var(--warn); }
+.scale span.on.nogo { background: var(--crit); }
+.verdict-text { margin-top: 3mm; font-size: 9.6pt; line-height: 1.6; color: var(--ink); font-weight: 600; }
+.ask { margin-top: 3mm; padding-top: 2.6mm; border-top: .2mm dashed var(--line-2); }
+.ask ol { list-style: none; margin-top: 1.4mm; display: grid; gap: 1.1mm; counter-reset: ask; }
+.ask li { display: grid; grid-template-columns: 4.6mm 1fr; font-size: 8.2pt; line-height: 1.5; counter-increment: ask; }
+.ask li::before { content: counter(ask); width: 3.4mm; height: 3.4mm; margin-top: .3mm; border-radius: 50%; background: var(--ink); color: #fff; font-family: var(--num); font-size: 5.6pt; font-weight: 600; display: grid; place-items: center; }
+.ask li b { color: var(--ink); }
+
+.kpis { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 2.6mm; }
+.kpi { background: var(--paper); border: .25mm solid var(--line); border-radius: var(--radius); padding: 2.8mm 3.2mm; display: flex; flex-direction: column; }
+.kpi .value { margin-top: 1mm; font-family: var(--num); font-size: 17pt; font-weight: 600; color: var(--ink); line-height: 1; letter-spacing: -.01em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.kpi .value small { font-size: 7.6pt; font-weight: 500; color: var(--muted); margin-left: .5mm; letter-spacing: 0; }
+.kpi .cap { margin-top: auto; padding-top: 1.2mm; font-size: 6.4pt; color: var(--muted); line-height: 1.4; }
+.kpi.primary { background: var(--blue-50); border-color: var(--blue-100); }
+.kpi.primary .label { color: var(--blue); }
+
+/* SCR（状況・課題・打ち手） */
+.scr { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; border: .25mm solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.scr > div { padding: 3.2mm 3.8mm; }
+.scr > div + div { border-left: .25mm solid var(--line); }
+.scr > div:last-child { background: var(--blue-50); }
+.scr .label { display: flex; align-items: center; gap: 1.4mm; }
+.scr .label i { font-style: normal; font-family: var(--num); color: var(--ink); }
+.scr > div:last-child .label { color: var(--blue); }
+.scr h3 { margin-top: 1.6mm; font-size: 9.4pt; color: var(--ink); font-weight: 700; line-height: 1.45; }
+.scr p { margin-top: 1.2mm; font-size: 7.6pt; line-height: 1.62; }
+
+/* 選択肢比較 */
+.options .opt { font-weight: 700; color: var(--ink); font-size: 8.8pt; display: flex; align-items: center; gap: 1.4mm; }
+.options .opt-sub { font-size: 6.8pt; color: var(--muted); margin-top: .3mm; }
+.options tr.rec td { background: var(--blue-50); }
+.options tr.rec td:first-child { box-shadow: inset .8mm 0 0 var(--blue); }
+.options tbody td { padding: 2.1mm 2mm; }
+.options td.money { font-family: var(--num); font-variant-numeric: tabular-nums; text-align: right; color: var(--ink); font-weight: 500; white-space: nowrap; }
+.legend-inline { display: flex; gap: 3.4mm; margin-top: 1.8mm; font-size: 6.4pt; color: var(--muted); }
+.legend-inline span { display: inline-flex; align-items: center; gap: 1mm; }
+.legend-inline .rt { width: 4mm; height: 4mm; font-size: 6pt; }
+
+/* =========================================================
+   6. PAGE 2 — Evidence, Financials, Risk
+   ========================================================= */
+.findings { display: grid; grid-template-columns: 1fr 1fr; gap: 2.6mm 3.6mm; }
+.finding { display: grid; grid-template-columns: 1fr auto; gap: .8mm 3mm; padding: 2.8mm 3.4mm; border: .25mm solid var(--line); border-radius: var(--radius); position: relative; }
+.finding::before { content: ""; position: absolute; left: 0; top: 2.6mm; bottom: 2.6mm; width: .8mm; border-radius: 0 .6mm .6mm 0; background: var(--accent, var(--blue)); }
+.finding h3 { font-size: 8.6pt; color: var(--ink); font-weight: 700; line-height: 1.45; }
+.finding h3 .n { font-family: var(--num); color: var(--accent, var(--blue)); margin-right: 1.2mm; }
+.finding p { grid-column: 1 / 2; font-size: 7.3pt; line-height: 1.6; }
+.finding .fig { grid-column: 2; grid-row: 1 / 3; text-align: right; align-self: center; padding-left: 2.6mm; border-left: .2mm dashed var(--line-2); min-width: 21mm; }
+.finding .fig strong { display: block; font-family: var(--num); font-size: 15pt; font-weight: 600; color: var(--ink); line-height: 1; font-variant-numeric: tabular-nums; }
+.finding .fig span { display: block; margin-top: 1mm; font-size: 6pt; color: var(--muted); line-height: 1.35; }
+
+/* 財務インパクト：共通スケールの横棒（単一軸） */
+.fin { display: grid; grid-template-columns: 1fr 52mm; gap: 5mm; }
+.chart-legend { display: flex; gap: 4mm; font-size: 6.6pt; color: var(--text); margin-bottom: 2mm; }
+.chart-legend span { display: inline-flex; align-items: center; gap: 1.2mm; }
+.chart-legend i { width: 3mm; height: 2mm; border-radius: .5mm; display: inline-block; }
+.bars { display: grid; gap: 1.8mm; }
+.bar-group { display: grid; grid-template-columns: 12mm 1fr; gap: 2mm; align-items: center; }
+.bar-group .yr { font-family: var(--num); font-size: 7.4pt; font-weight: 600; color: var(--ink); }
+.bar-pair { display: grid; gap: .6mm; }
+.bar { display: flex; align-items: center; gap: 1.6mm; height: 3.4mm; }
+.bar i { display: block; height: 100%; border-radius: 0 .9mm .9mm 0; }
+.bar.cost i { background: var(--faint); }
+.bar.gain i { background: var(--blue); }
+.bar b { font-family: var(--num); font-size: 6.8pt; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.axis { display: grid; grid-template-columns: 12mm 1fr; gap: 2mm; margin-top: 1.4mm; }
+.axis div { display: flex; justify-content: space-between; border-top: .2mm solid var(--line-2); padding-top: .6mm; font-family: var(--num); font-size: 5.8pt; color: var(--muted); }
+.fin-summary { background: var(--ink); color: #cbd5e1; border-radius: var(--radius); padding: 3.4mm 3.8mm; display: flex; flex-direction: column; gap: 2.4mm; }
+.fin-summary .label { color: #67e8f9; }
+.fin-summary .row { display: flex; justify-content: space-between; align-items: baseline; border-bottom: .2mm solid rgba(148,163,184,.22); padding-bottom: 1.6mm; font-size: 7pt; }
+.fin-summary .row:last-child { border-bottom: 0; padding-bottom: 0; }
+.fin-summary .row strong { font-family: var(--num); font-size: 12pt; font-weight: 600; color: #fff; font-variant-numeric: tabular-nums; }
+.fin-summary .row strong small { font-size: 7pt; font-weight: 500; color: var(--faint); margin-left: .4mm; }
+.fin-note { margin-top: 2mm; font-size: 6.3pt; color: var(--muted); }
+
+/* リスク：ヒートマップ＋一覧 */
+.risk-wrap { display: grid; grid-template-columns: 56mm 1fr; gap: 5mm; align-items: start; }
+.heat { display: grid; grid-template-columns: 6mm repeat(3, 1fr); grid-template-rows: repeat(3, 14mm) 5mm; gap: .7mm; }
+.heat .ax { font-size: 5.8pt; color: var(--muted); display: grid; place-items: center; font-weight: 600; letter-spacing: .04em; }
+.heat .ax.y { writing-mode: vertical-rl; }
+.heat .cell { border-radius: 1mm; display: flex; flex-wrap: wrap; align-content: center; justify-content: center; gap: .8mm; padding: .6mm; }
+.heat .s1 { background: var(--good-50); }
+.heat .s2 { background: var(--warn-50); }
+.heat .s3 { background: #fde7c7; }
+.heat .s4 { background: var(--crit-50); box-shadow: inset 0 0 0 .25mm #fecaca; }
+.rk { display: inline-grid; place-items: center; min-width: 6.4mm; height: 4.4mm; padding: 0 .8mm; border-radius: 2.2mm; background: var(--ink); color: #fff; font-family: var(--num); font-size: 6.2pt; font-weight: 600; }
+.heat-caption { display: flex; justify-content: space-between; margin-top: 1.2mm; padding-left: 6.7mm; font-size: 5.8pt; color: var(--muted); }
+.heat-title { font-size: 6pt; color: var(--muted); margin-bottom: 1.2mm; display: flex; justify-content: space-between; }
+.risk .rk { margin-right: 1.4mm; vertical-align: .1em; }
+.risk .r-name { font-weight: 700; color: var(--ink); font-size: 7.8pt; }
+.risk td:first-child { white-space: nowrap; }
+.sens { margin-top: 2.6mm; }
+.sens tbody td { padding: 1.5mm 2mm; }
+.risk tbody td { padding: 1.8mm 2mm; }
+.sens td.hl { background: var(--blue-50); }
+.sens tr.base td { font-weight: 600; color: var(--ink); }
+.sens td .num { font-weight: 600; color: var(--ink); }
+
+/* =========================================================
+   7. PAGE 3 — Criteria, Plan, Sign-off, Sources
+   ========================================================= */
+.criteria tbody td { padding: 1.7mm 2mm; }
+.criteria .crit-name { color: var(--ink); font-weight: 600; }
+.criteria-sum { display: flex; gap: 2mm; align-items: center; margin-top: 2mm; font-size: 7pt; color: var(--text); }
+.criteria-sum b { color: var(--ink); }
+
+.gates { display: grid; grid-template-columns: repeat(3, 1fr); position: relative; margin-bottom: 3mm; }
+.gates::before { content: ""; position: absolute; left: 3mm; right: 3mm; top: 2.4mm; height: .5mm; background: var(--grad); border-radius: .3mm; }
+.gate { position: relative; padding-top: 6.4mm; padding-right: 3mm; }
+.gate::before { content: ""; position: absolute; top: .9mm; left: 1.2mm; width: 3.6mm; height: 3.6mm; border-radius: 50%; background: #fff; border: .6mm solid var(--blue); box-sizing: border-box; }
+.gate.now::before { background: var(--blue); box-shadow: 0 0 0 1mm var(--blue-100); }
+.gate .when { font-family: var(--num); font-size: 6.4pt; font-weight: 600; letter-spacing: .1em; color: var(--blue); }
+.gate h4 { font-size: 8.2pt; color: var(--ink); font-weight: 700; margin-top: .4mm; line-height: 1.4; }
+.gate p { font-size: 6.9pt; color: var(--muted); margin-top: .4mm; line-height: 1.5; }
+
+.plan td .act { color: var(--ink); font-weight: 600; }
+.plan td .act-sub { font-size: 6.5pt; color: var(--muted); }
+.plan td.no { font-family: var(--num); font-weight: 600; color: var(--blue); }
+.plan td.due { font-family: var(--num); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.bottom-grid { display: grid; grid-template-columns: 1.05fr 1fr; gap: 5mm; flex: 1 1 auto; min-height: 0; }
+.signoff { border: .3mm solid var(--ink); border-radius: var(--radius); padding: 3.8mm 4.2mm; display: flex; flex-direction: column; gap: 3.4mm; }
+.checks { margin-top: 3mm; background: var(--warn-50); border: .25mm solid #fde68a; border-radius: var(--radius); padding: 2.8mm 3.4mm; }
+.checks .label { color: var(--warn); }
+.checks ul { list-style: none; margin-top: 1.4mm; display: grid; gap: 1.2mm; }
+.checks li { display: grid; grid-template-columns: 4mm 1fr; font-size: 7.3pt; line-height: 1.5; color: var(--ink-2); }
+.checks li::before { content: "?"; width: 3mm; height: 3mm; margin-top: .35mm; border-radius: 50%; background: var(--warn); color: #fff; font-size: 5.4pt; font-weight: 800; display: grid; place-items: center; }
+.signoff .head { display: flex; justify-content: space-between; align-items: center; }
+.signoff .head .label { color: var(--ink); }
+.choices { display: grid; grid-template-columns: repeat(4, auto); justify-content: space-between; gap: 2mm; font-size: 7.8pt; color: var(--ink); font-weight: 600; }
+.choices span { display: inline-flex; align-items: center; gap: 1.4mm; white-space: nowrap; }
+.choices span::before { content: ""; width: 3.4mm; height: 3.4mm; border: .3mm solid var(--ink); border-radius: .6mm; }
+.sign-rows { display: grid; gap: 2.4mm; }
+.sign-row { display: grid; grid-template-columns: 17mm 1fr 22mm; gap: 2mm; align-items: end; font-size: 6.8pt; color: var(--muted); }
+.sign-row .line { border-bottom: .25mm solid var(--line-2); height: 6mm; }
+.sign-row .date { border-bottom: .25mm solid var(--line-2); height: 6mm; display: flex; align-items: flex-end; justify-content: flex-end; font-family: var(--num); color: var(--faint); font-size: 6.4pt; padding-bottom: .4mm; }
+.comment-box { flex: 1; min-height: 14mm; max-height: 34mm; border: .25mm dashed var(--line-2); border-radius: 1.2mm; padding: 1.6mm 2.2mm; font-size: 6.4pt; color: var(--faint); }
+
+.sources-list { list-style: none; display: grid; gap: 0; }
+.sources-list li { display: grid; grid-template-columns: 6mm 1fr auto; gap: 2mm; align-items: center; padding: 1.25mm 0; border-bottom: .2mm solid var(--line); font-size: 7pt; }
+.sources-list .sid { font-family: var(--num); font-weight: 600; color: var(--blue); }
+.sources-list .t { color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sources-list .d { display: block; font-family: var(--num); font-size: 6pt; color: var(--muted); }
+.grade { display: inline-grid; place-items: center; width: 4.6mm; height: 4.6mm; border-radius: 1mm; font-family: var(--num); font-weight: 700; font-size: 6.6pt; line-height: 1; }
+.grade.A { background: var(--blue); color: #fff; }
+.grade.B { background: var(--cyan-50); color: var(--cyan-700); box-shadow: inset 0 0 0 .25mm #a5f3fc; }
+.grade.C { background: var(--paper); color: var(--muted); box-shadow: inset 0 0 0 .25mm var(--line-2); }
+.fineprint { margin-top: 2.4mm; font-size: 6.1pt; line-height: 1.6; color: var(--muted); }
+.fineprint b { color: var(--text); font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="doc">
+
+<!-- =====================================================================
+     PAGE 1 — 判断（Decision）
+     ===================================================================== -->
+<section class="page first" data-section="Decision">
+  <header class="masthead">
+    <div class="mh-top">
+      <div class="mh-brand"><span class="logo-mark"></span>Research Studio</div>
+      <div class="mh-tags"><span class="doc-type">EXECUTIVE DECISION BRIEF</span><span class="mh-class"><!-- SLOT: classification -->CONFIDENTIAL</span></div>
+    </div>
+    <div class="mh-main">
+      <div>
+        <div class="kicker">Decision Required</div>
+        <h1 class="mh-title"><!-- SLOT: title -->社内ナレッジ検索への生成AI（RAG）導入可否</h1>
+        <p class="mh-question"><!-- SLOT: decision_question --><b>問い：</b>SaaS型AI検索を先行導入し、18ヶ月で全社展開する計画を承認すべきか</p>
+      </div>
+      <div class="score">
+        <div class="score-ring">
+          <!-- SLOT: score → stroke-dasharray の1つ目 = score × 0.9425 -->
+          <svg viewBox="0 0 36 36">
+            <circle cx="18" cy="18" r="15" stroke="rgba(148,163,184,.25)" stroke-width="3" fill="none"/>
+            <circle cx="18" cy="18" r="15" stroke="#06b6d4" stroke-width="3" fill="none" stroke-linecap="round" stroke-dasharray="77.3 94.25"/>
+          </svg>
+          <div class="val">82</div>
+        </div>
+        <div>
+          <div class="label">Confidence</div>
+          <strong>信頼度：高</strong>
+          <span class="num">47 sources · 一次情報 68%</span>
+        </div>
+      </div>
+    </div>
+    <dl class="mh-meta">
+      <div><dt>Date</dt><dd class="num">2026.10.27</dd></div>
+      <div><dt>Brief ID</dt><dd class="num">RS-2026-1027-DB03</dd></div>
+      <div><dt>Prepared for</dt><dd>経営会議</dd></div>
+      <div><dt>Decision due</dt><dd class="due num">2026.11.10</dd></div>
+      <div><dt>Read time</dt><dd>約2分</dd></div>
+    </dl>
+  </header>
+
+  <main class="page-body">
+    <!-- 推奨判断＋主要数値 -->
+    <section class="decision">
+      <div class="verdict-card">
+        <div class="label">Recommendation · 推奨判断</div>
+        <div class="verdict-row">
+          <div class="verdict">条件付き GO</div>
+          <!-- SLOT: verdict → .on と go / cgo / hold / nogo のいずれかを付与 -->
+          <div class="scale"><span>GO</span><span class="on cgo">条件付きGO</span><span>保留</span><span>NO-GO</span></div>
+        </div>
+        <p class="verdict-text">SaaS型AI検索で3ヶ月のパイロットを開始し、検索時間30%短縮の達成を条件に全社展開へ進むべきである。</p>
+        <div class="ask">
+          <div class="label">本日の承認依頼事項</div>
+          <ol>
+            <li><span>パイロット予算 <b>480万円</b>（2部門・150名・3ヶ月）の執行</span></li>
+            <li><span>全社展開の<b>条件付き承認</b>（初年度上限 1,850万円）</span></li>
+            <li><span>推進責任者として<b>情報システム部長</b>を任命</span></li>
+          </ol>
+        </div>
+      </div>
+      <div class="kpis">
+        <div class="kpi primary"><div class="label">3-Year Net</div><div class="value">+6,450<small>万円</small></div><div class="cap">3年累積の効果 − 投資</div></div>
+        <div class="kpi"><div class="label">Investment</div><div class="value">1,850<small>万円</small></div><div class="cap">初年度投資（パイロット含む）</div></div>
+        <div class="kpi"><div class="label">Payback</div><div class="value">11<small>ヶ月</small></div><div class="cap">投資回収期間（全社展開ベース）</div></div>
+        <div class="kpi"><div class="label">Time Saved</div><div class="value">1.2<small>万時間/年</small></div><div class="cap">検索時間 −38% を全社換算</div></div>
+      </div>
+    </section>
+
+    <!-- 状況・課題・打ち手 -->
+    <section>
+      <div class="sec-head"><span class="no">01</span><h2>要点</h2><span class="note">状況 → 課題 → 打ち手</span></div>
+      <div class="scr">
+        <div>
+          <div class="label"><i>S</i> Situation · 状況</div>
+          <h3>社員は1日47分を情報探しに使っている</h3>
+          <p>社内文書は4つのストレージに分散し、全文検索では目的の文書にたどり着けない。問い合わせ対応も特定の社員に集中している。<span class="src">S4</span></p>
+        </div>
+        <div>
+          <div class="label"><i>C</i> Complication · 課題</div>
+          <h3>競合の導入が進み、生産性の差が開きつつある</h3>
+          <p>大企業の本番導入率は1年で18%から41%へ上昇した。一方で権限漏洩などの事故も報告されており、拙速な導入にはリスクが伴う。<span class="src">S1</span><span class="src">S6</span></p>
+        </div>
+        <div>
+          <div class="label"><i>R</i> Resolution · 打ち手</div>
+          <h3>SaaS型で小さく始め、成果を確認してから広げる</h3>
+          <p>既存の閲覧権限を引き継げるSaaS型で効果を実証する。機密性の高い部門だけを、9ヶ月目以降に自社構築RAGへ移す。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 選択肢比較 -->
+    <section>
+      <div class="sec-head"><span class="no">02</span><h2>選択肢の比較</h2><span class="note">4方式 × 5評価軸</span></div>
+      <table class="tbl options">
+        <colgroup><col style="width:26%"><col style="width:7.6%"><col style="width:7.6%"><col style="width:7.6%"><col style="width:7.6%"><col style="width:12%"><col style="width:10%"><col style="width:21.6%"></colgroup>
+        <thead><tr><th>選択肢</th><th class="c">精度</th><th class="c">コスト</th><th class="c">速度</th><th class="c">権限</th><th class="r">初年度投資</th><th class="c">稼働まで</th><th>判定</th></tr></thead>
+        <tbody>
+          <tr class="rec">
+            <td><div class="opt">A. SaaS型AI検索 <span class="badge ink">推奨</span></div><div class="opt-sub">既存ストレージと連携する商用サービス</div></td>
+            <td class="c"><span class="rt b">○</span></td><td class="c"><span class="rt a">◎</span></td><td class="c"><span class="rt a">◎</span></td><td class="c"><span class="rt a">◎</span></td>
+            <td class="money">1,850万円</td><td class="c num">2週間</td>
+            <td><span class="st ok">採用</span> 速度・権限で優位</td>
+          </tr>
+          <tr>
+            <td><div class="opt">B. 自社構築RAG</div><div class="opt-sub">ベクトルDB＋LLM APIの内製基盤</div></td>
+            <td class="c"><span class="rt a">◎</span></td><td class="c"><span class="rt c">△</span></td><td class="c"><span class="rt c">△</span></td><td class="c"><span class="rt b">○</span></td>
+            <td class="money">3,200万円</td><td class="c num">4–6ヶ月</td>
+            <td><span class="st cond">次段階</span> 機密部門に限定</td>
+          </tr>
+          <tr>
+            <td><div class="opt">C. 既存検索＋LLM連携</div><div class="opt-sub">導入済み検索にLLM要約を追加</div></td>
+            <td class="c"><span class="rt c">△</span></td><td class="c"><span class="rt b">○</span></td><td class="c"><span class="rt b">○</span></td><td class="c"><span class="rt a">◎</span></td>
+            <td class="money">980万円</td><td class="c num">1–2ヶ月</td>
+            <td><span class="st ng">不採用</span> 精度に限界</td>
+          </tr>
+          <tr>
+            <td><div class="opt">D. 現状維持</div><div class="opt-sub">ファイルサーバー＋全文検索を継続</div></td>
+            <td class="c"><span class="rt c">△</span></td><td class="c"><span class="rt a">◎</span></td><td class="c"><span class="rt a">◎</span></td><td class="c"><span class="rt b">○</span></td>
+            <td class="money">0円</td><td class="c num">—</td>
+            <td><span class="st ng">不採用</span> 機会損失が拡大</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="legend-inline"><span><i class="rt a">◎</i>優位</span><span><i class="rt b">○</i>標準</span><span><i class="rt c">△</i>要注意</span><span>※ 投資額は概算。詳細は2ページ目「財務インパクト」</span></div>
+    </section>
+  </main>
+
+  <footer class="rf">
+    <div class="rf-left"><span class="conf-tag">CONFIDENTIAL</span></div>
+    <div class="rf-center">2026.10.27 発行 · © 2026 Research Studio</div>
+    <div class="rf-right">Page <b class="pg-num"></b> / <span class="pg-total">3</span></div>
+  </footer>
+</section>
+
+<!-- =====================================================================
+     PAGE 2 — 根拠とリスク（Evidence & Risk）
+     ===================================================================== -->
+<section class="page" data-section="Evidence & Risk">
+  <header class="rh">
+    <div class="rh-brand"><span class="logo-mark"></span>Research Studio</div>
+    <div class="rh-title">社内ナレッジ検索への生成AI（RAG）導入可否</div>
+    <div class="rh-section">Evidence &amp; Risk</div>
+  </header>
+
+  <main class="page-body">
+    <section>
+      <div class="sec-head"><span class="no">03</span><h2>判断の根拠となる主要ファクト</h2><span class="note">47件の出典から抽出</span></div>
+      <div class="findings">
+        <article class="finding" style="--accent: var(--blue)">
+          <h3><span class="n">F1</span>検索時間の短縮効果は再現性が高い</h3>
+          <p>公開事例の多くが30〜45%の短縮を報告している。問い合わせの一次対応が減るなどの副次効果も確認された。<span class="src">S3</span><span class="src">S4</span></p>
+          <div class="fig"><strong>−38%</strong><span>平均検索時間</span></div>
+        </article>
+        <article class="finding" style="--accent: var(--cyan-700)">
+          <h3><span class="n">F2</span>導入企業と未導入企業の差が拡大</h3>
+          <p>大企業の本番導入率は2倍超に伸びた。導入企業では新人の立ち上がり期間が平均3週間短くなっている。<span class="src">S1</span><span class="src">S4</span></p>
+          <div class="fig"><strong>41%</strong><span>大企業の<br>本番導入率</span></div>
+        </article>
+        <article class="finding" style="--accent: var(--indigo)">
+          <h3><span class="n">F3</span>精度を左右するのは文書の整備状況</h3>
+          <p>回答精度の差の大半は、モデルの性能ではなく文書の鮮度・重複・メタデータの有無で説明できる。<span class="src">S2</span><span class="src">S9</span></p>
+          <div class="fig"><strong>+21pt</strong><span>文書整備後の<br>正答率改善</span></div>
+        </article>
+        <article class="finding" style="--accent: var(--warn)">
+          <h3><span class="n">F4</span>最大の阻害要因は権限漏洩への懸念</h3>
+          <p>閲覧権限のない文書が回答に混入した事故が複数報告されている。ACL連携は方式選定の必須要件になる。<span class="src">S6</span></p>
+          <div class="fig"><strong>63%</strong><span>が懸念事項の<br>1位に選択</span></div>
+        </article>
+      </div>
+    </section>
+
+    <section>
+      <div class="sec-head"><span class="no">04</span><h2>財務インパクト（3年間）</h2><span class="note">単位：万円 · 推奨案Aを基準</span></div>
+      <div class="fin">
+        <div>
+          <div class="chart-legend"><span><i style="background:var(--faint)"></i>投資（ライセンス・構築・整備）</span><span><i style="background:var(--blue)"></i>効果（削減工数の金額換算）</span></div>
+          <!-- SLOT: financials → 各バーの width = 値 ÷ 軸の最大値（ここでは 5,000） -->
+          <div class="bars">
+            <div class="bar-group"><span class="yr">FY1</span><div class="bar-pair">
+              <div class="bar cost"><i style="width:37%"></i><b>1,850</b></div>
+              <div class="bar gain"><i style="width:42%"></i><b>2,100</b></div>
+            </div></div>
+            <div class="bar-group"><span class="yr">FY2</span><div class="bar-pair">
+              <div class="bar cost"><i style="width:32%"></i><b>1,600</b></div>
+              <div class="bar gain"><i style="width:86%"></i><b>4,300</b></div>
+            </div></div>
+            <div class="bar-group"><span class="yr">FY3</span><div class="bar-pair">
+              <div class="bar cost"><i style="width:26%"></i><b>1,300</b></div>
+              <div class="bar gain"><i style="width:96%"></i><b>4,800</b></div>
+            </div></div>
+          </div>
+          <div class="axis"><span></span><div><span>0</span><span>1,000</span><span>2,000</span><span>3,000</span><span>4,000</span><span>5,000</span></div></div>
+          <p class="fin-note">効果 ＝ 削減工数 × 平均人件費 4,000円/時。FY1は段階展開のため年間効果の約45%で試算。</p>
+        </div>
+        <div class="fin-summary">
+          <div class="label">3-Year Summary</div>
+          <div class="row"><span>累積投資</span><strong class="num">4,750<small>万円</small></strong></div>
+          <div class="row"><span>累積効果</span><strong class="num">11,200<small>万円</small></strong></div>
+          <div class="row"><span>純効果</span><strong class="num">+6,450<small>万円</small></strong></div>
+          <div class="row"><span>ROI</span><strong class="num">136<small>%</small></strong></div>
+          <div class="row"><span>投資回収</span><strong class="num">11<small>ヶ月</small></strong></div>
+        </div>
+      </div>
+      <!-- SLOT: scenarios（感度分析） -->
+      <table class="tbl sens">
+        <colgroup><col style="width:22%"><col style="width:30%"><col style="width:16%"><col style="width:16%"><col style="width:16%"></colgroup>
+        <thead><tr><th>シナリオ</th><th>前提</th><th class="r">3年純効果</th><th class="r">ROI</th><th class="r">投資回収</th></tr></thead>
+        <tbody>
+          <tr><td>悲観</td><td>検索時間 −20%（他の前提は基本と同じ）</td><td class="r"><span class="num">+1,150</span> 万円</td><td class="r num">24%</td><td class="r"><span class="num">25</span> ヶ月</td></tr>
+          <tr class="base"><td class="hl">基本（本書の前提）</td><td class="hl">検索時間 −38%（公開事例の平均）</td><td class="r hl"><span class="num">+6,450</span> 万円</td><td class="r hl num">136%</td><td class="r hl"><span class="num">11</span> ヶ月</td></tr>
+          <tr><td>楽観</td><td>検索時間 −45%（他の前提は基本と同じ）</td><td class="r"><span class="num">+8,510</span> 万円</td><td class="r num">179%</td><td class="r"><span class="num">9</span> ヶ月</td></tr>
+        </tbody>
+      </table>
+      <p class="fin-note">悲観シナリオでも3年間で投資を回収できる。短縮率が −16% を下回ると3年以内に回収できず、判断が覆る。</p>
+    </section>
+
+    <section>
+      <div class="sec-head"><span class="no">05</span><h2>リスク評価と対策</h2><span class="note">影響度 × 発生可能性</span></div>
+      <div class="risk-wrap">
+        <div>
+          <div class="heat-title"><span>RISK HEATMAP</span><span>残存リスクは対策前の評価</span></div>
+          <!-- SLOT: risks → 各セル（影響度=行、発生可能性=列）に .rk を配置 -->
+          <div class="heat">
+            <div class="ax y">高</div><div class="cell s2"></div><div class="cell s4"><span class="rk">R1</span></div><div class="cell s4"></div>
+            <div class="ax y">中</div><div class="cell s1"><span class="rk">R3</span></div><div class="cell s2"><span class="rk">R4</span></div><div class="cell s3"><span class="rk">R2</span></div>
+            <div class="ax y">低</div><div class="cell s1"></div><div class="cell s1"></div><div class="cell s2"></div>
+            <div></div><div class="ax">低</div><div class="ax">中</div><div class="ax">高</div>
+          </div>
+          <div class="heat-caption"><span>↑ 影響度</span><span>発生可能性 →</span></div>
+        </div>
+        <table class="tbl risk">
+          <colgroup><col style="width:33%"><col style="width:12%"><col style="width:38%"><col style="width:17%"></colgroup>
+          <thead><tr><th>リスク</th><th class="c">評価</th><th>対策</th><th>担当</th></tr></thead>
+          <tbody>
+            <tr><td><span class="rk">R1</span><span class="r-name">権限外文書の混入</span></td><td class="c"><span class="st ng">重大</span></td><td>ACL連携を選定要件に明記し、人事異動日と同期する運用と月次監査を設ける</td><td>情報システム部</td></tr>
+            <tr><td><span class="rk">R2</span><span class="r-name">旧版文書による誤回答</span></td><td class="c"><span class="st cond">要注意</span></td><td>文書オーナー制度と有効期限メタデータを導入し、期限切れ文書を検索対象から除外</td><td>各部門</td></tr>
+            <tr><td><span class="rk">R4</span><span class="r-name">現場への定着不足</span></td><td class="c"><span class="st cond">要注意</span></td><td>部門ごとに推進役を置き、利用率を月次で経営会議に報告する</td><td>人事部</td></tr>
+            <tr><td><span class="rk">R3</span><span class="r-name">ベンダーロックイン</span></td><td class="c"><span class="st ok">軽微</span></td><td>契約時にデータと設定のエクスポート条項を確保する</td><td>調達部</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer class="rf">
+    <div class="rf-left"><span class="conf-tag">CONFIDENTIAL</span></div>
+    <div class="rf-center">2026.10.27 発行 · © 2026 Research Studio</div>
+    <div class="rf-right">Page <b class="pg-num"></b> / <span class="pg-total">3</span></div>
+  </footer>
+</section>
+
+<!-- =====================================================================
+     PAGE 3 — 実行計画と承認（Action & Sign-off）  ※2ページ版では削除可
+     ===================================================================== -->
+<section class="page" data-section="Action & Sign-off">
+  <header class="rh">
+    <div class="rh-brand"><span class="logo-mark"></span>Research Studio</div>
+    <div class="rh-title">社内ナレッジ検索への生成AI（RAG）導入可否</div>
+    <div class="rh-section">Action &amp; Sign-off</div>
+  </header>
+
+  <main class="page-body">
+    <section>
+      <div class="sec-head"><span class="no">06</span><h2>Go / No-Go 判定基準</h2><span class="note">5項目中 3項目充足 · 2項目は条件付き</span></div>
+      <table class="tbl criteria">
+        <colgroup><col style="width:5%"><col style="width:37%"><col style="width:16%"><col style="width:42%"></colgroup>
+        <thead><tr><th>#</th><th>判定基準</th><th class="c">現状</th><th>根拠・条件</th></tr></thead>
+        <tbody>
+          <tr><td class="num">1</td><td class="crit-name">既存の閲覧権限（ACL）を引き継げる</td><td class="c"><span class="st ok">充足</span></td><td>方式Aの主要製品はいずれも標準で対応<span class="src">S3</span></td></tr>
+          <tr><td class="num">2</td><td class="crit-name">データを国内リージョンで保管できる</td><td class="c"><span class="st ok">充足</span></td><td>候補3社すべてが国内データセンターを提供</td></tr>
+          <tr><td class="num">3</td><td class="crit-name">初年度投資が予算枠2,000万円以内</td><td class="c"><span class="st ok">充足</span></td><td>試算 1,850万円（枠内、余裕150万円）</td></tr>
+          <tr><td class="num">4</td><td class="crit-name">パイロットで検索時間 −30% 以上</td><td class="c"><span class="st cond">検証中</span></td><td>Phase 1（3ヶ月）で計測し、Gate 1で判定</td></tr>
+          <tr><td class="num">5</td><td class="crit-name">全部門で文書オーナーを任命済み</td><td class="c"><span class="st ng">未充足</span></td><td>全社展開の前提条件。Gate 1までに任命を完了</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <div class="sec-head"><span class="no">07</span><h2>意思決定ゲートと90日アクション</h2><span class="note">各ゲートで継続・中止を再判断</span></div>
+      <div class="gates">
+        <div class="gate now"><div class="when">GATE 0 · 2026.11</div><h4>パイロット承認</h4><p>本書で判断。予算480万円を執行</p></div>
+        <div class="gate"><div class="when">GATE 1 · 2027.02</div><h4>全社展開の判断</h4><p>判定基準4・5の充足を確認</p></div>
+        <div class="gate"><div class="when">GATE 2 · 2027.08</div><h4>自社RAGへの投資判断</h4><p>機密部門の要件と費用を評価</p></div>
+      </div>
+      <table class="tbl plan">
+        <colgroup><col style="width:5%"><col style="width:48%"><col style="width:19%"><col style="width:13%"><col style="width:15%"></colgroup>
+        <thead><tr><th>#</th><th>アクション</th><th>責任者</th><th>期限</th><th class="c">状態</th></tr></thead>
+        <tbody>
+          <tr><td class="no">A1</td><td><div class="act">ベンダー3社の比較評価と契約締結</div><div class="act-sub">ACL連携・エクスポート条項を必須要件に含める</div></td><td>情報システム部</td><td class="due">2026.11.30</td><td class="c"><span class="badge">着手前</span></td></tr>
+          <tr><td class="no">A2</td><td><div class="act">パイロット2部門の対象文書を棚卸し</div><div class="act-sub">重複・旧版を除外し、有効期限メタデータを付与</div></td><td>総務部・営業企画部</td><td class="due">2026.12.15</td><td class="c"><span class="badge">着手前</span></td></tr>
+          <tr><td class="no">A3</td><td><div class="act">ベースライン計測とパイロット開始</div><div class="act-sub">検索時間・正答率・利用率を週次で取得</div></td><td>推進PMO</td><td class="due">2026.12.20</td><td class="c"><span class="badge">着手前</span></td></tr>
+          <tr><td class="no">A4</td><td><div class="act">全部門の文書オーナー任命</div><div class="act-sub">判定基準5の充足に必須</div></td><td>各部門長</td><td class="due">2027.01.31</td><td class="c"><span class="badge">着手前</span></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="bottom-grid">
+      <div class="signoff">
+        <div class="head"><span class="label">Decision Record · 決裁欄</span><span class="badge ink">要記入</span></div>
+        <div class="choices"><span>GO</span><span>条件付きGO</span><span>保留</span><span>NO-GO</span></div>
+        <div class="sign-rows">
+          <div class="sign-row"><span>決裁者</span><div class="line"></div><div class="date">/　/</div></div>
+          <div class="sign-row"><span>推進責任者</span><div class="line"></div><div class="date">/　/</div></div>
+          <div class="sign-row"><span>財務確認</span><div class="line"></div><div class="date">/　/</div></div>
+        </div>
+        <div class="comment-box">条件・コメント</div>
+      </div>
+      <div>
+        <div class="label" style="color:var(--ink); margin-bottom:1.2mm">Key Sources · 主要出典</div>
+        <ol class="sources-list">
+          <li><span class="sid">S1</span><span class="t">国内AIソリューション市場規模予測 2026–2030<span class="d">market.example.com · 調査会社</span></span><span class="grade A">A</span></li>
+          <li><span class="sid">S3</span><span class="t">企業向けAI検索サービス 製品比較ガイド<span class="d">tech.example.net · 専門メディア</span></span><span class="grade B">B</span></li>
+          <li><span class="sid">S4</span><span class="t">企業におけるAI活用実態調査 2026<span class="d">stats.example.go.jp · 公的機関</span></span><span class="grade A">A</span></li>
+          <li><span class="sid">S6</span><span class="t">生成AI導入に伴う情報セキュリティインシデント事例集<span class="d">security.example.or.jp · 業界団体</span></span><span class="grade A">A</span></li>
+          <li><span class="sid">S9</span><span class="t">文書管理とメタデータ設計の実務ガイドライン<span class="d">docs.example.or.jp · 業界団体</span></span><span class="grade A">A</span></li>
+        </ol>
+        <div class="checks">
+          <div class="label">決裁前の確認事項</div>
+          <ul>
+            <li>パイロット2部門（総務部・営業企画部）の部門長は合意済みか</li>
+            <li>FY2以降のライセンス費を中期計画の予算に組み込めるか</li>
+            <li>個人情報を含む文書を、検索対象から外す運用で問題ないか</li>
+          </ul>
+        </div>
+        <p class="fineprint"><b>信頼性：</b>A＝一次情報・公的機関　B＝専門メディア・企業公式　C＝二次情報。全47件の一覧は添付のExcel版（Source_Index）を参照。<br><b>免責：</b>本書は公開情報をもとにAIが自動収集・分析した結果であり、正確性・完全性を保証しません。最終判断の前に出典の原文を確認してください。</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="rf">
+    <div class="rf-left"><span class="conf-tag">CONFIDENTIAL</span></div>
+    <div class="rf-center">2026.10.27 発行 · © 2026 Research Studio</div>
+    <div class="rf-right">Page <b class="pg-num"></b> / <span class="pg-total">3</span></div>
+  </footer>
+</section>
+
+</div>
+
+<script>
+/* ページ総数の自動設定 ＋ はみ出し検査（結果は window.__RS_LAYOUT__） */
+(function () {
+  function run() {
+    var pages = Array.prototype.slice.call(document.querySelectorAll('.page'));
+    document.querySelectorAll('.pg-total').forEach(function (el) { el.textContent = pages.length; });
+    var report = pages.map(function (p, i) {
+      var r = p.getBoundingClientRect(), cs = getComputedStyle(p);
+      var limitBottom = r.bottom - parseFloat(cs.paddingBottom) + 0.5;
+      var limitRight  = r.right  - parseFloat(cs.paddingRight)  + 0.5;
+      var over = Array.prototype.filter.call(p.querySelectorAll('.page-body *'), function (el) {
+        var b = el.getBoundingClientRect();
+        if (b.width === 0 && b.height === 0) return false;
+        return b.bottom > limitBottom || b.right > limitRight;
+      });
+      if (over.length) { p.dataset.overflow = 'true'; console.warn('[Research Studio] Page ' + (i + 1) + ' overflows (' + over.length + ' elements)'); }
+      return { page: i + 1, section: p.dataset.section, overflow: over.length > 0, overflowCount: over.length };
+    });
+    window.__RS_LAYOUT__ = { pages: pages.length, slides: report, ok: report.every(function (r) { return !r.overflow; }) };
+  }
+  if (document.fonts && document.fonts.ready) { document.fonts.ready.then(run); } else { window.addEventListener('load', run); }
+})();
+</script>
+</body>
+</html>

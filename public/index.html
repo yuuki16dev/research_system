@@ -576,7 +576,7 @@
     </main>
 
     <footer class="footer">
-      <span id="footer-version">Research Studio v1.11.0</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span><span class="sep">·</span><a href="https://github.com/yuuki16dev/research_system/issues" target="_blank" rel="noopener" class="footer-link"><span data-icon="github"></span>GitHubでお問い合わせ</a>
+      <span id="footer-version">Research Studio v1.12.0</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span><span class="sep">·</span><a href="https://github.com/yuuki16dev/research_system/issues" target="_blank" rel="noopener" class="footer-link"><span data-icon="github"></span>GitHubでお問い合わせ</a>
     </footer>
   </div>
 
@@ -585,7 +585,7 @@
     <div class="modal-backdrop" data-close></div>
     <div class="modal-card glass">
       <header class="modal-head">
-        <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v1.11.0</small></h2>
+        <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v1.12.0</small></h2>
         <div style="display: flex; gap: 8px; align-items: center; margin-left: auto;">
           <button class="btn btn-ghost btn-sm" type="button" id="btn-settings-changelog" title="アップデート履歴 &amp; リリースノート"><span data-icon="book-open"></span><span class="label">更新履歴</span></button>
           <button class="btn btn-ghost btn-sm" type="button" id="btn-open-guide-from-settings" title="APIキー取得ガイド &amp; GitHubお問い合わせ"><span data-icon="help-circle"></span><span class="label">ガイド・問い合わせ</span></button>
@@ -844,13 +844,20 @@
       <header class="modal-head">
         <h2 id="pdf-preview-title"><span data-icon="file-text"></span>商用レポートPDF プレビュー</h2>
         <div class="modal-head-tools">
+          <div class="pdf-template-switcher" style="display: flex; align-items: center; gap: 6px;">
+            <select class="select select-sm" id="pdf-template-select" style="min-width: 195px; height: 32px; font-size: 12px; font-weight: 600; padding: 2px 8px;" title="PDF出力テンプレートを切り替え">
+              <option value="slide-deck">🖥️ A4横スライド型（6枚）</option>
+              <option value="decision-brief">📑 A4縦意思決定ペーパー型（3枚）</option>
+            </select>
+            <span id="pdf-template-ai-badge" class="badge" style="font-size: 11px; padding: 2px 7px; border-radius: 9999px; background: rgba(6,182,212,0.12); color: #0891b2; font-weight: 700; white-space: nowrap;" title="AIが調査内容から自動推奨した最適テンプレート">✨ AI推奨</span>
+          </div>
           <div class="zoom-controls">
             <button type="button" class="btn btn-ghost btn-sm btn-icon" id="btn-zoom-out" title="縮小"><span data-icon="minus">-</span></button>
             <span id="zoom-level-text">100%</span>
             <button type="button" class="btn btn-ghost btn-sm btn-icon" id="btn-zoom-in" title="拡大"><span data-icon="plus">+</span></button>
             <button type="button" class="btn btn-ghost btn-sm" id="btn-zoom-fit" title="幅に合わせる">フィット</button>
           </div>
-          <button class="btn btn-ghost btn-sm" type="button" id="btn-slide-toggle-edit" title="スライドの文章や数値を直接クリックして手直し"><span data-icon="edit-3"></span><span id="btn-slide-toggle-edit-label">スライド直接編集</span></button>
+          <button class="btn btn-ghost btn-sm" type="button" id="btn-slide-toggle-edit" title="文章や数値を直接クリックして手直し"><span data-icon="edit-3"></span><span id="btn-slide-toggle-edit-label">直接編集</span></button>
           <button class="btn btn-secondary btn-sm" type="button" id="btn-export-pptx" title="編集可能なPowerPoint形式 (.pptx) でダウンロード"><span data-icon="layers"></span>PowerPoint (.pptx)</button>
           <button class="btn btn-primary btn-sm" type="button" id="btn-pdf-print-confirm"><span data-icon="download"></span>PDFをダウンロード</button>
           <button class="btn btn-ghost btn-icon" type="button" data-close aria-label="閉じる"><span data-icon="x"></span></button>

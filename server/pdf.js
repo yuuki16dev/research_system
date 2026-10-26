@@ -52,13 +52,16 @@ function findSystemBrowser() {
 /**
  * 商用レポートHTMLからヘッドレスブラウザでPDFを直接生成する
  * @param {string} htmlContent - レポートの完全なHTML
+ * @param {Object} options - 出力オプション（orientation: 'portrait' | 'landscape'）
  * @returns {Promise<string>} 生成されたPDFの一時ファイルパス
  */
-async function generatePdfFromHtml(htmlContent) {
+async function generatePdfFromHtml(htmlContent, options = {}) {
   const browserPath = findSystemBrowser();
   if (!browserPath) {
     throw new Error('システム内に Microsoft Edge または Google Chrome が見つかりませんでした。');
   }
+
+  const isPortrait = options.orientation === 'portrait' || (htmlContent && htmlContent.includes('class="doc"'));
 
   const tmpDir = path.join(os.tmpdir(), 'research_studio_pdf');
   fs.mkdirSync(tmpDir, { recursive: true });
@@ -89,6 +92,7 @@ async function generatePdfFromHtml(htmlContent) {
       size: A4 landscape;
       margin: 0;
     }
+    ${isPortrait ? '@page { size: A4 portrait; margin: 0; }' : ''}
     body {
       margin: 0 !important;
       padding: 0 !important;
@@ -98,7 +102,7 @@ async function generatePdfFromHtml(htmlContent) {
     }
   </style>
 </head>
-<body>
+<body ${isPortrait ? 'data-print-orientation="portrait"' : ''}>
   ${htmlContent}
 </body>
 </html>`;
@@ -111,7 +115,7 @@ async function generatePdfFromHtml(htmlContent) {
       '--disable-gpu',
       '--no-pdf-header-footer',
       '--run-all-compositor-stages-before-draw',
-      '--landscape',
+      ...(isPortrait ? [] : ['--landscape']),
       '--font-render-hinting=medium',
       '--enable-font-antialiasing',
       '--virtual-time-budget=2000',
