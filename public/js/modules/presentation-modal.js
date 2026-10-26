@@ -1,6 +1,6 @@
 // ==========================================================================
-// プレゼン・スライド生成スタジオ (Presentation Studio Module) v1.9.0
-// 企画書・資料をもとに発表対象（オーディエンス）に最適化したスライド・プロンプトを生成
+// プレゼン・スライド生成スタジオ (Presentation Studio Module) v1.9.1
+// 企画書テキスト ＆ ファイル読み込み（txt, md, xlsx, pdf等）からスライドを生成
 // ==========================================================================
 
 import { $, toast, copyText, openModal, closeModal } from '../ui.js';
@@ -8,6 +8,7 @@ import { appState } from './state.js';
 import { openPdfPreview } from './export-handlers.js';
 
 let selectedAudience = '開発チーム・エンジニア';
+let attachedFiles = []; // [{ name, size, mimeType, base64 }]
 
 export function initPresentationModal() {
   const modal = $('#modal-presentation');
@@ -20,6 +21,10 @@ export function initPresentationModal() {
   const customAudienceWrap = $('#pres-audience-custom-wrap');
   const customAudienceInput = $('#pres-audience-custom-input');
   const btnImportReport = $('#btn-pres-import-report');
+  const btnBrowseFile = $('#btn-pres-browse-file');
+  const fileInput = $('#pres-file-input');
+  const dropzone = $('#pres-file-dropzone');
+  const attachedFilesContainer = $('#pres-attached-files');
   const btnGenPrompt = $('#btn-pres-generate-prompt');
   const btnGenSlides = $('#btn-pres-generate-slides');
   const loadingIndicator = $('#pres-loading-indicator');
@@ -68,6 +73,175 @@ ${insights}${tableInfo}
     btnImportReport.addEventListener('click', importReportDataToInput);
   }
 
+  // =========================================================================
+  // ファイル添付 & ドラッグ＆ドロップ処理
+  // =========================================================================
+  function formatBytes(bytes) {
+    if (!bytes || bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
+  }
+
+  function renderAttachedFiles() {
+    if (!attachedFilesContainer) return;
+    if (attachedFiles.length === 0) {
+      attachedFilesContainer.style.display = 'none';
+      attachedFilesContainer.innerHTML = '';
+      return;
+    }
+
+    attachedFilesContainer.style.display = 'flex';
+    attachedFilesContainer.innerHTML = attachedFiles
+      .map(
+        (f, idx) => `
+        <span class="pres-file-tag">
+          <span>📄 ${f.name}</span>
+          <span class="file-size">(${formatBytes(f.size)})</span>
+          <button type="button" class="btn-remove-file" data-idx="${idx}" title="削除" aria-label="ファイルを削除">×</button>
+        </span>
+      `
+      )
+      .join('');
+
+    attachedFilesContainer.querySelectorAll('.btn-remove-file').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const idx = parseInt(e.currentTarget.dataset.idx, 10);
+        if (!isNaN(idx) && idx >= 0 && idx < attachedFiles.length) {
+          const removed = attachedFiles.splice(idx, 1)[0];
+          renderAttachedFiles();
+          toast(`「${removed.name}」を解除しました`, 'info');
+        }
+      });
+    });
+  }
+
+  async function handleFiles(fileList) {
+    if (!fileList || fileList.length === 0) return;
+    const files = Array.from(fileList);
+
+    for (const file of files) {
+      const ext = (file.name.split('.').pop() || '').toLowerCase();
+      const mimeType = file.type || (ext === 'pdf' ? 'application/pdf' : 'text/plain');
+
+      // 1. テキスト系 (.txt, .md, .markdown, .json, .csv)
+      if (['txt', 'md', 'markdown', 'json', 'csv', 'log'].includes(ext)) {
+        try {
+          const text = await file.text();
+          if (docInput) {
+            const sep = docInput.value.trim() ? '\n\n---\n\n' : '';
+            docInput.value += `${sep}# 添付資料: ${file.name}\n\n${text}`;
+          }
+          toast(`📄 ${file.name} を読み込みました`, 'success');
+        } catch (err) {
+          console.error('File read error:', err);
+          toast(`ファイル「${file.name}」の読み込みに失敗しました`, 'error');
+        }
+      }
+      // 2. Excel系 (.xlsx, .xls)
+      else if (['xlsx', 'xls'].includes(ext)) {
+        try {
+          if (window.XLSX) {
+            const buffer = await file.arrayBuffer();
+            const wb = window.XLSX.read(buffer, { type: 'array' });
+            let extracted = `# 添付Excel資料: ${file.name}\n\n`;
+            wb.SheetNames.forEach((sheetName) => {
+              const sheet = wb.Sheets[sheetName];
+              const csv = window.XLSX.utils.sheet_to_csv(sheet);
+              if (csv && csv.trim()) {
+                extracted += `## シート: ${sheetName}\n\`\`\`csv\n${csv.trim()}\n\`\`\`\n\n`;
+              }
+            });
+            if (docInput) {
+              const sep = docInput.value.trim() ? '\n\n---\n\n' : '';
+              docInput.value += `${sep}${extracted}`;
+            }
+            toast(`📊 Excel「${file.name}」の表データを読み込みました`, 'success');
+          } else {
+            toast('Excelパーサーの読み込み中です。少し待ってからお試しください', 'warn');
+          }
+        } catch (err) {
+          console.error('Excel parse error:', err);
+          toast(`Excelファイル「${file.name}」の解析に失敗しました`, 'error');
+        }
+      }
+      // 3. PDF系 (.pdf) またはその他バイナリ
+      else if (ext === 'pdf') {
+        try {
+          const base64 = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+              const res = reader.result;
+              const b64 = typeof res === 'string' ? res.split(',')[1] : '';
+              resolve(b64);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+
+          attachedFiles.push({
+            name: file.name,
+            size: file.size,
+            mimeType: 'application/pdf',
+            base64,
+          });
+
+          renderAttachedFiles();
+          if (docInput && !docInput.value.includes(file.name)) {
+            const sep = docInput.value.trim() ? '\n\n' : '';
+            docInput.value += `${sep}【添付ファイル: ${file.name}】`;
+          }
+          toast(`📄 PDF「${file.name}」を添付しました（Geminiマルチモーダル解析）`, 'success');
+        } catch (err) {
+          console.error('PDF read error:', err);
+          toast(`PDFファイル「${file.name}」の添付に失敗しました`, 'error');
+        }
+      } else {
+        toast(`未対応のファイル形式です (.${ext})`, 'warn');
+      }
+    }
+  }
+
+  // ファイル選択トリガー
+  if (btnBrowseFile && fileInput) {
+    btnBrowseFile.addEventListener('click', () => fileInput.click());
+  }
+
+  if (dropzone && fileInput) {
+    dropzone.addEventListener('click', (e) => {
+      // リンクやボタンをクリックしたときは2重発火を防ぐ
+      if (e.target.closest('button')) return;
+      fileInput.click();
+    });
+
+    dropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropzone.classList.add('dragover');
+    });
+
+    dropzone.addEventListener('dragleave', () => {
+      dropzone.classList.remove('dragover');
+    });
+
+    dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('dragover');
+      if (e.dataTransfer && e.dataTransfer.files) {
+        handleFiles(e.dataTransfer.files);
+      }
+    });
+  }
+
+  if (fileInput) {
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files) {
+        handleFiles(e.target.files);
+        fileInput.value = ''; // 次回同じファイルを選べるようクリア
+      }
+    });
+  }
+
   // 発表対象（オーディエンス）チップの選択処理
   if (audienceChips) {
     audienceChips.addEventListener('click', (e) => {
@@ -102,8 +276,8 @@ ${insights}${tableInfo}
   if (btnGenPrompt) {
     btnGenPrompt.addEventListener('click', async () => {
       const doc = docInput ? docInput.value.trim() : '';
-      if (!doc) {
-        toast('企画書・ドキュメントのテキストを入力してください', 'warn');
+      if (!doc && attachedFiles.length === 0) {
+        toast('企画書・ドキュメントのテキストを入力するか、ファイルを添付してください', 'warn');
         if (docInput) docInput.focus();
         return;
       }
@@ -118,7 +292,12 @@ ${insights}${tableInfo}
         const res = await fetch('/api/presentation/prompt', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ document: doc, audience, goal }),
+          body: JSON.stringify({
+            document: doc,
+            audience,
+            goal,
+            files: attachedFiles.map((f) => ({ name: f.name, mimeType: f.mimeType })),
+          }),
         });
 
         if (!res.ok) {
@@ -147,8 +326,8 @@ ${insights}${tableInfo}
   if (btnGenSlides) {
     btnGenSlides.addEventListener('click', async () => {
       const doc = docInput ? docInput.value.trim() : '';
-      if (!doc) {
-        toast('企画書・ドキュメントのテキストを入力してください', 'warn');
+      if (!doc && attachedFiles.length === 0) {
+        toast('企画書・ドキュメントのテキストを入力するか、ファイルを添付してください', 'warn');
         if (docInput) docInput.focus();
         return;
       }
@@ -164,7 +343,12 @@ ${insights}${tableInfo}
         const res = await fetch('/api/presentation/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ document: doc, audience, goal }),
+          body: JSON.stringify({
+            document: doc,
+            audience,
+            goal,
+            files: attachedFiles,
+          }),
         });
 
         if (!res.ok) {

@@ -43,6 +43,18 @@ test('presentation: generatePrompt builds structured slide prompt with token pla
   assert.ok(prompt.includes('キーメッセージ'), 'prompt must require key message per slide');
 });
 
+test('presentation: generatePrompt includes attached files information', () => {
+  const prompt = presentation.generatePrompt({
+    document: '',
+    audience: '経営陣・役員',
+    goal: '予算承認',
+    files: [{ name: '2027年事業計画.pdf', mimeType: 'application/pdf' }],
+  });
+
+  assert.ok(prompt.includes('添付ファイル: 2027年事業計画.pdf'), 'prompt must mention attached file');
+  assert.ok(prompt.includes('経営陣・役員'), 'prompt must mention audience');
+});
+
 test('presentation: UI elements and DOM consistency in public/index.html', () => {
   const html = fs.readFileSync(path.join(ROOT, 'public', 'index.html'), 'utf8');
 
@@ -52,6 +64,10 @@ test('presentation: UI elements and DOM consistency in public/index.html', () =>
   assert.ok(html.includes('id="pres-audience-chips"'), 'must have audience chips row');
   assert.ok(html.includes('id="btn-pres-generate-prompt"'), 'must have prompt generate button');
   assert.ok(html.includes('id="btn-pres-generate-slides"'), 'must have slide generate button');
+  assert.ok(html.includes('id="pres-file-dropzone"'), 'must have file dropzone');
+  assert.ok(html.includes('id="btn-pres-browse-file"'), 'must have file browse button');
+  assert.ok(html.includes('id="pres-file-input"'), 'must have file input element');
+  assert.ok(html.includes('id="pres-attached-files"'), 'must have attached files list container');
 });
 
 test('presentation: ES module syntax integrity for presentation-modal.js', () => {
@@ -61,3 +77,4 @@ test('presentation: ES module syntax integrity for presentation-modal.js', () =>
   const res = spawnSync(process.execPath, ['--check', modPath], { encoding: 'utf8' });
   assert.strictEqual(res.status, 0, `presentation-modal.js syntax error: ${res.stderr}`);
 });
+

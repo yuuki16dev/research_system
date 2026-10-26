@@ -1,6 +1,6 @@
 {
   "name": "research_system",
-  "version": "1.9.0",
+  "version": "1.9.1",
   "description": "",
   "main": "server/index.js",
   "bin": "server/index.js",

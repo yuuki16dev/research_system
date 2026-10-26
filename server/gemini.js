@@ -490,6 +490,7 @@ async function generate({
   apiKey,
   model,
   prompt,
+  parts = [],
   signal,
   temperature = 0.4,
   json = true,
@@ -499,8 +500,14 @@ async function generate({
 }) {
   if (!apiKey) throw new Error('Gemini APIキーが設定されていません');
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+  
+  const contentParts = [{ text: prompt }];
+  if (Array.isArray(parts) && parts.length > 0) {
+    contentParts.push(...parts);
+  }
+
   const body = {
-    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    contents: [{ role: 'user', parts: contentParts }],
     generationConfig: {
       temperature,
       maxOutputTokens: 8192,

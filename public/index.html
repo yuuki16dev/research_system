@@ -569,7 +569,7 @@
     </main>
 
     <footer class="footer">
-      <span id="footer-version">Research Studio v1.9.0</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span><span class="sep">·</span><a href="https://github.com/yuuki16dev/research_system/issues" target="_blank" rel="noopener" class="footer-link"><span data-icon="github"></span>GitHubでお問い合わせ</a>
+      <span id="footer-version">Research Studio v1.9.1</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span><span class="sep">·</span><a href="https://github.com/yuuki16dev/research_system/issues" target="_blank" rel="noopener" class="footer-link"><span data-icon="github"></span>GitHubでお問い合わせ</a>
     </footer>
   </div>
 
@@ -578,7 +578,7 @@
     <div class="modal-backdrop" data-close></div>
     <div class="modal-card glass">
       <header class="modal-head">
-        <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v1.9.0</small></h2>
+        <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v1.9.1</small></h2>
         <div style="display: flex; gap: 8px; align-items: center; margin-left: auto;">
           <button class="btn btn-ghost btn-sm" type="button" id="btn-settings-changelog" title="アップデート履歴 &amp; リリースノート"><span data-icon="book-open"></span><span class="label">更新履歴</span></button>
           <button class="btn btn-ghost btn-sm" type="button" id="btn-open-guide-from-settings" title="APIキー取得ガイド &amp; GitHubお問い合わせ"><span data-icon="help-circle"></span><span class="label">ガイド・問い合わせ</span></button>
@@ -1097,17 +1097,40 @@
       </header>
 
       <div class="modal-body" style="padding: 20px; display: flex; flex-direction: column; gap: 18px;">
-        <!-- 企画書・資料入力エリア -->
+        <!-- 企画書・資料入力エリア（テキスト貼り付け ＆ ファイル読み込み対応） -->
         <div class="setting-block" style="margin-bottom: 0;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
             <label class="field-label sm" for="pres-document-input" style="margin: 0; font-weight: 700;">
-              <span data-icon="file-text"></span> 企画書・ドキュメント・メモの入力
+              <span data-icon="file-text"></span> 企画書・ドキュメント・ファイルの入力
             </label>
-            <button type="button" class="btn btn-ghost btn-xs" id="btn-pres-import-report" title="直近のリサーチ結果を自動で読み込む" style="font-size: 11.5px;">
-              <span data-icon="sparkles"></span> 直近のレポート内容を引用
-            </button>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <button type="button" class="btn btn-secondary btn-xs" id="btn-pres-browse-file" style="font-size: 11.5px;">
+                <span data-icon="upload-cloud"></span> ファイルを選択
+              </button>
+              <button type="button" class="btn btn-ghost btn-xs" id="btn-pres-import-report" title="直近のリサーチ結果を自動で読み込む" style="font-size: 11.5px;">
+                <span data-icon="sparkles"></span> 直近レポート引用
+              </button>
+            </div>
           </div>
-          <textarea id="pres-document-input" class="textarea" rows="6" placeholder="企画書、設計書、議事録、新機能の仕様メモなどをここに貼り付けてください…（マークダウンや箇条書きも歓迎）" style="width: 100%; resize: vertical; min-height: 120px;"></textarea>
+
+          <!-- 非表示のファイルインプット -->
+          <input type="file" id="pres-file-input" multiple accept=".txt,.md,.markdown,.json,.csv,.xlsx,.xls,.pdf" style="display: none;" />
+
+          <!-- ドラッグ＆ドロップエリア -->
+          <div class="pres-dropzone" id="pres-file-dropzone">
+            <div class="pres-dropzone-inner">
+              <span class="pres-dropzone-icon" data-icon="upload-cloud"></span>
+              <div class="pres-dropzone-text">
+                <strong>企画書や資料ファイルをここにドラッグ＆ドロップ</strong>
+                <span>または「ファイルを選択」をクリック（.txt, .md, .xlsx, .pdf など対応）</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 添付ファイル一覧バッジ表示領域 -->
+          <div class="pres-attached-files" id="pres-attached-files" style="display: none;"></div>
+
+          <textarea id="pres-document-input" class="textarea" rows="5" placeholder="企画書、設計書、議事録、新機能の仕様メモなどを貼り付け、またはファイルをドロップしてください…（ファイルの内容がここに自動展開されます）" style="width: 100%; resize: vertical; min-height: 110px;"></textarea>
         </div>
 
         <!-- 発表対象（オーディエンス）の指定 -->

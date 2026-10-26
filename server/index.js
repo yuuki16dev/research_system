@@ -437,9 +437,9 @@ app.post('/api/export/excel', async (req, res) => {
 
 /* ---------------------------------------------------- presentation studio */
 app.post('/api/presentation/prompt', (req, res) => {
-  const { document, audience, goal } = req.body || {};
+  const { document, audience, goal, files } = req.body || {};
   try {
-    const prompt = presentation.generatePrompt({ document, audience, goal });
+    const prompt = presentation.generatePrompt({ document, audience, goal, files });
     res.json({ prompt });
   } catch (err) {
     res.status(400).json({ error: err.message || 'プロンプト生成に失敗しました' });
@@ -447,13 +447,16 @@ app.post('/api/presentation/prompt', (req, res) => {
 });
 
 app.post('/api/presentation/generate', async (req, res) => {
-  const { document, audience, goal } = req.body || {};
-  if (!document || !document.trim()) {
-    return res.status(400).json({ error: '企画書・資料のテキストを入力してください' });
+  const { document, audience, goal, files } = req.body || {};
+  const hasDoc = document && document.trim();
+  const hasFiles = Array.isArray(files) && files.length > 0;
+
+  if (!hasDoc && !hasFiles) {
+    return res.status(400).json({ error: '企画書・資料のテキストを入力するか、ファイルを添付してください' });
   }
 
   try {
-    const slidesData = await presentation.generateSlides({ document, audience, goal });
+    const slidesData = await presentation.generateSlides({ document, audience, goal, files });
     res.json(slidesData);
   } catch (err) {
     console.error('Presentation generate error:', err);

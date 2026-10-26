@@ -57,10 +57,13 @@ function resolveAudienceProfile(audience) {
 /**
  * 1. Claude / ChatGPT 向けのスライド作成用プロンプト生成
  */
-function generatePrompt({ document, audience, goal }) {
+function generatePrompt({ document, audience, goal, files = [] }) {
   const profile = resolveAudienceProfile(audience);
   const cleanDoc = String(document || '').trim();
   const cleanGoal = String(goal || '').trim();
+  const fileNames = Array.isArray(files) && files.length > 0
+    ? files.map((f) => `- 添付ファイル: ${f.name || 'ドキュメント'} (${f.mimeType || 'unknown'})`).join('\n')
+    : '';
 
   return `# プレゼンテーション・スライド作成指示書
 
@@ -79,9 +82,9 @@ ${cleanGoal ? `- **発表の目的・達成したいゴール**: ${cleanGoal}\n`
 
 ---
 
-## 入力資料（企画書・設計書・メモ）
-\`\`\`
-${cleanDoc || '（資料の内容をここに貼り付けてください）'}
+## 入力資料（企画書・設計書・メモ・添付ファイル）
+${fileNames ? `${fileNames}\n\n` : ''}\`\`\`
+${cleanDoc || (fileNames ? '（上記添付ファイルの内容に基づいてスライドを構成してください）' : '（資料の内容をここに貼り付けてください）')}
 \`\`\`
 
 ---
@@ -115,13 +118,14 @@ ${cleanDoc || '（資料の内容をここに貼り付けてください）'}
 /**
  * 2. システム内で直接A4横スライドを自動生成する（Gemini API呼び出し）
  */
-async function generateSlides({ document, audience, goal, apiKey, model }) {
+async function generateSlides({ document, audience, goal, apiKey, model, files = [] }) {
   const profile = resolveAudienceProfile(audience);
   const cleanDoc = String(document || '').trim();
   const cleanGoal = String(goal || '').trim();
+  const validFiles = Array.isArray(files) ? files.filter((f) => f && f.base64 && f.mimeType) : [];
 
-  if (!cleanDoc) {
-    throw new Error('企画書・資料のテキストが入力されていません。');
+  if (!cleanDoc && validFiles.length === 0) {
+    throw new Error('企画書・資料のテキストまたはファイルを添付してください。');
   }
 
   const effectiveKey = apiKey || settings.get().geminiApiKey || process.env.GEMINI_API_KEY;
@@ -132,7 +136,7 @@ async function generateSlides({ document, audience, goal, apiKey, model }) {
   const effectiveModel = model || settings.get().geminiModel || 'gemini-2.5-flash';
 
   const systemInstruction = `あなたは戦略コンサルタントおよびエグゼクティブ・スライド作成のプロフェッショナルです。
-入力された企画書・資料をもとに、指定された発表対象（${profile.name}）に向けて最適なA4横型商用レポートスライドを構成するJSONを出力してください。
+入力された企画書・資料（テキストおよび添付ファイル）をもとに、指定された発表対象（${profile.name}）に向けて最適なA4横型商用レポートスライドを構成するJSONを出力してください。
 余計な解説文やマークダウンのコードブロックは出力せず、必ず純粋なJSONオブジェクトのみを返してください。`;
 
   const prompt = `以下の入力資料をもとに、発表対象「${profile.name}」に向けたA4横商用レポートスライドを構成してください。
@@ -142,7 +146,8 @@ async function generateSlides({ document, audience, goal, apiKey, model }) {
 ${cleanGoal ? `【発表の目的・ゴール】: ${cleanGoal}\n` : ''}
 
 【入力資料】:
-${cleanDoc.slice(0, 15000)}
+${cleanDoc ? cleanDoc.slice(0, 15000) : '（添付されたファイルの内容に基づいて構成してください）'}
+${validFiles.length > 0 ? `\n【添付ファイル数】: ${validFiles.length}件のファイルを添付しています。内容を詳細に解析して反映してください。` : ''}
 
 ---
 必ず以下のJSONスキーマに完全準拠して出力してください:
@@ -266,10 +271,18 @@ ${cleanDoc.slice(0, 15000)}
   ]
 }`;
 
+  const parts = validFiles.map((f) => ({
+    inlineData: {
+      mimeType: f.mimeType,
+      data: f.base64,
+    },
+  }));
+
   const result = await gemini.generateJSON({
     apiKey: effectiveKey,
     model: effectiveModel,
     prompt,
+    parts,
     systemInstruction,
     temperature: 0.3,
   });

@@ -8338,4 +8338,110 @@ body.dd-expanded {
   }
 }
 
+/* ドロップゾーン & ファイルバッジ */
+.pres-dropzone {
+  border: 1.5px dashed var(--border-strong, rgba(255, 255, 255, 0.22));
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 10px;
+  padding: 14px 18px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.pres-dropzone:hover,
+.pres-dropzone.dragover {
+  border-color: #818cf8;
+  background: rgba(99, 102, 241, 0.08);
+  box-shadow: 0 0 16px rgba(99, 102, 241, 0.2);
+}
+.pres-dropzone-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+.pres-dropzone-icon {
+  font-size: 20px;
+  color: var(--accent-light, #818cf8);
+}
+.pres-dropzone-text {
+  font-size: 12px;
+  color: var(--text-2, #cbd5e1);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pres-dropzone-text strong {
+  color: var(--text, #ffffff);
+  font-weight: 600;
+}
+
+[data-theme='light'] .pres-dropzone {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+[data-theme='light'] .pres-dropzone:hover,
+[data-theme='light'] .pres-dropzone.dragover {
+  background: #eff6ff;
+  border-color: #3b82f6;
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.15);
+}
+[data-theme='light'] .pres-dropzone-text {
+  color: #64748b;
+}
+[data-theme='light'] .pres-dropzone-text strong {
+  color: #1e293b;
+}
+
+.pres-attached-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.pres-file-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  color: #e0e7ff;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 500;
+  animation: fadeInTag 0.2s ease-out;
+}
+.pres-file-tag .file-size {
+  font-size: 10px;
+  opacity: 0.7;
+}
+.pres-file-tag .btn-remove-file {
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 0 2px;
+  margin-left: 2px;
+  opacity: 0.75;
+  font-size: 13px;
+  line-height: 1;
+}
+.pres-file-tag .btn-remove-file:hover {
+  opacity: 1;
+  color: #f87171;
+}
+
+[data-theme='light'] .pres-file-tag {
+  background: #e0e7ff;
+  border-color: #c7d2fe;
+  color: #3730a3;
+}
+
+@keyframes fadeInTag {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+
 
