@@ -1,6 +1,6 @@
 {
   "name": "research_system",
-  "version": "1.9.1",
+  "version": "1.9.2",
   "description": "",
   "main": "server/index.js",
   "bin": "server/index.js",
@@ -15,9 +15,17 @@
     "build:exe": "npx --yes pkg . --targets node18-win-x64 --output dist/ResearchStudio.exe"
   },
   "pkg": {
+    "scripts": [
+      "server/**/*.js"
+    ],
     "assets": [
       "public/**/*",
-      "node_modules/xlsx/dist/**/*"
+      "node_modules/xlsx/dist/**/*",
+      "node_modules/generator-function/**/*",
+      "node_modules/async-function/**/*",
+      "node_modules/is-generator-function/**/*",
+      "node_modules/is-async-function/**/*",
+      "node_modules/which-builtin-type/**/*"
     ],
     "targets": [
       "node18-win-x64"

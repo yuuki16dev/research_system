@@ -7,6 +7,19 @@
 - **マイナー (1.X.0)**: 後方互換性のある新機能の追加
 - **パッチ (1.0.X)**: 後方互換性のあるバグ修正や安定化・改善
 
+## [v1.9.2] - 2026-10-26
+
+### 🐛 不具合修正・リリース配布パッケージの刷新 (Standalone Exe & Release Package Fix)
+- **Windows ワンクリック簡易版（ResearchStudio.exe）の起動クラッシュを完全修正**:
+  - `exceljs` 内部の推移的依存関係（`generator-function`, `async-function` 等）が持つ配列形式の条件付きエクスポート（conditional exports）が `pkg` の静的解析から漏れ、独立したフォルダで実行した際に `Cannot find module .../generator-function/index.js` で即時クラッシュして `data` フォルダのみ生成されて画面が開かない問題を完全解消。
+  - `package.json` の `pkg.assets` に欠落モジュール群を明示追加し、完全自己完結型バイナリとして安定動作を保証。
+- **配布用 ZIP パッケージ（ResearchStudio-win.zip）の同梱構成を充実化**:
+  - 単体 exe だけでなく、停止用バッチ（`stop.bat`）、設定サンプル（`.env.example`）、および初心者向けスタートアップ手順書（`はじめにお読みください.txt`）を同梱した親切な ZIP パッケージを自動生成するよう GitHub Actions ワークフローを刷新。
+- **孤立環境での自動実行検証テスト (`test:exe`) の導入**:
+  - `scripts/verify-exe.js` を、ローカルの `node_modules` に依存しない独立テンポラリディレクトリでビルド済み EXE を起動・HTTP 応答検証する方式に強化。再発防止を CI 上で 100% 保証。
+
+---
+
 ## [v1.9.1] - 2026-10-26
 
 ### 🚀 新機能: 企画書・ドキュメントのファイル添付対応 (File Upload & Drag-and-Drop)
