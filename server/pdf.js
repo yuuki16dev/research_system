@@ -112,6 +112,9 @@ async function generatePdfFromHtml(htmlContent) {
       '--no-pdf-header-footer',
       '--run-all-compositor-stages-before-draw',
       '--landscape',
+      '--font-render-hinting=medium',
+      '--enable-font-antialiasing',
+      '--virtual-time-budget=2000',
       `--print-to-pdf=${tmpPdf}`,
       tmpHtml,
     ];

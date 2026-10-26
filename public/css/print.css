@@ -82,8 +82,8 @@
   --crit:    #b91c1c;  --crit-50: #fef2f2;
 
   --grad: linear-gradient(90deg, var(--blue) 0%, var(--cyan) 55%, var(--indigo) 100%);
-  --font: "Outfit", "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Yu Gothic UI", sans-serif;
-  --font-jp: "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Yu Gothic UI", sans-serif;
+  --font: "Outfit", "Segoe UI", -apple-system, BlinkMacSystemFont, "Yu Gothic UI", "Yu Gothic", "Meiryo", "BIZ UDPGothic", "Noto Sans JP", sans-serif;
+  --font-jp: "Segoe UI", -apple-system, BlinkMacSystemFont, "Yu Gothic UI", "Yu Gothic", "Meiryo", "BIZ UDPGothic", "Noto Sans JP", sans-serif;
   --radius: 2.2mm;
 
   /* 後方互換エイリアス */
@@ -316,9 +316,15 @@
   font-size: 18pt;
   font-weight: 700;
   color: var(--ink);
-  line-height: 1.38;
+  line-height: 1.35;
   letter-spacing: .005em;
   font-family: var(--font);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-height: 16mm;
 }
 .deck .slide-title em {
   font-style: normal;
@@ -329,6 +335,12 @@
   font-size: 9pt;
   color: var(--muted);
   max-width: 210mm;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-height: 11mm;
 }
 
 .deck .slide-body {
@@ -513,21 +525,33 @@
 }
 .deck .cover-title {
   margin-top: 5.5mm;
-  font-size: 31pt;
+  font-size: 30pt;
   line-height: 1.3;
   font-weight: 700;
   color: #fff;
   letter-spacing: .01em;
   word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-height: 30mm;
 }
 .deck .cover-sub {
   margin-top: 5mm;
-  font-size: 12pt;
-  line-height: 1.7;
+  font-size: 11.5pt;
+  line-height: 1.65;
   color: #cbd5e1;
   font-weight: 400;
   max-width: 150mm;
   word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-height: 22mm;
 }
 
 .deck .cover-bottom {
@@ -664,10 +688,16 @@
 .deck .bottom-line h3 {
   position: relative;
   margin-top: 2.6mm;
-  font-size: 13pt;
-  line-height: 1.6;
+  font-size: 12.5pt;
+  line-height: 1.55;
   color: #fff;
   font-weight: 700;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-height: 25mm;
 }
 .deck .bottom-line ol {
   position: relative;
@@ -683,9 +713,11 @@
   display: grid;
   grid-template-columns: 7mm 1fr;
   font-size: 8.8pt;
-  line-height: 1.55;
+  line-height: 1.5;
   color: #cbd5e1;
   counter-increment: bl;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .deck .bottom-line li::before {
   content: counter(bl, decimal-leading-zero);
@@ -793,16 +825,28 @@
 }
 .deck .insight h4 {
   margin-top: 2.4mm;
-  font-size: 10.2pt;
-  line-height: 1.45;
+  font-size: 10pt;
+  line-height: 1.4;
   color: var(--ink);
   font-weight: 700;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-height: 10mm;
 }
 .deck .insight p {
   margin-top: 1.8mm;
   font-size: 8pt;
-  line-height: 1.65;
+  line-height: 1.6;
   color: var(--text);
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-height: 22mm;
 }
 .deck .insight .kpi {
   margin-top: auto;
@@ -904,7 +948,12 @@
   margin-top: 1mm;
   font-size: 7.2pt;
   color: var(--muted);
-  line-height: 1.45;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .deck .matrix tr.recommended td {
   background: var(--blue-50);
@@ -920,6 +969,11 @@
 .deck .matrix td li {
   position: relative;
   padding-left: 2.6mm;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .deck .matrix td li::before {
   content: "";
@@ -999,7 +1053,12 @@
 .deck .callout p {
   font-size: 8.8pt;
   color: var(--ink);
-  line-height: 1.55;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .deck .callout p b {
   color: var(--blue);
@@ -1045,10 +1104,15 @@
 }
 .deck .facet-head h4 {
   margin-top: .6mm;
-  font-size: 10.5pt;
-  line-height: 1.45;
+  font-size: 10.2pt;
+  line-height: 1.4;
   color: var(--ink);
   font-weight: 700;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .deck .stat-row {
@@ -1089,8 +1153,16 @@
   display: grid;
   grid-template-columns: 4.2mm 1fr;
   font-size: 8.3pt;
-  line-height: 1.6;
+  line-height: 1.55;
   color: var(--text);
+  overflow: hidden;
+}
+.deck .facts li > span {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .deck .facts li::before {
   content: "";
@@ -1112,8 +1184,13 @@
   border-radius: 1.6mm;
   background: var(--tint, var(--blue-50));
   font-size: 8pt;
-  line-height: 1.55;
+  line-height: 1.5;
   color: var(--ink);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .deck .sowhat .label {
   color: var(--accent, var(--blue));
@@ -1230,10 +1307,16 @@
   border-left: .2mm dashed var(--line-2);
 }
 .deck .phase-goal {
-  font-size: 10pt;
+  font-size: 9.8pt;
   font-weight: 700;
   color: var(--ink);
-  line-height: 1.45;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-height: 10mm;
 }
 .deck .phase ul {
   list-style: none;
@@ -1253,8 +1336,16 @@
 .deck .phase li {
   display: grid;
   grid-template-columns: 4.5mm 1fr;
-  font-size: 8.3pt;
-  line-height: 1.55;
+  font-size: 8.2pt;
+  line-height: 1.5;
+  overflow: hidden;
+}
+.deck .phase li > span {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .deck .phase li::before {
   content: "";
@@ -1317,10 +1408,11 @@
   text-align: center;
 }
 .deck .risk tbody td {
-  padding: 2.8mm 2.4mm;
+  padding: 2.4mm 2.2mm;
   border-bottom: .2mm solid var(--line);
   vertical-align: middle;
-  line-height: 1.5;
+  line-height: 1.45;
+  overflow: hidden;
 }
 .deck .risk tbody td.c {
   text-align: center;
@@ -1328,12 +1420,20 @@
 .deck .risk .r-name {
   font-weight: 700;
   color: var(--ink);
-  font-size: 8.8pt;
+  font-size: 8.6pt;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .deck .risk .r-desc {
   font-size: 7.2pt;
   color: var(--muted);
   margin-top: .4mm;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .deck .level {
   display: inline-flex;
@@ -1485,8 +1585,15 @@
 }
 .deck .disclaimer {
   font-size: 7pt;
-  line-height: 1.65;
+  line-height: 1.55;
   color: var(--muted);
+}
+.deck .disclaimer p {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .deck .disclaimer p + p {
   margin-top: 1mm;
