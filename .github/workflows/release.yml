@@ -61,15 +61,7 @@ jobs:
           node scripts/verify-exe.js
 
       - name: Prepare Release Package & Compress into ZIP
-        run: |
-          $pkgDir = "dist/ResearchStudio-Windows"
-          if (Test-Path $pkgDir) { Remove-Item -Recurse -Force $pkgDir }
-          New-Item -ItemType Directory -Force -Path $pkgDir
-          Copy-Item dist/ResearchStudio.exe $pkgDir/
-          Copy-Item stop.bat $pkgDir/
-          Copy-Item .env.example $pkgDir/
-          Copy-Item はじめにお読みください.txt $pkgDir/
-          Compress-Archive -Path "$pkgDir/*" -DestinationPath dist/ResearchStudio-win.zip -Force
+        run: node scripts/package-release.js
 
       - name: Create or Update GitHub Release and Upload Assets
         uses: softprops/action-gh-release@v2
