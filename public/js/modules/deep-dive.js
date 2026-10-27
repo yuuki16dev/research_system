@@ -16,6 +16,68 @@ export const deepDiveState = {
   isQuerying: false, // 深掘りAI問い合わせ実行中フラグ
 };
 
+/**
+ * レポートデータからAIが質問の文脈を正確に把握できる構造化コンテキスト（最大約1500文字）を生成
+ */
+export function buildReportStructuredContext(result) {
+  if (!result) return '';
+  const parts = [];
+
+  // 1. 基本情報
+  if (result.title) parts.push(`【レポート表題】${result.title}`);
+  if (result.theme && result.theme !== result.title) parts.push(`【調査テーマ】${result.theme}`);
+
+  // 2. エグゼクティブサマリー
+  if (result.summary) {
+    const summaryText = result.summary.length > 400 ? `${result.summary.slice(0, 400)}…` : result.summary;
+    parts.push(`【エグゼクティブサマリー】\n${summaryText}`);
+  }
+
+  // 3. 重要数値・KPI (metrics)
+  if (Array.isArray(result.metrics) && result.metrics.length > 0) {
+    const metricLines = result.metrics.slice(0, 5).map(m => {
+      const val = m.value ? `: ${m.value}` : '';
+      const chg = m.change ? ` (${m.change})` : '';
+      return `・${m.label || m.name || '指標'}${val}${chg}`;
+    });
+    parts.push(`【重要数値・主要KPI】\n${metricLines.join('\n')}`);
+  }
+
+  // 4. 比較・構造化テーブル (table)
+  if (result.table && Array.isArray(result.table.headers) && Array.isArray(result.table.rows) && result.table.rows.length > 0) {
+    const headers = result.table.headers.slice(0, 5).join(' | ');
+    const rowLines = result.table.rows.slice(0, 4).map(r => {
+      const cells = Array.isArray(r) ? r : Object.values(r);
+      return cells.slice(0, 5).join(' | ');
+    });
+    parts.push(`【比較マトリクス表】\n| ${headers} |\n${rowLines.map(r => `| ${r} |`).join('\n')}`);
+  }
+
+  // 5. 主要インサイト (insights)
+  if (Array.isArray(result.insights) && result.insights.length > 0) {
+    const insightLines = result.insights.slice(0, 3).map((ins, i) => {
+      const title = typeof ins === 'string' ? ins : (ins.title || ins.heading || `インサイト${i + 1}`);
+      const desc = typeof ins === 'object' && ins.description ? ` - ${ins.description.slice(0, 100)}` : '';
+      return `・${title}${desc}`;
+    });
+    parts.push(`【主要インサイト】\n${insightLines.join('\n')}`);
+  }
+
+  // 6. 各セクションの見出し一覧
+  if (Array.isArray(result.sections) && result.sections.length > 0) {
+    const secLines = result.sections.slice(0, 6).map(s => `・${s.heading || s.title || ''}`);
+    parts.push(`【章立て・セクション】\n${secLines.join('\n')}`);
+  }
+
+  // 7. 要点 (keyPoints)
+  if (Array.isArray(result.keyPoints) && result.keyPoints.length > 0) {
+    parts.push(`【キーポイント】\n${result.keyPoints.slice(0, 4).map(k => `・${k}`).join('\n')}`);
+  }
+
+  const fullText = parts.join('\n\n');
+  return fullText.length > 1500 ? `${fullText.slice(0, 1500)}…` : fullText;
+}
+
 export function bindDeepDiveDrawer() {
   const btnOpen = $('#btn-open-deepdive');
   const themeMini = $('#dd-theme-title');
@@ -332,12 +394,23 @@ export function bindDeepDiveDrawer() {
     clearQuote();
 
     try {
+      // 直近の対話履歴を最大4件抽出（マルチターン対話コンテキスト）
+      const chatHistory = deepDiveState.history.slice(-4).map((h) => ({
+        question: h.originalQuestion || h.question,
+        answer: h.answer ? (h.answer.length > 250 ? `${h.answer.slice(0, 250)}…` : h.answer) : '',
+        quote: h.quote || '',
+      }));
+
+      // レポート全体の構造化コンテキスト（サマリー、KPI、比較表、主要インサイト等）
+      const reportContext = buildReportStructuredContext(appState.currentResult);
+
       const res = await api.deepDive({
         theme: appState.currentResult.theme,
         question,
-        reportContext: appState.currentResult.summary || '',
+        reportContext,
         period: appState.currentResult.period || 'year',
         quote: sentQuote || '',
+        chatHistory,
       });
 
       const entry = {

@@ -158,18 +158,18 @@ test('integration: /api/research accepts new styles (tech, brief, decision, acad
   });
 });
 
-test('integration: /api/research/deep-dive handles question answering', async () => {
+test('integration: /api/research/deep-dive handles question answering with multi-turn chatHistory and structured context', async () => {
   await runWithServer(async (url) => {
     const res = await fetch(`${url}/api/research/deep-dive`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         theme: 'テストテーマ',
-        question: '要点を簡潔に教えてください',
-        reportContext: {
-          title: 'テストレポート',
-          summary: 'テスト用の要約文です。',
-        },
+        question: 'それの具体的な費用感を教えてください',
+        reportContext: '【レポート表題】テストレポート\n【主要KPI】市場規模: 500億円\n【主要インサイト】導入初期コストが低減傾向にある',
+        chatHistory: [
+          { question: '推奨されるクラウド移行プランは？', answer: 'ハイブリッドクラウド構成が推奨されます。' }
+        ],
       }),
     });
     assert.strictEqual(res.status, 200);

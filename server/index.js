@@ -384,11 +384,11 @@ app.post('/api/research/:id/cancel', (req, res) => {
 });
 
 app.post('/api/research/deep-dive', async (req, res) => {
-  const { theme, question, reportContext, period, quote } = req.body || {};
+  const { theme, question, reportContext, period, quote, chatHistory } = req.body || {};
   if (!theme || !question) return res.status(400).json({ error: 'theme と question は必須です' });
-  console.log(`[深掘り対話] 質問: "${question.slice(0, 35)}..." を受信`);
+  console.log(`[深掘り対話] 質問: "${question.slice(0, 35)}..." を受信 (履歴: ${Array.isArray(chatHistory) ? chatHistory.length : 0}件)`);
   try {
-    const result = await deepdive.runDeepDive({ theme, question, reportContext, period, quote });
+    const result = await deepdive.runDeepDive({ theme, question, reportContext, period, quote, chatHistory });
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message || '深掘り調査に失敗しました' });
