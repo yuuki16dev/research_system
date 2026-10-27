@@ -353,6 +353,21 @@
                   </div>
                 </fieldset>
 
+                <fieldset class="option-group authority-group">
+                  <div class="period-header">
+                    <legend class="field-label"><span data-icon="shield"></span>ソース信頼性フィルター</legend>
+                    <span class="period-rec-tag"><span data-icon="sparkles"></span>公的・IR優先</span>
+                  </div>
+                  <label class="toggle-control-label" for="check-authoritative">
+                    <input type="checkbox" id="check-authoritative" name="authoritative" />
+                    <span class="toggle-control-switch"></span>
+                    <span class="toggle-control-text">
+                      <strong>🏛️ 一次情報・公的データを優先</strong>
+                      <small>官公庁白書（.go.jp）、大学研究（.ac.jp）、企業公式IR・決算開示を優先し、まとめ・アフィリエイト系記事を排除</small>
+                    </span>
+                  </label>
+                </fieldset>
+
                 <fieldset class="option-group context-group">
                   <legend class="field-label"><span data-icon="file-text"></span>手元の参考資料・前提メモ（任意）</legend>
                   <textarea id="reference-context-input" name="referenceContext" class="input input-textarea-sm" rows="2" maxlength="3000" placeholder="手持ちの機能リスト、自社サービス概要、比較したい特定URLや前提条件を貼り付けると、Web情報と掛け合わせて分析します"></textarea>
@@ -456,11 +471,14 @@
           </div>
           <div class="export-actions-grouped">
             <div class="export-primary-group">
-              <button type="button" class="btn btn-primary btn-sm btn-export-highlight" id="btn-pdf" title="デザイン済み商用レポートPDFをプレビュー・出力">
-                <span data-icon="file-text"></span><span>PDFで保存</span>
+              <button type="button" class="btn btn-primary btn-sm btn-export-highlight" id="btn-export-hub" title="目的別の形式（A4縦・横PDF、PowerPoint、Excel）を選んで書き出し">
+                <span data-icon="download"></span><span>書き出し</span>
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-pdf" title="デザイン済み商用レポートPDFをプレビュー・出力">
+                <span data-icon="file-text"></span><span>PDF</span>
               </button>
               <button type="button" class="btn btn-secondary btn-sm" id="btn-xlsx" title="Excel (.xlsx) 出力">
-                <span data-icon="sheet"></span><span>Excel出力</span>
+                <span data-icon="sheet"></span><span>Excel</span>
               </button>
               <button type="button" class="btn btn-outline btn-sm btn-edit-toggle" id="btn-toggle-edit" title="レポートの文章やタイトルを直接画面上で推敲・編集">
                 <span data-icon="edit"></span><span id="btn-toggle-edit-label">直接編集</span>
@@ -576,7 +594,7 @@
     </main>
 
     <footer class="footer">
-      <span id="footer-version">Research Studio v1.13.0</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span><span class="sep">·</span><a href="https://github.com/yuuki16dev/research_system/issues" target="_blank" rel="noopener" class="footer-link"><span data-icon="github"></span>GitHubでお問い合わせ</a>
+      <span id="footer-version">Research Studio v1.14.0</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span><span class="sep">·</span><a href="https://github.com/yuuki16dev/research_system/issues" target="_blank" rel="noopener" class="footer-link"><span data-icon="github"></span>GitHubでお問い合わせ</a>
     </footer>
   </div>
 
@@ -585,7 +603,7 @@
     <div class="modal-backdrop" data-close></div>
     <div class="modal-card glass">
       <header class="modal-head">
-        <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v1.13.0</small></h2>
+        <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v1.14.0</small></h2>
         <div style="display: flex; gap: 8px; align-items: center; margin-left: auto;">
           <button class="btn btn-ghost btn-sm" type="button" id="btn-settings-changelog" title="アップデート履歴 &amp; リリースノート"><span data-icon="book-open"></span><span class="label">更新履歴</span></button>
           <button class="btn btn-ghost btn-sm" type="button" id="btn-open-guide-from-settings" title="APIキー取得ガイド &amp; GitHubお問い合わせ"><span data-icon="help-circle"></span><span class="label">ガイド・問い合わせ</span></button>
@@ -1209,6 +1227,72 @@
         </div>
       </div>
 
+      <footer class="modal-foot" style="display: flex; justify-content: flex-end;">
+        <button class="btn btn-ghost" data-close type="button">閉じる</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- ================================================= EXPORT HUB MODAL -->
+  <div class="modal" id="modal-export-hub" role="dialog" aria-modal="true" aria-labelledby="export-hub-title" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card modal-lg glass">
+      <header class="modal-head">
+        <h2 id="export-hub-title"><span data-icon="download"></span>レポート書き出しハブ</h2>
+        <button class="btn btn-ghost btn-icon" type="button" data-close aria-label="閉じる"><span data-icon="x"></span></button>
+      </header>
+      <div class="modal-body">
+        <p class="export-hub-intro">提出先や用途に応じて最適なフォーマットを選択してワンクリックで書き出せます。</p>
+        <div class="export-hub-grid">
+          <!-- 1. A4縦ペーパー型PDF -->
+          <div class="export-hub-card" id="eh-card-pdf-portrait">
+            <div class="eh-card-badge">役員提出・稟議</div>
+            <div class="eh-card-icon">📄</div>
+            <h3>A4縦 意思決定ペーパー (PDF)</h3>
+            <p>1枚目で結論・推奨案・主要KPIを総括し、2〜3枚目で詳細を深掘りする公式報告書。</p>
+            <div class="eh-card-meta"><span>A4縦</span><span>3ページ</span><span>高密度印刷対応</span></div>
+            <button type="button" class="btn btn-primary btn-block" id="btn-eh-pdf-portrait">
+              <span data-icon="file-text"></span>この形式で書き出し
+            </button>
+          </div>
+
+          <!-- 2. A4横スライド型PDF -->
+          <div class="export-hub-card" id="eh-card-pdf-landscape">
+            <div class="eh-card-badge">勉強会・プレゼン</div>
+            <div class="eh-card-icon">🖥️</div>
+            <h3>A4横 ビジュアルスライド (PDF)</h3>
+            <p>1スライド1メッセージの視覚的構成。大画面プロジェクターやZoom共有に最適。</p>
+            <div class="eh-card-meta"><span>A4横</span><span>スライド形式</span><span>画面共有に最適</span></div>
+            <button type="button" class="btn btn-primary btn-block" id="btn-eh-pdf-landscape">
+              <span data-icon="layers"></span>この形式で書き出し
+            </button>
+          </div>
+
+          <!-- 3. PowerPoint (.pptx) -->
+          <div class="export-hub-card" id="eh-card-pptx">
+            <div class="eh-card-badge">自由編集・加筆</div>
+            <div class="eh-card-icon">📊</div>
+            <h3>PowerPoint プレゼン (.pptx)</h3>
+            <p>Microsoft PowerPointで開いて加筆・修正可能。文字量に応じた自動縮小調整済み。</p>
+            <div class="eh-card-meta"><span>.pptx</span><span>自動フォント縮小</span><span>自由編集可</span></div>
+            <button type="button" class="btn btn-secondary btn-block" id="btn-eh-pptx">
+              <span data-icon="monitor"></span>PowerPointで保存
+            </button>
+          </div>
+
+          <!-- 4. Excel (.xlsx) -->
+          <div class="export-hub-card" id="eh-card-xlsx">
+            <div class="eh-card-badge">データ・再集計</div>
+            <div class="eh-card-icon">📈</div>
+            <h3>Excel 商用スプレッドシート (.xlsx)</h3>
+            <p>ExcelJSエンジンによる美しいカラーリングとKPIダッシュボード、列幅自動調整済み。</p>
+            <div class="eh-card-meta"><span>.xlsx</span><span>ExcelJS商用品質</span><span>比較表つき</span></div>
+            <button type="button" class="btn btn-secondary btn-block" id="btn-eh-xlsx">
+              <span data-icon="sheet"></span>Excelで保存
+            </button>
+          </div>
+        </div>
+      </div>
       <footer class="modal-foot" style="display: flex; justify-content: flex-end;">
         <button class="btn btn-ghost" data-close type="button">閉じる</button>
       </footer>

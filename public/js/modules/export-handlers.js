@@ -2,7 +2,7 @@
 // エクスポート & PDFプレビュー & スライド推敲 (Export Actions & PDF Modal)
 // ==========================================================================
 
-import { $, toast, copyText, downloadBlob, safeFilename, openModal } from '../ui.js';
+import { $, toast, copyText, downloadBlob, safeFilename, openModal, closeModal } from '../ui.js';
 import {
   buildClaudePrompt,
   buildMarkdown,
@@ -34,6 +34,55 @@ function getBrandConfig() {
 
 /** エクスポートボタン類のイベントバインド */
 export function bindExportActions(onOpenHistory) {
+  // エクスポートハブ・モーダル開閉
+  const btnExportHub = $('#btn-export-hub');
+  if (btnExportHub) {
+    btnExportHub.addEventListener('click', () => {
+      if (!appState.currentResult) return;
+      openModal('modal-export-hub');
+    });
+  }
+
+  // ハブ内 1. A4縦ペーパー型PDF
+  const btnEhPdfPortrait = $('#btn-eh-pdf-portrait');
+  if (btnEhPdfPortrait) {
+    btnEhPdfPortrait.addEventListener('click', () => {
+      if (!appState.currentResult) return;
+      closeModal('modal-export-hub');
+      openPdfPreview(appState.currentResult, getBrandConfig(), 'decision-brief');
+    });
+  }
+
+  // ハブ内 2. A4横スライド型PDF
+  const btnEhPdfLandscape = $('#btn-eh-pdf-landscape');
+  if (btnEhPdfLandscape) {
+    btnEhPdfLandscape.addEventListener('click', () => {
+      if (!appState.currentResult) return;
+      closeModal('modal-export-hub');
+      openPdfPreview(appState.currentResult, getBrandConfig(), 'slide-deck');
+    });
+  }
+
+  // ハブ内 3. PowerPoint (.pptx)
+  const btnEhPptx = $('#btn-eh-pptx');
+  if (btnEhPptx) {
+    btnEhPptx.addEventListener('click', async () => {
+      if (!appState.currentResult) return;
+      closeModal('modal-export-hub');
+      exportPowerPoint(appState.currentResult, getBrandConfig());
+    });
+  }
+
+  // ハブ内 4. Excel (.xlsx)
+  const btnEhXlsx = $('#btn-eh-xlsx');
+  if (btnEhXlsx) {
+    btnEhXlsx.addEventListener('click', async () => {
+      if (!appState.currentResult) return;
+      closeModal('modal-export-hub');
+      exportExcel(appState.currentResult, getBrandConfig());
+    });
+  }
+
   // Claude用プロンプトのコピー
   const btnPrompt = $('#btn-copy-prompt');
   if (btnPrompt) {
@@ -493,13 +542,13 @@ export function bindPdfPreviewModal() {
   }
 }
 
-export function openPdfPreview(data, publisher) {
+export function openPdfPreview(data, publisher, forceTemplate = null) {
   const stageInner = $('#pdf-stage-inner');
   if (!stageInner) return;
 
-  // AI最適テンプレートの自動判定と初期選択
+  // AI最適テンプレートの自動判定と初期選択（forceTemplate指定時はそれを優先）
   const rec = resolveOptimalPdfTemplate(data);
-  currentPdfTemplate = rec.template;
+  currentPdfTemplate = forceTemplate || rec.template;
 
   const tplSelect = $('#pdf-template-select');
   if (tplSelect) tplSelect.value = currentPdfTemplate;

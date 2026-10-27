@@ -8570,6 +8570,200 @@ body.dd-expanded {
   box-sizing: border-box;
 }
 
+/* ==========================================================================
+   v1.14.0 ソース信頼性トグルスイッチ (Authoritative Filter Switch)
+   ========================================================================== */
+.authority-group {
+  margin-top: 10px;
+}
+
+.toggle-control-label {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.toggle-control-label:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(99, 102, 241, 0.4);
+}
+
+.toggle-control-label input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-control-switch {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 24px;
+  flex-shrink: 0;
+  transition: background 0.25s ease;
+}
+
+.toggle-control-switch::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  background: #ffffff;
+  border-radius: 50%;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.toggle-control-label input[type="checkbox"]:checked + .toggle-control-switch {
+  background: linear-gradient(135deg, #4f46e5, #06b6d4);
+}
+
+.toggle-control-label input[type="checkbox"]:checked + .toggle-control-switch::after {
+  transform: translateX(20px);
+}
+
+.toggle-control-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.toggle-control-text strong {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-1);
+}
+
+.toggle-control-text small {
+  font-size: 11.5px;
+  color: var(--text-2);
+  line-height: 1.4;
+}
+
+/* ==========================================================================
+   v1.14.0 レポート書き出しハブ (Export Hub Modal)
+   ========================================================================== */
+.export-hub-intro {
+  font-size: 13.5px;
+  color: var(--text-2);
+  margin: 0 0 18px;
+}
+
+.export-hub-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.export-hub-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.export-hub-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(99, 102, 241, 0.5);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.eh-card-badge {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 10.5px;
+  font-weight: 700;
+  background: rgba(99, 102, 241, 0.2);
+  color: #a5b4fc;
+  border: 1px solid rgba(99, 102, 241, 0.35);
+}
+
+.eh-card-icon {
+  font-size: 32px;
+  margin-bottom: 12px;
+  line-height: 1;
+}
+
+.export-hub-card h3 {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0 0 8px;
+  color: var(--text-1);
+}
+
+.export-hub-card p {
+  font-size: 12px;
+  color: var(--text-2);
+  line-height: 1.5;
+  margin: 0 0 16px;
+  flex-grow: 1;
+}
+
+.eh-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.eh-card-meta span {
+  font-size: 10.5px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-2);
+}
+
+/* ==========================================================================
+   v1.14.0 深掘り知見のレポート統合ボタン (Deep Dive Report Merge Buttons)
+   ========================================================================== */
+.btn-merge-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  background: rgba(99, 102, 241, 0.12);
+  color: #c7d2fe;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-merge-action:hover {
+  background: rgba(99, 102, 241, 0.25);
+  border-color: rgba(99, 102, 241, 0.6);
+  color: #ffffff;
+}
+
+.btn-merge-action.merged {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.4);
+  color: #6ee7b7;
+  cursor: default;
+}
+
+
 
 
 

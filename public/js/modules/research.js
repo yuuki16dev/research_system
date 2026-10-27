@@ -335,14 +335,16 @@ export function bindFormControls() {
   const btnToggleOptions = $('#btn-toggle-options');
   const optionsAccordion = $('#options-accordion');
   const optionsSummaryTag = $('#options-summary-tag');
+  const checkAuthoritative = $('#check-authoritative');
 
   function updateOptionsSummaryTag() {
     if (!optionsSummaryTag) return;
     const scopeVal = ($('input[name="scope"]:checked') || {}).value || 'web';
     const periodVal = ($('input[name="period"]:checked') || {}).value || 'year';
+    const isAuth = !!(checkAuthoritative && checkAuthoritative.checked);
     const scopeNames = { web: 'Web全体', sns: 'SNS・トレンド', sites: '特定サイト' };
     const periodNames = { year: '直近1年', month: '直近1ヶ月', '3years': '直近3年', all: '全期間', custom: '年代指定' };
-    optionsSummaryTag.textContent = `${scopeNames[scopeVal] || 'Web全体'} · ${periodNames[periodVal] || '直近1年'}`;
+    optionsSummaryTag.textContent = `${scopeNames[scopeVal] || 'Web全体'} · ${periodNames[periodVal] || '直近1年'}${isAuth ? ' · 一次情報優先' : ''}`;
   }
 
   if (btnToggleOptions && optionsAccordion) {
@@ -356,6 +358,7 @@ export function bindFormControls() {
 
   scopeRadios.forEach((r) => r.addEventListener('change', updateOptionsSummaryTag));
   periodRadios.forEach((r) => r.addEventListener('change', updateOptionsSummaryTag));
+  if (checkAuthoritative) checkAuthoritative.addEventListener('change', updateOptionsSummaryTag);
   updateOptionsSummaryTag();
 
   // フォーム送信
@@ -389,8 +392,9 @@ export function bindFormControls() {
       : 'auto';
     const customPurpose = ($('#custom-style-input') && $('#custom-style-input').value.trim()) || '';
     const referenceContext = ($('#reference-context-input') && $('#reference-context-input').value.trim()) || '';
+    const authoritative = !!(checkAuthoritative && checkAuthoritative.checked);
 
-    await startResearch({ theme, scope, depth, sites, period, customPeriod, purpose, focus, customPurpose, referenceContext });
+    await startResearch({ theme, scope, depth, sites, period, customPeriod, purpose, focus, customPurpose, referenceContext, authoritative });
   });
 
   // 中止ボタンのバインド（プログレス内・フォーム内・トップバー内）
@@ -550,6 +554,13 @@ export async function startResearch(params) {
   }
   clearInterval(appState.timerInterval);
   appState.timerInterval = null;
+
+  // 初回リサーチ時にブラウザ完了通知の許可を静かに確認・要求
+  if ('Notification' in window && Notification.permission === 'default') {
+    try {
+      Notification.requestPermission();
+    } catch {}
+  }
 
   appState.isFinishing = false;
   appState.lastParams = params;
@@ -798,6 +809,7 @@ export function finishSuccess(resultData) {
   resultsSection.scrollIntoView({ behavior: 'smooth' });
 
   toast('リサーチが完了しました！', 'success');
+  notifyResearchComplete(resultData);
   loadRecentHistory();
 }
 
@@ -893,3 +905,81 @@ export function finishError(msg) {
 
   toast(diag.title, 'error');
 }
+
+/**
+ * バックグラウンド完了通知（ブラウザ通知、タブタイトル点滅、澄んだ完了チャイム）
+ */
+function notifyResearchComplete(resultData) {
+  const title = (resultData && (resultData.title || resultData.theme)) || 'リサーチ';
+
+  // 1. Web Audio API による澄んだ完了チャイム（外部ファイル不要）
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (AudioCtx) {
+      const ctx = new AudioCtx();
+      const now = ctx.currentTime;
+      // 1音目: E5 (659Hz)
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(659.25, now);
+      gain1.gain.setValueAtTime(0.08, now);
+      gain1.gain.exponentialRampToValueAtTime(0.0001, now + 0.35);
+      osc1.connect(gain1);
+      gain1.connect(ctx.destination);
+      osc1.start(now);
+      osc1.stop(now + 0.35);
+
+      // 2音目: A5 (880Hz)
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(880, now + 0.12);
+      gain2.gain.setValueAtTime(0.12, now + 0.12);
+      gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.55);
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+      osc2.start(now + 0.12);
+      osc2.stop(now + 0.55);
+    }
+  } catch {}
+
+  // 2. ブラウザデスクトップ通知 (Web Notification API)
+  if ('Notification' in window && Notification.permission === 'granted') {
+    try {
+      const notif = new Notification('リサーチ完了 | Research Studio', {
+        body: `「${title}」の調査レポートが完成しました。`,
+        icon: '/favicon.ico',
+        tag: 'research-complete',
+      });
+      notif.onclick = () => {
+        window.focus();
+        notif.close();
+      };
+    } catch {}
+  }
+
+  // 3. 非アクティブ時のタブタイトル点滅
+  if (document.hidden) {
+    const originalTitle = document.title;
+    let flashCount = 0;
+    const flashInterval = setInterval(() => {
+      flashCount++;
+      document.title = flashCount % 2 === 0 ? `【完了!】${title.slice(0, 20)}` : originalTitle;
+      if (flashCount >= 10 || !document.hidden) {
+        clearInterval(flashInterval);
+        document.title = originalTitle;
+      }
+    }, 1000);
+
+    const onVisible = () => {
+      if (!document.hidden) {
+        clearInterval(flashInterval);
+        document.title = originalTitle;
+        document.removeEventListener('visibilitychange', onVisible);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+  }
+}
+

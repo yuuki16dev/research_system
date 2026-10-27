@@ -597,6 +597,39 @@ test('v1.12.0 dual pdf templates and commercial excel engine consistency', () =>
   assert.ok(excelJs.includes('transformDataToExcelFormat'), 'server/excel.js must export transformDataToExcelFormat');
 });
 
+test('v1.14.0 authoritative mode, export hub, and completion notifications consistency', () => {
+  // 1. DOM Elements in public/index.html
+  const html = fs.readFileSync(path.join(ROOT, 'public', 'index.html'), 'utf8');
+  assert.ok(html.includes('id="check-authoritative"'), 'index.html must include #check-authoritative switch');
+  assert.ok(html.includes('id="btn-export-hub"'), 'index.html must include #btn-export-hub in export bar');
+  assert.ok(html.includes('id="modal-export-hub"'), 'index.html must include #modal-export-hub modal');
+  assert.ok(html.includes('id="btn-eh-pdf-portrait"'), 'modal-export-hub must include portrait PDF export button');
+  assert.ok(html.includes('id="btn-eh-pdf-landscape"'), 'modal-export-hub must include landscape PDF export button');
+  assert.ok(html.includes('id="btn-eh-pptx"'), 'modal-export-hub must include PowerPoint export button');
+  assert.ok(html.includes('id="btn-eh-xlsx"'), 'modal-export-hub must include Excel export button');
+
+  // 2. CSS Rules in public/css/styles.css
+  const styles = fs.readFileSync(path.join(ROOT, 'public', 'css', 'styles.css'), 'utf8');
+  assert.ok(styles.includes('.toggle-control-switch'), 'styles.css must style .toggle-control-switch');
+  assert.ok(styles.includes('.export-hub-grid'), 'styles.css must style .export-hub-grid');
+  assert.ok(styles.includes('.btn-merge-action'), 'styles.css must style .btn-merge-action');
+
+  // 3. Backend pipeline authoritative mode in server/pipeline.js
+  const pipelineJs = fs.readFileSync(path.join(ROOT, 'server', 'pipeline.js'), 'utf8');
+  assert.ok(pipelineJs.includes('isAuthoritative'), 'server/pipeline.js must support isAuthoritative mode');
+  assert.ok(pipelineJs.includes('getDomainAuthorityScore'), 'server/pipeline.js must calculate domain authority score');
+
+  // 4. Research module notification in public/js/modules/research.js
+  const researchJs = fs.readFileSync(path.join(ROOT, 'public', 'js', 'modules', 'research.js'), 'utf8');
+  assert.ok(researchJs.includes('notifyResearchComplete'), 'research.js must define notifyResearchComplete');
+  assert.ok(researchJs.includes('checkAuthoritative'), 'research.js must handle checkAuthoritative toggle');
+
+  // 5. Deepdive summary merge in public/js/modules/deep-dive.js
+  const deepdiveJs = fs.readFileSync(path.join(ROOT, 'public', 'js', 'modules', 'deep-dive.js'), 'utf8');
+  assert.ok(deepdiveJs.includes('data-merge-summary-idx'), 'deep-dive.js must support merge-summary action');
+});
+
+
 
 
 

@@ -451,7 +451,10 @@ export function bindDeepDiveDrawer() {
           }
           <div class="dd-actions">
             <button type="button" class="btn-add-to-report" data-add-dd-idx="${entryIdx}">
-              <span data-icon="plus"></span>この回答をレポートに追加
+              <span data-icon="plus"></span>末尾に追加
+            </button>
+            <button type="button" class="btn-merge-action" data-merge-summary-idx="${entryIdx}" title="この知見をエグゼクティブサマリーに追記統合">
+              <span data-icon="file-text"></span>サマリーに統合
             </button>
             <button type="button" class="btn btn-ghost btn-sm" data-copy-dd="${entryIdx}">
               <span data-icon="copy"></span>コピー
@@ -475,6 +478,49 @@ export function bindDeepDiveDrawer() {
         });
       }
 
+      // サマリーに統合ボタン
+      const mergeSummaryBtn = aiMsgEl.querySelector(`[data-merge-summary-idx="${entryIdx}"]`);
+      if (mergeSummaryBtn) {
+        mergeSummaryBtn.addEventListener('click', async () => {
+          if (mergeSummaryBtn.classList.contains('merged')) return;
+          mergeSummaryBtn.classList.add('merged');
+          mergeSummaryBtn.innerHTML = `<span data-icon="check"></span>サマリー統合済`;
+          hydrateIcons(mergeSummaryBtn);
+
+          // サマリー末尾に追記
+          const addition = `【追加調査知見: ${question}】\n${res.answer}`;
+          appState.currentResult.summary = appState.currentResult.summary
+            ? `${appState.currentResult.summary}\n\n${addition}`
+            : addition;
+
+          // キーポイントも統合
+          if (res.keyPoints && res.keyPoints.length) {
+            appState.currentResult.keyPoints = appState.currentResult.keyPoints || [];
+            res.keyPoints.forEach((kp) => {
+              if (!appState.currentResult.keyPoints.includes(kp)) {
+                appState.currentResult.keyPoints.push(`【深掘り】${kp}`);
+              }
+            });
+          }
+
+          // 再描画
+          renderReport(appState.currentResult, $('#report'));
+          bindReportDeepDiveActions();
+
+          // 履歴ストレージに永続保存
+          if (appState.currentResult.id) {
+            try {
+              await api.patchHistory(appState.currentResult.id, {
+                summary: appState.currentResult.summary,
+                keyPoints: appState.currentResult.keyPoints,
+              });
+            } catch {}
+          }
+
+          toast('深掘り知見をエグゼクティブサマリーに統合しました！（PDF・PPTX出力にも同期されます）', 'success');
+        });
+      }
+
       // レポートに追加ボタン
       const addBtn = aiMsgEl.querySelector(`[data-add-dd-idx="${entryIdx}"]`);
       if (addBtn) {
@@ -482,7 +528,7 @@ export function bindDeepDiveDrawer() {
           if (entry.added) return;
           entry.added = true;
           addBtn.classList.add('added');
-          addBtn.innerHTML = `<span data-icon="check"></span>レポートに追加済み`;
+          addBtn.innerHTML = `<span data-icon="check"></span>追加済み`;
           hydrateIcons(addBtn);
 
           // レポートデータへ統合（引用付きで記録）

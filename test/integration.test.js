@@ -21,7 +21,7 @@ async function runWithServer(callback) {
   const url = `http://localhost:${testPort}`;
 
   let ready = false;
-  for (let i = 0; i < 60; i++) {
+  for (let i = 0; i < 80; i++) {
     await new Promise((r) => setTimeout(r, 200));
     try {
       const res = await fetch(`${url}/api/info`);
@@ -37,7 +37,12 @@ async function runWithServer(callback) {
   try {
     await callback(url);
   } finally {
-    try { child.kill('SIGINT'); } catch {}
+    try {
+      child.kill('SIGINT');
+      if (process.platform === 'win32' && child.pid) {
+        try { child.kill('SIGKILL'); } catch {}
+      }
+    } catch {}
   }
 }
 

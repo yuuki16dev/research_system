@@ -185,7 +185,14 @@ async function runLive(p, s, ctx) {
     focusInstruction = '【分析フォーカス: AI自動最適化】このテーマを調査する読者が「最も知りたい核心的な問い」「最も納得感を得られる論理構造」をAIが深く推論し、テーマに特化した独自の動的分析見出し・構造を自動設計してください。';
   }
 
-  ctx.log(`AI多角クエリ展開 ＆ 動的分析構造の設計中（フォーカス: ${FOCUS_LABELS[focus] || '自動最適化'} / 期間: ${dateParams.label}）…`, 'plan');
+  const isAuthoritative = !!p.authoritative;
+  let authoritativeInstruction = '';
+  if (isAuthoritative) {
+    authoritativeInstruction = '【最重要: 一次情報・公的データ優先モード】個人ブログやアフィリエイト・キュレーションまとめサイトを徹底排除してください。官公庁（省庁白書・公的統計）、学術・研究機関（大学・J-STAGE・研究所）、企業公式IR（決算説明資料・有価証券報告書）、業界団体の一次データを最優先で収集できるクエリを半数以上含めてください。';
+    ctx.log('🏛️ 一次情報・公的データ優先モードが有効: 官公庁(.go.jp)・学術(.ac.jp)・企業IR等の一次ソースを優先', 'plan');
+  }
+
+  ctx.log(`AI多角クエリ展開 ＆ 動的分析構造の設計中（フォーカス: ${FOCUS_LABELS[focus] || '自動最適化'} / 期間: ${dateParams.label}${isAuthoritative ? ' / 一次情報優先' : ''}）…`, 'plan');
   const nQ = deep ? 7 : 4;
   const nHeadings = deep ? '4〜5' : '3〜4';
   const plan = await ai(
@@ -194,6 +201,7 @@ async function runLive(p, s, ctx) {
       `${urlDirectInstruction ? urlDirectInstruction + '\n' : ''}` +
       `${purposeInstruction}\n` +
       `${focusInstruction}\n` +
+      `${authoritativeInstruction ? authoritativeInstruction + '\n' : ''}` +
       `${periodInstruction}\n` +
       `- 日本語クエリを中心に、世界的・海外事例が有用なら英語クエリを1〜2個含める\n` +
       `- 視点を分散させる（①最新動向/市場、②料金・具体的数値、③導入事例・代表サービス、④課題・失敗・リスク等）\n` +
@@ -337,11 +345,21 @@ async function runLive(p, s, ctx) {
   }
 
 
+  // 一次情報・公的データ優先モード時のドメイン信頼度スコアリング
+  function getDomainAuthorityScore(url) {
+    if (!isAuthoritative) return 0;
+    const u = (url || '').toLowerCase();
+    if (/\.(go\.jp|gov|ac\.jp|edu|or\.jp|org|jpx\.co\.jp)/.test(u)) return 4;
+    if (/(ir|release|news|corporate|investor|report|whitepaper|stat|soumu|meti|mhlw|e-stat)/.test(u)) return 2;
+    if (/(matome|blog|affiliate|ranking|osusume|wiki)/.test(u)) return -2;
+    return 1;
+  }
+
   // ラウンドロビンで重複除去しながら統合（特定クエリへの偏りを防ぐ）
   const limit = deep ? 22 : 14;
   const seen = new Set();
-  const sources = [];
-  for (let round = 0; sources.length < limit; round++) {
+  const rawSources = [];
+  for (let round = 0; rawSources.length < limit * 2; round++) {
     let any = false;
     for (const b of buckets) {
       const r = b[round];
@@ -350,11 +368,17 @@ async function runLive(p, s, ctx) {
       const key = r.url.replace(/[#?].*$/, '').replace(/\/$/, '');
       if (seen.has(key)) continue;
       seen.add(key);
-      sources.push({ ...r, type: p.scope === 'sns' ? 'sns' : 'web' });
-      if (sources.length >= limit) break;
+      rawSources.push({ ...r, type: p.scope === 'sns' ? 'sns' : 'web' });
     }
     if (!any) break;
   }
+
+  let sources = rawSources;
+  if (isAuthoritative) {
+    sources.sort((a, b) => getDomainAuthorityScore(b.url) - getDomainAuthorityScore(a.url));
+  }
+  sources = sources.slice(0, limit);
+
   ctx.progress(55, 'search');
   if (!sources.length) {
     if (provider === 'duckduckgo') {
@@ -365,7 +389,9 @@ async function runLive(p, s, ctx) {
       ctx.log('検索結果が0件でした。AIの知識ベースで続行します', 'warn');
     }
   } else {
-    ctx.log(`重複を除いた ${sources.length} 件のソースを解析対象に選定`, 'ok');
+    const authCount = isAuthoritative ? sources.filter((s) => getDomainAuthorityScore(s.url) >= 2).length : 0;
+    const authNote = isAuthoritative ? `（公的・企業公式・学術ソース: ${authCount}件を優先抽出）` : '';
+    ctx.log(`重複を除いた ${sources.length} 件のソースを解析対象に選定 ${authNote}`, 'ok');
   }
 
   /* ---- 4. ページ解析 */
