@@ -228,3 +228,22 @@ test('pdf generation: generatePdfFromHtml produces substantial non-blank PDF fil
   assert.ok(paperSize > 8000, `Paper PDF must not be blank (got ${paperSize} bytes)`);
 });
 
+test('dual templates: buildDecisionBriefHtml dynamically applies is-long class and prevents footer collision', () => {
+  const longData = {
+    title: '次世代判断特化AIモデル「Jev」の技術特性と実装アーキテクチャ分析（長期的なTCOとROI評価を含む）',
+    theme: 'AIモデル Jev',
+    summary: 'JevBench等の標準指標を用いてCloudflare ClefやLLM-as-Jev等のオープン代替案を継続的に計測・評価し、タスク要件に応じた動的モデル切り替え体制を整備することが望ましい。先行パイロットで効果を検証した上での段階的展開を推奨する。',
+  };
+
+  const html = buildDecisionBriefHtml(longData);
+  assert.ok(html.includes('mh-title is-long'), 'Must apply is-long class to long titles');
+  assert.ok(html.includes('verdict-text is-long'), 'Must apply is-long class to long summaries');
+
+  const fs = require('fs');
+  const printCss = fs.readFileSync(path.join(ROOT, 'public', 'css', 'print.css'), 'utf8');
+  assert.ok(printCss.includes('.doc .mh-title.is-long'), 'print.css must define .doc .mh-title.is-long');
+  assert.ok(printCss.includes('.doc .verdict-text.is-long'), 'print.css must define .doc .verdict-text.is-long');
+  assert.ok(printCss.includes('.doc .rf') && printCss.includes('background: #ffffff'), 'print.css must give .doc .rf solid background');
+});
+
+

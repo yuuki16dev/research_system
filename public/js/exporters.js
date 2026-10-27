@@ -1092,9 +1092,10 @@ export function buildDecisionBriefHtml(data, brand = 'Research Studio') {
   const scrResolution = (data.keyPoints && data.keyPoints[2]) || '小規模な先行パイロットで効果とセキュリティを実証し、成果を確認した上で段階的に全社展開へ移行する。';
 
   // 選択肢比較テーブル
+  // 選択肢比較テーブル（A4縦1ページ目に確実に収めるため上位3行を優先）
   let optionsTableRows = '';
   if (data.table && data.table.rows && data.table.rows.length) {
-    optionsTableRows = data.table.rows.slice(0, 4).map((r, idx) => {
+    optionsTableRows = data.table.rows.slice(0, 3).map((r, idx) => {
       const isRec = idx === 0;
       const optName = r[0] || `選択肢 ${idx + 1}`;
       const optDesc = r[1] || '';
@@ -1129,16 +1130,10 @@ export function buildDecisionBriefHtml(data, brand = 'Research Studio') {
         <td><span class="st cond">次段階</span> 機密部門に限定</td>
       </tr>
       <tr>
-        <td><div class="opt">C. 既存検索＋LLM連携</div><div class="opt-sub">導入済み検索にLLM要約を追加</div></td>
+        <td><div class="opt">C. 既存検索連携 / 現状維持</div><div class="opt-sub">既存資産の活用によるコスト抑制案</div></td>
         <td class="c"><span class="rt c">△</span></td><td class="c"><span class="rt b">○</span></td><td class="c"><span class="rt b">○</span></td><td class="c"><span class="rt a">◎</span></td>
         <td class="money">980万円</td><td class="c num">1–2ヶ月</td>
-        <td><span class="st ng">不採用</span> 精度に限界</td>
-      </tr>
-      <tr>
-        <td><div class="opt">D. 現状維持</div><div class="opt-sub">ファイルサーバー＋全文検索を継続</div></td>
-        <td class="c"><span class="rt c">△</span></td><td class="c"><span class="rt a">◎</span></td><td class="c"><span class="rt a">◎</span></td><td class="c"><span class="rt b">○</span></td>
-        <td class="money">0円</td><td class="c num">—</td>
-        <td><span class="st ng">不採用</span> 機会損失が拡大</td>
+        <td><span class="st ng">不採用</span> 精度・拡張性に限界</td>
       </tr>
     `;
   }
@@ -1193,7 +1188,7 @@ export function buildDecisionBriefHtml(data, brand = 'Research Studio') {
       <div class="mh-main">
         <div>
           <div class="kicker">Decision Required</div>
-          <h1 class="mh-title">${esc(data.title || data.theme)}</h1>
+          <h1 class="mh-title ${(data.title || data.theme || '').length > 26 ? 'is-long' : ''}">${esc(data.title || data.theme)}</h1>
           <p class="mh-question"><b>問い：</b>${esc(questionText)}</p>
         </div>
         <div class="score">
@@ -1234,7 +1229,7 @@ export function buildDecisionBriefHtml(data, brand = 'Research Studio') {
               <span>NO-GO</span>
             </div>
           </div>
-          <p class="verdict-text">${esc(summaryConclusion)}</p>
+          <p class="verdict-text ${summaryConclusion.length > 120 ? 'is-long' : ''}">${esc(summaryConclusion)}</p>
           <div class="ask">
             <div class="label">本日の承認依頼事項</div>
             <ol>
