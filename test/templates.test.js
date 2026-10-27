@@ -190,3 +190,41 @@ test('excel engine: transformDataToExcelFormat and generateExcelReport produce c
   assert.ok(ws3.getCell('E4').value.formula.includes('HYPERLINK'), 'URL cell must use HYPERLINK formula');
   assert.ok(ws3.conditionalFormattings.length > 0, 'Must have conditional formatting rules');
 });
+
+test('pdf generation: generatePdfFromHtml produces substantial non-blank PDF files with content intact', async () => {
+  const fs = require('fs');
+  const pdfModule = require(path.join(ROOT, 'server', 'pdf.js'));
+
+  // システムブラウザが存在する場合のみ実行（CI/ローカル共通）
+  const browserPath = pdfModule.findSystemBrowser();
+  if (!browserPath) {
+    return; // ブラウザ未インストールのコンテナ環境ではスキップ
+  }
+
+  const mockData = {
+    title: '意思決定ペーパーPDFテスト',
+    theme: 'AIリサーチ',
+    summary: '白紙出力バグを防止するための自動検証テストです。',
+    metrics: [{ label: 'Score', value: '98%' }],
+    keyPoints: ['ポイント1', 'ポイント2'],
+    table: { columns: ['A', 'B'], rows: [['1', '2']] },
+    sources: [{ title: 'Source 1', domain: 'example.com', score: 90 }],
+  };
+
+  // 1. スライド型
+  const slideHtml = buildSlideDeckHtml(mockData);
+  const slidePdf = await pdfModule.generatePdfFromHtml(slideHtml, { orientation: 'landscape' });
+  assert.ok(fs.existsSync(slidePdf), 'Slide PDF file must exist');
+  const slideSize = fs.statSync(slidePdf).size;
+  fs.unlinkSync(slidePdf);
+  assert.ok(slideSize > 8000, `Slide PDF must not be blank (got ${slideSize} bytes)`);
+
+  // 2. ペーパー型
+  const paperHtml = buildDecisionBriefHtml(mockData);
+  const paperPdf = await pdfModule.generatePdfFromHtml(paperHtml, { orientation: 'portrait' });
+  assert.ok(fs.existsSync(paperPdf), 'Paper PDF file must exist');
+  const paperSize = fs.statSync(paperPdf).size;
+  fs.unlinkSync(paperPdf);
+  assert.ok(paperSize > 8000, `Paper PDF must not be blank (got ${paperSize} bytes)`);
+});
+

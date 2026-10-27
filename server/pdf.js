@@ -103,7 +103,9 @@ async function generatePdfFromHtml(htmlContent, options = {}) {
   </style>
 </head>
 <body ${isPortrait ? 'data-print-orientation="portrait"' : ''}>
-  ${htmlContent}
+  <div id="print-root">
+    ${htmlContent}
+  </div>
 </body>
 </html>`;
 
@@ -118,7 +120,7 @@ async function generatePdfFromHtml(htmlContent, options = {}) {
       ...(isPortrait ? [] : ['--landscape']),
       '--font-render-hinting=medium',
       '--enable-font-antialiasing',
-      '--virtual-time-budget=2000',
+      '--virtual-time-budget=3000',
       `--print-to-pdf=${tmpPdf}`,
       tmpHtml,
     ];

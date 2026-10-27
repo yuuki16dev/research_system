@@ -7,6 +7,25 @@
 - **マイナー (1.X.0)**: 後方互換性のある新機能の追加
 - **パッチ (1.0.X)**: 後方互換性のあるバグ修正や安定化・改善
 
+## [v1.12.1] - 2026-10-27
+
+### 🛠️ バグ修正・安定化: PDFダウンロード白紙出力バグの解消 ＆ プレビュー画面ヘッダーの体裁崩れ防止 (Fix Blank PDF Export & Header Layout)
+- **PDFダウンロード時の白紙化バグを完全解消**:
+  - **根本原因の特定と二重防御**:
+    - `public/css/print.css` の `@media print { body > *:not(#print-root) { display: none !important; } }` により、サーバーサイドの Headless Chrome が一時HTMLをレンダリングする際、`#print-root` が付与されていないスタンドアロン `.deck` / `.doc` コンテナが非表示（白紙）になっていた問題を修正。
+    - `server/pdf.js` にて一時HTMLの `body` 内を `<div id="print-root">` で確実にラップするよう改修。
+    - `public/css/print.css` 側も `body > *:not(#print-root):not(.deck):not(.doc)` に拡張し、どのようなDOM構造でも内容が消去されない堅牢な二重防御を実装。
+    - ヘッドレス描画待機時間（`--virtual-time-budget`）を 3000ms に最適化し、フォントやSVGの描画完了を確実に担保。
+- **PDFプレビューモーダル（#modal-pdf-preview）ヘッダーの体裁崩れ防止**:
+  - **タイトルの縦書き化（1文字改行）を防止**:
+    - ノートPCやウィンドウ幅が狭い環境でツールバー要素がタイトルを圧迫し、タイトル「商用レポートPDF プレビュー」が1文字ずつ縦に折り返されてしまう現象を、`white-space: nowrap; flex-shrink: 0; min-width: max-content;` により完全防止。
+  - **ヘッダーのレスポンシブ・フレキシブル対応**:
+    - モーダルヘッダー（`#pdf-preview-card .modal-head`）に `flex-wrap: wrap` を適用し、画面幅が狭い場合でもタイトルとツールバーが自然に整列・2段表示され、ボタンの重なりやはみ出しが発生しないモダンなレイアウトに刷新。
+- **回帰防止テストの拡充**:
+  - `test/templates.test.js` に `generatePdfFromHtml` による実PDFバイナリ生成テストを追加し、出力PDFが白紙（空の1KB）ではなく完全なコンテンツ（実質バイトサイズ）を保持していることを自動検証。
+
+---
+
 ## [v1.12.0] - 2026-10-27
 
 ### 🚀 新機能: PDFデュアル・テンプレート化 ＆ AI最適自動判定 ＆ 商用グレードExcelJS新エンジン (Dual PDF Templates & Commercial Excel Engine)

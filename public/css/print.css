@@ -37,10 +37,12 @@
     width: 210mm !important;
     height: 297mm !important;
   }
-  body > *:not(#print-root) {
+  body > *:not(#print-root):not(.deck):not(.doc) {
     display: none !important;
   }
-  #print-root {
+  #print-root,
+  body > .deck,
+  body > .doc {
     display: block !important;
     width: 100% !important;
     margin: 0 !important;
@@ -54,13 +56,17 @@
     width: 100% !important;
   }
   #print-root .slide,
-  #print-root .page {
+  #print-root .page,
+  body > .deck > .slide,
+  body > .doc > .page {
     box-shadow: none !important;
     page-break-after: always !important;
     break-after: page !important;
   }
   #print-root .slide:last-child,
-  #print-root .page:last-child {
+  #print-root .page:last-child,
+  body > .deck > .slide:last-child,
+  body > .doc > .page:last-child {
     page-break-after: auto !important;
     break-after: auto !important;
   }
