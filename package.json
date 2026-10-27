@@ -1,6 +1,6 @@
 {
   "name": "research_system",
-  "version": "1.12.1",
+  "version": "1.12.2",
   "description": "",
   "main": "server/index.js",
   "bin": "server/index.js",
@@ -10,6 +10,7 @@
     "server": "node server/index.js",
     "dev": "node server/start.js",
     "test": "node --test",
+    "test:exports": "node scripts/verify-all-exports.js",
     "test:exe": "node scripts/verify-exe.js",
     "fix:bat": "node scripts/normalize-bat.js",
     "build:exe": "npx --yes pkg . --targets node18-win-x64 --output dist/ResearchStudio.exe"

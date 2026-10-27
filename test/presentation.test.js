@@ -99,4 +99,30 @@ test('presentation: pptx-export.js module syntax integrity and vendor bundle exi
   assert.ok(stats.size > 100000, 'pptxgen.bundle.js must be a valid bundle (>100KB)');
 });
 
+test('presentation: pptx-export.js contains auto-scaling helpers and shrinkText options', () => {
+  const modPath = path.join(ROOT, 'public', 'js', 'modules', 'pptx-export.js');
+  const code = fs.readFileSync(modPath, 'utf8');
+
+  assert.ok(code.includes('function calcFontSize'), 'pptx-export.js must define calcFontSize helper');
+  assert.ok(code.includes('shrinkText: true'), 'pptx-export.js must enable shrinkText for text bounds safety');
+  assert.ok(code.includes('colWidths'), 'pptx-export.js must dynamically calculate colWidths based on table columns');
+  assert.ok(code.includes('calloutY'), 'pptx-export.js must dynamically position bottom callout based on table height');
+});
+
+test('presentation: export-handlers.js and styles.css have export spinner and progress feedback', () => {
+  const css = fs.readFileSync(path.join(ROOT, 'public', 'css', 'styles.css'), 'utf8');
+  assert.ok(css.includes('.rs-spinner-sm'), 'styles.css must define .rs-spinner-sm');
+  assert.ok(css.includes('@keyframes rs-spin'), 'styles.css must define @keyframes rs-spin');
+
+  const handlers = fs.readFileSync(path.join(ROOT, 'public', 'js', 'modules', 'export-handlers.js'), 'utf8');
+  assert.ok(handlers.includes('rs-spinner-sm'), 'export-handlers.js must use rs-spinner-sm');
+  assert.ok(handlers.includes('PDF生成中'), 'export-handlers.js must show PDF rendering notice');
+  assert.ok(handlers.includes('PPTX作成中'), 'export-handlers.js must show PPTX creating notice');
+  assert.ok(handlers.includes('ダウンロード完了'), 'export-handlers.js must show completion feedback');
+
+  const exporters = fs.readFileSync(path.join(ROOT, 'public', 'js', 'exporters.js'), 'utf8');
+  assert.ok(exporters.includes('フォント完全描画のため約3〜5秒要します'), 'exporters.js must mention font rendering time');
+});
+
+
 

@@ -56,6 +56,15 @@ export async function exportPowerPoint(data, brand = {}) {
       badgeBg: '1E293B',
     };
 
+    // 文字量に応じた動的フォントサイズ計算ヘルパー（枠外はみ出し・文字潰れ防止）
+    function calcFontSize(text, defaultSize, minSize, maxLen) {
+      const len = String(text || '').length;
+      if (!len || len <= maxLen) return defaultSize;
+      const ratio = maxLen / len;
+      const size = Math.round(defaultSize * Math.max(0.68, ratio));
+      return Math.max(minSize, Math.min(defaultSize, size));
+    }
+
     // 共通ヘッダー・フッター追加ヘルパー
     function addSlideDecorations(slide, secTitle, pageNum) {
       // 背景色
@@ -67,7 +76,7 @@ export async function exportPowerPoint(data, brand = {}) {
           { text: publisher.toUpperCase(), options: { bold: true, color: C.primary, fontSize: 10 } },
           { text: '  |  ' + reportTitle, options: { color: C.textDim, fontSize: 10 } },
         ],
-        { x: 0.8, y: 0.4, w: 9.0, h: 0.4, margin: 0 }
+        { x: 0.8, y: 0.4, w: 9.0, h: 0.4, margin: 0, shrinkText: true }
       );
       slide.addText(secTitle, {
         x: 9.8,
@@ -79,6 +88,7 @@ export async function exportPowerPoint(data, brand = {}) {
         fontSize: 10,
         bold: true,
         margin: 0,
+        shrinkText: true,
       });
 
       // 上部アクセントライン
@@ -159,29 +169,36 @@ export async function exportPowerPoint(data, brand = {}) {
         rectRadius: 0.05,
       });
 
-      // メインタイトル
+      // メインタイトル (文字数に応じた動的スケーリング & 枠内自動縮小)
+      const tLen = reportTitle.length;
+      const tSize = tLen <= 24 ? 26 : tLen <= 40 ? 20 : tLen <= 60 ? 16 : 14;
       s1.addText(reportTitle, {
         x: 1.2,
-        y: 1.9,
+        y: 1.85,
         w: 10.5,
-        h: 1.4,
+        h: 1.5,
         color: C.textWhite,
-        fontSize: 28,
+        fontSize: tSize,
         bold: true,
         valign: 'top',
         margin: 0,
+        wrap: true,
+        shrinkText: true,
       });
 
       // サブタイトル
       const subtitle = data.subtitle || 'Executive Intelligence & Decision Briefing';
+      const subSize = calcFontSize(subtitle, 14, 10.5, 45);
       s1.addText(subtitle, {
         x: 1.2,
-        y: 3.35,
+        y: 3.45,
         w: 10.5,
-        h: 0.7,
+        h: 0.8,
         color: C.textMuted,
-        fontSize: 15,
+        fontSize: subSize,
         margin: 0,
+        wrap: true,
+        shrinkText: true,
       });
 
       // フッターメタ情報カード
@@ -205,7 +222,7 @@ export async function exportPowerPoint(data, brand = {}) {
           { text: '発行日: ', options: { color: C.textDim, fontSize: 11 } },
           { text: `${dateStr}`, options: { color: C.textWhite, bold: true, fontSize: 11 } },
         ],
-        { x: 1.5, y: 5.5, w: 9.9, h: 0.5, margin: 0 }
+        { x: 1.5, y: 5.5, w: 9.9, h: 0.5, margin: 0, shrinkText: true }
       );
     }
 
@@ -221,7 +238,7 @@ export async function exportPowerPoint(data, brand = {}) {
         x: 0.8,
         y: 1.05,
         w: 11.7,
-        h: 0.5,
+        h: 0.45,
         color: C.textWhite,
         fontSize: 20,
         bold: true,
@@ -230,21 +247,22 @@ export async function exportPowerPoint(data, brand = {}) {
       // Bottom Line (結論) コールアウトカード
       s2.addShape(pptx.ShapeType.roundRect, {
         x: 0.8,
-        y: 1.65,
+        y: 1.6,
         w: 11.7,
-        h: 1.1,
+        h: 1.15,
         fill: { color: '0F172A' },
         line: { color: C.primary, width: 1.5 },
         rectRadius: 0.08,
       });
 
       const summaryText = data.summary || (data.keyPoints && data.keyPoints[0]) || '本調査における最重要結論とビジネスインパクトの要約。';
+      const summaryFontSize = calcFontSize(summaryText, 11, 8.5, 90);
       s2.addText(
         [
-          { text: '【結論 / Bottom Line】 ', options: { bold: true, color: C.cyan, fontSize: 12 } },
-          { text: summaryText, options: { color: C.textWhite, fontSize: 11.5 } },
+          { text: '【結論 / Bottom Line】 ', options: { bold: true, color: C.cyan, fontSize: Math.max(10, summaryFontSize + 0.5) } },
+          { text: summaryText, options: { color: C.textWhite, fontSize: summaryFontSize } },
         ],
-        { x: 1.05, y: 1.8, w: 11.2, h: 0.8, valign: 'middle', margin: 0 }
+        { x: 1.05, y: 1.7, w: 11.2, h: 0.95, valign: 'middle', margin: 0, wrap: true, shrinkText: true }
       );
 
       // 4インサイトカード (2x2 グリッド)
@@ -301,25 +319,31 @@ export async function exportPowerPoint(data, brand = {}) {
         }
 
         // 見出し
+        const insTitleSize = calcFontSize(ins.title, 12, 10, 18);
         s2.addText(ins.title || '', {
           x: cardX + 0.25,
-          y: cardY + 0.6,
+          y: cardY + 0.58,
           w: 5.25,
-          h: 0.35,
+          h: 0.38,
           color: C.textWhite,
-          fontSize: 12,
+          fontSize: insTitleSize,
           bold: true,
+          wrap: true,
+          shrinkText: true,
         });
 
         // 本文
+        const insBodySize = calcFontSize(ins.body || ins.desc, 10, 8, 48);
         s2.addText(ins.body || ins.desc || '', {
           x: cardX + 0.25,
-          y: cardY + 1.0,
+          y: cardY + 0.98,
           w: 5.25,
-          h: 0.6,
+          h: 0.65,
           color: C.textMuted,
-          fontSize: 10,
+          fontSize: insBodySize,
           valign: 'top',
+          wrap: true,
+          shrinkText: true,
         });
       }
     }
@@ -335,100 +359,126 @@ export async function exportPowerPoint(data, brand = {}) {
         x: 0.8,
         y: 1.05,
         w: 11.7,
-        h: 0.5,
+        h: 0.45,
         color: C.textWhite,
         fontSize: 20,
         bold: true,
       });
 
-      // テーブルデータの作成
+      // テーブルデータの作成 & 動的列幅計算
       let tableRows = [];
+      let colWidths = [];
       const tableData = data.table;
 
       if (tableData && Array.isArray(tableData.columns) && Array.isArray(tableData.rows) && tableData.rows.length) {
+        const numCols = Math.max(1, tableData.columns.length);
+        const col1W = numCols <= 4 ? 3.0 : numCols <= 6 ? 2.6 : 2.1;
+        const otherW = Math.max(0.75, (11.7 - col1W) / Math.max(1, numCols - 1));
+        colWidths = [col1W, ...Array(numCols - 1).fill(otherW)];
+
+        // 列数に応じた基本フォントサイズ
+        const baseFontSize = numCols <= 4 ? 11 : numCols <= 6 ? 9.5 : 8;
+
         // ヘッダー行
-        const headerRow = tableData.columns.map((col) => ({
-          text: col,
+        const headerRow = tableData.columns.map((col, cIdx) => ({
+          text: String(col || ''),
           options: {
             bold: true,
             color: C.textWhite,
             fill: { color: C.bgCardAlt },
-            fontSize: 11,
-            align: 'center',
+            fontSize: baseFontSize,
+            align: cIdx === 0 ? 'left' : 'center',
             valign: 'middle',
+            margin: [2, 3, 2, 3],
           },
         }));
         tableRows.push(headerRow);
 
-        // データ行
+        // データ行 (最大5行に限定してスライド縦幅内に収める)
         tableData.rows.slice(0, 5).forEach((r, idx) => {
           const isRec = idx === 0;
-          const rowCells = r.map((cell, cIdx) => ({
-            text: String(cell || ''),
-            options: {
-              color: isRec ? C.cyan : C.textWhite,
-              bold: isRec || cIdx === 0,
-              fill: { color: isRec ? '1E3A8A' : idx % 2 === 0 ? '0F172A' : '162032' },
-              fontSize: 10,
-              align: cIdx === 0 ? 'left' : 'center',
-              valign: 'middle',
-            },
-          }));
+          const rowCells = r.map((cell, cIdx) => {
+            const cellText = String(cell || '');
+            const cellSize = calcFontSize(cellText, isRec ? baseFontSize : baseFontSize - 0.5, 7.5, 22);
+            return {
+              text: cellText,
+              options: {
+                color: isRec ? C.cyan : C.textWhite,
+                bold: isRec || cIdx === 0,
+                fill: { color: isRec ? '1E3A8A' : idx % 2 === 0 ? '0F172A' : '162032' },
+                fontSize: cellSize,
+                align: cIdx === 0 ? 'left' : 'center',
+                valign: 'middle',
+                margin: [2, 3, 2, 3],
+              },
+            };
+          });
           tableRows.push(rowCells);
         });
       } else {
         // デフォルト比較表
+        colWidths = [2.8, 3.6, 3.6, 1.7];
         tableRows = [
           [
-            { text: '項目 / 選択肢', options: { bold: true, color: C.textWhite, fill: { color: C.bgCardAlt } } },
-            { text: '導入メリット', options: { bold: true, color: C.textWhite, fill: { color: C.bgCardAlt } } },
-            { text: '課題・留意点', options: { bold: true, color: C.textWhite, fill: { color: C.bgCardAlt } } },
-            { text: '総合評価', options: { bold: true, color: C.textWhite, fill: { color: C.bgCardAlt } } },
+            { text: '項目 / 選択肢', options: { bold: true, color: C.textWhite, fill: { color: C.bgCardAlt }, fontSize: 10.5, align: 'left', valign: 'middle', margin: [2, 3, 2, 3] } },
+            { text: '導入メリット', options: { bold: true, color: C.textWhite, fill: { color: C.bgCardAlt }, fontSize: 10.5, align: 'center', valign: 'middle', margin: [2, 3, 2, 3] } },
+            { text: '課題・留意点', options: { bold: true, color: C.textWhite, fill: { color: C.bgCardAlt }, fontSize: 10.5, align: 'center', valign: 'middle', margin: [2, 3, 2, 3] } },
+            { text: '総合評価', options: { bold: true, color: C.textWhite, fill: { color: C.bgCardAlt }, fontSize: 10.5, align: 'center', valign: 'middle', margin: [2, 3, 2, 3] } },
           ],
           [
-            { text: '推奨方式 (Plan A)', options: { color: C.cyan, bold: true, fill: { color: '1E3A8A' } } },
-            { text: '高精度かつ即効性・低リスク', options: { color: C.textWhite, fill: { color: '1E3A8A' } } },
-            { text: '初期設定の丁寧な合意形成が必要', options: { color: C.textWhite, fill: { color: '1E3A8A' } } },
-            { text: '★★★★★ (最適解)', options: { color: C.accentYellow, bold: true, fill: { color: '1E3A8A' } } },
+            { text: '推奨方式 (Plan A)', options: { color: C.cyan, bold: true, fill: { color: '1E3A8A' }, fontSize: 10, align: 'left', valign: 'middle', margin: [2, 3, 2, 3] } },
+            { text: '高精度かつ即効性・低リスク', options: { color: C.textWhite, fill: { color: '1E3A8A' }, fontSize: 9.5, align: 'center', valign: 'middle', margin: [2, 3, 2, 3] } },
+            { text: '初期設定の丁寧な合意形成が必要', options: { color: C.textWhite, fill: { color: '1E3A8A' }, fontSize: 9.5, align: 'center', valign: 'middle', margin: [2, 3, 2, 3] } },
+            { text: '★★★★★ (最適解)', options: { color: C.accentYellow, bold: true, fill: { color: '1E3A8A' }, fontSize: 9.5, align: 'center', valign: 'middle', margin: [2, 3, 2, 3] } },
           ],
           [
-            { text: '代替方式 (Plan B)', options: { color: C.textWhite, fill: { color: '0F172A' } } },
-            { text: '既存ツールの流用で初期費用小', options: { color: C.textWhite, fill: { color: '0F172A' } } },
-            { text: '拡張性や自動化の余地が限定的', options: { color: C.textWhite, fill: { color: '0F172A' } } },
-            { text: '★★★☆☆ (妥協案)', options: { color: C.textMuted, fill: { color: '0F172A' } } },
+            { text: '代替方式 (Plan B)', options: { color: C.textWhite, fill: { color: '0F172A' }, fontSize: 9.5, align: 'left', valign: 'middle', margin: [2, 3, 2, 3] } },
+            { text: '既存ツールの流用で初期費用小', options: { color: C.textWhite, fill: { color: '0F172A' }, fontSize: 9.5, align: 'center', valign: 'middle', margin: [2, 3, 2, 3] } },
+            { text: '拡張性や自動化の余地が限定的', options: { color: C.textWhite, fill: { color: '0F172A' }, fontSize: 9.5, align: 'center', valign: 'middle', margin: [2, 3, 2, 3] } },
+            { text: '★★★☆☆ (妥協案)', options: { color: C.textMuted, fill: { color: '0F172A' }, fontSize: 9.5, align: 'center', valign: 'middle', margin: [2, 3, 2, 3] } },
           ],
         ];
       }
 
-      // テーブル配置
+      // テーブル配置（行数に応じた行高調整でフッターとの衝突を完全防止）
+      const numRows = tableRows.length;
+      const rowH = numRows <= 4 ? 0.5 : numRows <= 5 ? 0.44 : 0.38;
+      const totalTableH = numRows * rowH;
+
       s3.addTable(tableRows, {
         x: 0.8,
-        y: 1.7,
+        y: 1.6,
         w: 11.7,
-        colW: [2.5, 3.8, 3.8, 1.6],
+        colW: colWidths,
         border: { pt: 1, color: C.border },
-        rowH: 0.48,
+        rowH: rowH,
       });
 
-      // 下部コールアウト
+      // 下部コールアウト（テーブル直下に動的配置）
+      const calloutY = Math.max(5.35, 1.6 + totalTableH + 0.2);
+      const calloutH = Math.min(1.15, 6.75 - calloutY);
+
       s3.addShape(pptx.ShapeType.roundRect, {
         x: 0.8,
-        y: 5.4,
+        y: calloutY,
         w: 11.7,
-        h: 1.15,
+        h: calloutH,
         fill: { color: '0F172A' },
         line: { color: C.cyan, width: 1 },
         rectRadius: 0.08,
       });
+
+      const takeawayText = (data.keyPoints && data.keyPoints[1]) || '機能性と運用負荷のバランスを考慮した場合、段階的導入によるリスク抑制アプローチが最もROIが高い。';
+      const takeawaySize = calcFontSize(takeawayText, 11, 8.5, 80);
       s3.addText(
         [
-          { text: '💡 比較分析の示唆 (Key Takeaway): ', options: { bold: true, color: C.cyan, fontSize: 11.5 } },
+          { text: '💡 比較分析の示唆 (Key Takeaway): ', options: { bold: true, color: C.cyan, fontSize: Math.max(10, takeawaySize + 0.5) } },
           {
-            text: (data.keyPoints && data.keyPoints[1]) || '機能性と運用負荷のバランスを考慮した場合、段階的導入によるリスク抑制アプローチが最もROIが高い。',
-            options: { color: C.textWhite, fontSize: 11 },
+            text: takeawayText,
+            options: { color: C.textWhite, fontSize: takeawaySize },
           },
         ],
-        { x: 1.05, y: 5.55, w: 11.2, h: 0.85, valign: 'middle', margin: 0 }
+        { x: 1.05, y: calloutY + 0.1, w: 11.2, h: Math.max(0.6, calloutH - 0.2), valign: 'middle', margin: 0, wrap: true, shrinkText: true }
       );
     }
 
@@ -490,40 +540,51 @@ export async function exportPowerPoint(data, brand = {}) {
         });
 
         // 見出し
+        const headSize = calcFontSize(sec.heading, 13, 10.5, 22);
         s4.addText(sec.heading || '', {
           x: colX + 0.3,
           y: 2.3,
           w: 5.15,
           h: 0.6,
           color: C.textWhite,
-          fontSize: 13,
+          fontSize: headSize,
           bold: true,
           valign: 'top',
+          wrap: true,
+          shrinkText: true,
         });
 
         // 概要文
+        const secBodySize = calcFontSize(sec.body, 10.5, 8.5, 45);
         s4.addText(sec.body || '', {
           x: colX + 0.3,
           y: 2.95,
           w: 5.15,
-          h: 0.8,
+          h: 0.75,
           color: C.textMuted,
-          fontSize: 10.5,
+          fontSize: secBodySize,
           valign: 'top',
+          wrap: true,
+          shrinkText: true,
         });
 
         // 箇条書きポイント
         if (sec.bullets && sec.bullets.length) {
-          const bulletTexts = sec.bullets.slice(0, 3).map((b) => ({
-            text: b,
-            options: { bullet: true, color: C.textWhite, fontSize: 10.5, lineSpacing: 22 },
-          }));
+          const bulletTexts = sec.bullets.slice(0, 3).map((b) => {
+            const bSize = calcFontSize(b, 10, 8, 30);
+            return {
+              text: b,
+              options: { bullet: true, color: C.textWhite, fontSize: bSize, lineSpacing: 20 },
+            };
+          });
           s4.addText(bulletTexts, {
             x: colX + 0.3,
-            y: 3.85,
+            y: 3.75,
             w: 5.15,
-            h: 1.8,
+            h: 2.6,
             valign: 'top',
+            wrap: true,
+            shrinkText: true,
           });
         }
       });
@@ -540,7 +601,7 @@ export async function exportPowerPoint(data, brand = {}) {
         x: 0.8,
         y: 1.05,
         w: 11.7,
-        h: 0.5,
+        h: 0.45,
         color: C.textWhite,
         fontSize: 20,
         bold: true,
@@ -559,49 +620,64 @@ export async function exportPowerPoint(data, brand = {}) {
 
         s5.addShape(pptx.ShapeType.roundRect, {
           x: cardX,
-          y: 1.7,
+          y: 1.65,
           w: 3.8,
-          h: 4.85,
+          h: 4.9,
           fill: { color: C.bgCard },
           line: { color: idx === 0 ? C.primary : C.border, width: idx === 0 ? 1.5 : 1 },
           rectRadius: 0.08,
         });
 
         // フェーズ名
+        const phSize = calcFontSize(p.phase, 13, 11, 16);
         s5.addText(p.phase || `Phase ${idx + 1}`, {
           x: cardX + 0.25,
-          y: 2.0,
+          y: 1.9,
           w: 3.3,
           h: 0.4,
           color: idx === 0 ? C.cyan : C.textWhite,
-          fontSize: 13,
+          fontSize: phSize,
           bold: true,
+          wrap: true,
+          shrinkText: true,
         });
 
         // 重点フォーカス
-        s5.addText(`【重点】 ${p.focus || p.goal || '推進目標'}`, {
+        const focusText = `【重点】 ${p.focus || p.goal || '推進目標'}`;
+        const focusSize = calcFontSize(focusText, 10.5, 8.5, 22);
+        s5.addText(focusText, {
           x: cardX + 0.25,
-          y: 2.45,
+          y: 2.35,
           w: 3.3,
-          h: 0.5,
+          h: 0.55,
           color: C.accentYellow,
-          fontSize: 10.5,
+          fontSize: focusSize,
           bold: true,
+          wrap: true,
+          shrinkText: true,
         });
 
         // 施策リスト
         const actions = Array.isArray(p.actions) ? p.actions : [];
         if (actions.length) {
-          const actionTexts = actions.slice(0, 4).map((a) => ({
-            text: a,
-            options: { bullet: true, color: C.textMuted, fontSize: 10, lineSpacing: 20 },
-          }));
+          const actCount = actions.length;
+          const baseActSize = actCount <= 3 ? 9.5 : 8.5;
+          const lineSpacing = actCount <= 3 ? 19 : 16;
+          const actionTexts = actions.slice(0, 4).map((a) => {
+            const aSize = calcFontSize(a, baseActSize, 7.5, 26);
+            return {
+              text: a,
+              options: { bullet: true, color: C.textMuted, fontSize: aSize, lineSpacing },
+            };
+          });
           s5.addText(actionTexts, {
             x: cardX + 0.25,
-            y: 3.1,
+            y: 3.0,
             w: 3.3,
-            h: 3.0,
+            h: 3.3,
             valign: 'top',
+            wrap: true,
+            shrinkText: true,
           });
         }
       });
@@ -618,7 +694,7 @@ export async function exportPowerPoint(data, brand = {}) {
         x: 0.8,
         y: 1.05,
         w: 11.7,
-        h: 0.5,
+        h: 0.45,
         color: C.textWhite,
         fontSize: 20,
         bold: true,
@@ -627,9 +703,9 @@ export async function exportPowerPoint(data, brand = {}) {
       // 提言ブロック (左側)
       s6.addShape(pptx.ShapeType.roundRect, {
         x: 0.8,
-        y: 1.7,
+        y: 1.65,
         w: 6.8,
-        h: 4.85,
+        h: 4.9,
         fill: { color: C.bgCard },
         line: { color: C.border, width: 1 },
         rectRadius: 0.08,
@@ -637,7 +713,7 @@ export async function exportPowerPoint(data, brand = {}) {
 
       s6.addText('戦略的提言 (Actionable Recommendations)', {
         x: 1.1,
-        y: 1.95,
+        y: 1.9,
         w: 6.2,
         h: 0.35,
         color: C.cyan,
@@ -649,24 +725,29 @@ export async function exportPowerPoint(data, brand = {}) {
         ? data.keyPoints
         : ['先行事例の成功要因を取り入れた迅速なプロトタイピングの実施', 'リスク低減のための段階的評価ゲートウェイの設置', '社内ステークホルダーへの定期的価値還元と合意形成'];
 
-      const recTexts = recs.map((r, i) => ({
-        text: `${i + 1}. ${r}\n`,
-        options: { color: C.textWhite, fontSize: 11, lineSpacing: 24, bold: false },
-      }));
+      const recTexts = recs.slice(0, 4).map((r, i) => {
+        const rSize = calcFontSize(r, 10.5, 8.5, 42);
+        return {
+          text: `${i + 1}. ${r}\n`,
+          options: { color: C.textWhite, fontSize: rSize, lineSpacing: 20, bold: false },
+        };
+      });
       s6.addText(recTexts, {
         x: 1.1,
-        y: 2.4,
+        y: 2.35,
         w: 6.2,
-        h: 3.8,
+        h: 3.9,
         valign: 'top',
+        wrap: true,
+        shrinkText: true,
       });
 
       // 参照ソース & 免責 (右側)
       s6.addShape(pptx.ShapeType.roundRect, {
         x: 7.8,
-        y: 1.7,
+        y: 1.65,
         w: 4.7,
-        h: 4.85,
+        h: 4.9,
         fill: { color: C.bgCard },
         line: { color: C.border, width: 1 },
         rectRadius: 0.08,
@@ -674,7 +755,7 @@ export async function exportPowerPoint(data, brand = {}) {
 
       s6.addText('参照ソース & エビデンス', {
         x: 8.05,
-        y: 1.95,
+        y: 1.9,
         w: 4.2,
         h: 0.35,
         color: C.textWhite,
@@ -682,23 +763,29 @@ export async function exportPowerPoint(data, brand = {}) {
         bold: true,
       });
 
-      const sources = Array.isArray(data.sources) ? data.sources.slice(0, 4) : [];
+      const sources = Array.isArray(data.sources) ? data.sources.slice(0, 5) : [];
       if (sources.length) {
-        const srcTexts = sources.map((s, i) => ({
-          text: `[${i + 1}] ${s.title || s.domain || '一次情報源'}\n`,
-          options: { color: C.primary, fontSize: 9.5, lineSpacing: 18 },
-        }));
+        const srcTexts = sources.map((s, i) => {
+          const srcTitle = s.title || s.domain || '一次情報源';
+          const srcSize = calcFontSize(srcTitle, 9, 7.5, 28);
+          return {
+            text: `[${i + 1}] ${srcTitle}\n`,
+            options: { color: C.primary, fontSize: srcSize, lineSpacing: 16 },
+          };
+        });
         s6.addText(srcTexts, {
           x: 8.05,
-          y: 2.4,
+          y: 2.35,
           w: 4.2,
-          h: 2.0,
+          h: 2.1,
           valign: 'top',
+          wrap: true,
+          shrinkText: true,
         });
       } else {
         s6.addText('一次情報源および公式ドキュメントに基づく網羅的分析を実施済み。', {
           x: 8.05,
-          y: 2.4,
+          y: 2.35,
           w: 4.2,
           h: 1.0,
           color: C.textMuted,
@@ -709,7 +796,7 @@ export async function exportPowerPoint(data, brand = {}) {
       // 免責事項
       s6.addShape(pptx.ShapeType.line, {
         x: 8.05,
-        y: 4.6,
+        y: 4.65,
         w: 4.2,
         h: 0,
         line: { color: C.border, width: 1 },
@@ -721,11 +808,13 @@ export async function exportPowerPoint(data, brand = {}) {
         ],
         {
           x: 8.05,
-          y: 4.75,
+          y: 4.8,
           w: 4.2,
           h: 1.6,
           valign: 'top',
           margin: 0,
+          wrap: true,
+          shrinkText: true,
         }
       );
     }

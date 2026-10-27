@@ -2096,7 +2096,7 @@ export async function exportPDF(data, brand = 'Research Studio', templateType = 
   const filename = `【${typeLabel}】${safeFilename(data.title || data.theme)}.pdf`;
   const htmlContent = buildPdfHtml(data, brand, tpl);
 
-  toast(`📄 高品質${typeLabel}PDFを生成中…（数秒かかります）`, 'info', 4500);
+  toast(`📄 高品質${typeLabel}PDFを生成中…（フォント完全描画のため約3〜5秒要します）`, 'info', 5000);
 
   try {
     const res = await fetch('/api/export/pdf', {
@@ -2112,7 +2112,7 @@ export async function exportPDF(data, brand = 'Research Studio', templateType = 
 
     const blob = await res.blob();
     downloadBlob(blob, filename);
-    toast(`✅ ${typeLabel}PDFを直接ダウンロードしました！`, 'success');
+    toast(`✅ ${typeLabel}PDFを直接ダウンロードしました！`, 'success', 4000);
   } catch (err) {
     console.warn('Server-side PDF generation error, falling back to client-side print:', err);
     toast('PDF自動ダウンロードに失敗したため、印刷プレビューを開きます', 'info');

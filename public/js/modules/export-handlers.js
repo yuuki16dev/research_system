@@ -62,9 +62,23 @@ export function bindExportActions(onOpenHistory) {
   // Excel出力
   const btnXlsx = $('#btn-xlsx');
   if (btnXlsx) {
-    btnXlsx.addEventListener('click', () => {
-      if (!appState.currentResult) return;
-      exportExcel(appState.currentResult, getBrandConfig());
+    btnXlsx.addEventListener('click', async () => {
+      if (!appState.currentResult || btnXlsx.disabled) return;
+      const originalHtml = btnXlsx.innerHTML;
+      btnXlsx.disabled = true;
+      btnXlsx.innerHTML = '<span class="rs-spinner-sm"></span>Excel作成中…';
+      try {
+        await exportExcel(appState.currentResult, getBrandConfig());
+        btnXlsx.innerHTML = '<span style="color:#4ade80;">✔</span> 完了';
+        await new Promise((r) => setTimeout(r, 1800));
+      } catch (err) {
+        console.error('Excel export error:', err);
+        btnXlsx.innerHTML = '⚠ 失敗';
+        await new Promise((r) => setTimeout(r, 2000));
+      } finally {
+        btnXlsx.innerHTML = originalHtml;
+        btnXlsx.disabled = false;
+      }
     });
   }
 
@@ -434,19 +448,47 @@ export function bindPdfPreviewModal() {
   const btnExportPptx = $('#btn-export-pptx');
   if (btnExportPptx) {
     btnExportPptx.addEventListener('click', async () => {
-      if (!appState.currentResult) return;
+      if (!appState.currentResult || btnExportPptx.disabled) return;
       if (stageInner) syncSlideDomToState(stageInner);
-      await exportPowerPoint(appState.currentResult, getBrandConfig());
+      const originalHtml = btnExportPptx.innerHTML;
+      btnExportPptx.disabled = true;
+      btnExportPptx.innerHTML = '<span class="rs-spinner-sm"></span>PPTX作成中…';
+      try {
+        await exportPowerPoint(appState.currentResult, getBrandConfig());
+        btnExportPptx.innerHTML = '<span style="color:#4ade80;">✔</span> ダウンロード完了！';
+        await new Promise((r) => setTimeout(r, 1800));
+      } catch (err) {
+        console.error('PPTX export error:', err);
+        btnExportPptx.innerHTML = '⚠ 作成失敗';
+        await new Promise((r) => setTimeout(r, 2000));
+      } finally {
+        btnExportPptx.innerHTML = originalHtml;
+        btnExportPptx.disabled = false;
+      }
     });
   }
 
   // PDF直接ダウンロードボタン
   const btnConfirm = $('#btn-pdf-print-confirm');
   if (btnConfirm) {
-    btnConfirm.addEventListener('click', () => {
-      if (!appState.currentResult) return;
+    btnConfirm.addEventListener('click', async () => {
+      if (!appState.currentResult || btnConfirm.disabled) return;
       if (stageInner) syncSlideDomToState(stageInner);
-      exportPDF(appState.currentResult, getBrandConfig(), currentPdfTemplate);
+      const originalHtml = btnConfirm.innerHTML;
+      btnConfirm.disabled = true;
+      btnConfirm.innerHTML = '<span class="rs-spinner-sm"></span>PDF生成中… (約3〜5秒)';
+      try {
+        await exportPDF(appState.currentResult, getBrandConfig(), currentPdfTemplate);
+        btnConfirm.innerHTML = '<span style="color:#4ade80;">✔</span> ダウンロード完了！';
+        await new Promise((r) => setTimeout(r, 1800));
+      } catch (err) {
+        console.error('PDF export error:', err);
+        btnConfirm.innerHTML = '⚠ 出力失敗';
+        await new Promise((r) => setTimeout(r, 2000));
+      } finally {
+        btnConfirm.innerHTML = originalHtml;
+        btnConfirm.disabled = false;
+      }
     });
   }
 }
