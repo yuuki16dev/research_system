@@ -115,6 +115,11 @@ async function generatePdfFromHtml(htmlContent, options = {}) {
     const args = [
       '--headless',
       '--disable-gpu',
+      '--disable-extensions',
+      '--disable-background-networking',
+      '--disable-sync',
+      '--disable-default-apps',
+      '--no-first-run',
       '--no-pdf-header-footer',
       '--run-all-compositor-stages-before-draw',
       ...(isPortrait ? [] : ['--landscape']),

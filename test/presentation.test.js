@@ -124,5 +124,39 @@ test('presentation: export-handlers.js and styles.css have export spinner and pr
   assert.ok(exporters.includes('フォント完全描画のため約3〜5秒要します'), 'exporters.js must mention font rendering time');
 });
 
+test('presentation: generatePrompt includes layout boundary and overflow prevention guidelines', () => {
+  const prompt = presentation.generatePrompt({
+    document: 'テスト企画書',
+    audience: '開発チーム・エンジニア',
+    goal: 'アーキテクチャ合意',
+  });
+
+  assert.ok(prompt.includes('スライド画面超過・図表崩れ防止ルール'), 'prompt must include overflow prevention rule section');
+  assert.ok(prompt.includes('Bounding Box'), 'prompt must mention bounding box compliance');
+  assert.ok(prompt.includes('1スライド1メッセージ・図解の分割'), 'prompt must instruct diagram splitting');
+  assert.ok(prompt.includes('テーブル制限'), 'prompt must limit table row/column counts');
+});
+
+test('presentation: pptx-export.js includes fitToBounds and enhanced roadmap compatibility', () => {
+  const modPath = path.join(ROOT, 'public', 'js', 'modules', 'pptx-export.js');
+  const code = fs.readFileSync(modPath, 'utf8');
+
+  assert.ok(code.includes('function fitToBounds'), 'pptx-export.js must define fitToBounds contain helper');
+  assert.ok(code.includes('data.roadmap'), 'pptx-export.js must support direct data.roadmap schema');
+  assert.ok(code.includes('p.items'), 'pptx-export.js must support p.items schema fallback');
+});
+
+test('presentation: public/index.html includes PDF to PPTX best practice Q&A', () => {
+  const html = fs.readFileSync(path.join(ROOT, 'public', 'index.html'), 'utf8');
+  assert.ok(
+    html.includes('PDFをもとにパワポを作ると図が崩れたり画面を超えてしまうときは？'),
+    'public/index.html must have Q&A entry explaining PDF to PPTX best practices'
+  );
+  assert.ok(
+    html.includes('PDFを経由せず直接PPTXをダウンロード'),
+    'Q&A must advise downloading PPTX directly'
+  );
+});
+
 
 

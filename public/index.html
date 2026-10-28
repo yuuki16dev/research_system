@@ -594,7 +594,7 @@
     </main>
 
     <footer class="footer">
-      <span id="footer-version">Research Studio v1.14.0</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span><span class="sep">·</span><a href="https://github.com/yuuki16dev/research_system/issues" target="_blank" rel="noopener" class="footer-link"><span data-icon="github"></span>GitHubでお問い合わせ</a>
+      <span id="footer-version">Research Studio v1.15.0</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span><span class="sep">·</span><a href="https://github.com/yuuki16dev/research_system/issues" target="_blank" rel="noopener" class="footer-link"><span data-icon="github"></span>GitHubでお問い合わせ</a>
     </footer>
   </div>
 
@@ -603,7 +603,7 @@
     <div class="modal-backdrop" data-close></div>
     <div class="modal-card glass">
       <header class="modal-head">
-        <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v1.14.0</small></h2>
+        <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v1.15.0</small></h2>
         <div style="display: flex; gap: 8px; align-items: center; margin-left: auto;">
           <button class="btn btn-ghost btn-sm" type="button" id="btn-settings-changelog" title="アップデート履歴 &amp; リリースノート"><span data-icon="book-open"></span><span class="label">更新履歴</span></button>
           <button class="btn btn-ghost btn-sm" type="button" id="btn-open-guide-from-settings" title="APIキー取得ガイド &amp; GitHubお問い合わせ"><span data-icon="help-circle"></span><span class="label">ガイド・問い合わせ</span></button>
@@ -1042,6 +1042,10 @@
               <strong>Q. アプリをアップデートしたら設定は消えますか？</strong>
               <p>消えません。設定や履歴は Windows の共通データ領域（<code>%APPDATA%\ResearchStudio\</code>）に安全に保管されるため、自動で引き継がれます。</p>
             </div>
+            <div class="qa-item">
+              <strong>Q. PDFをもとにパワポを作ると図が崩れたり画面を超えてしまうときは？</strong>
+              <p>PDF（A4縦横比）とPowerPoint（16:9比率）の縦横比の違いやベクター分解が原因です。本アプリ右上の「書き出しハブ」またはプレビュー上部の「PowerPoint (.pptx)」ボタンから、<strong>PDFを経由せず直接PPTXをダウンロード</strong>してください。16:9比率での安全描画領域（Bounding Box）クランプと文字・表の自動縮小が自動適用されます。</p>
+            </div>
           </div>
         </div>
       </div>
@@ -1211,7 +1215,7 @@
               <div style="font-size: 14px; font-weight: 700; margin-bottom: 6px; color: var(--accent-light, #60a5fa); display: flex; align-items: center; gap: 6px;">
                 <span data-icon="sparkles"></span> AIスライド即時生成（直接スライド化）
               </div>
-              <p style="font-size: 12px; opacity: 0.75; line-height: 1.5; margin: 0 0 12px;">Gemini が資料を解析して商用A4横スライドを直接構築。その場でプレビュー＆PDF保存が可能です。</p>
+              <p style="font-size: 12px; opacity: 0.75; line-height: 1.5; margin: 0 0 12px;">Gemini が資料を解析して商用スライドを直接構築。その場でプレビュー＆PDF / PowerPoint (.pptx) で直接書き出せます（図崩れ防止フィット適用）。</p>
             </div>
             <button type="button" class="btn btn-primary-gradient btn-block" id="btn-pres-generate-slides">
               <span data-icon="monitor"></span> 🚀 AIスライドを生成する

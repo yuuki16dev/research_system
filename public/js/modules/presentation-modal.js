@@ -363,7 +363,7 @@ ${insights}${tableInfo}
 
         // モーダルを閉じ、A4横スライドプレビューを展開
         closeModal('modal-presentation');
-        toast(`🎉 「${audience}」向け商用A4横スライドを生成しました！`, 'success', 4000);
+        toast(`🎉 「${audience}」向け商用スライドを生成しました！プレビュー画面上部からPowerPoint (.pptx) の直接保存も可能です`, 'success', 5000);
 
         const brandConfig = {
           publisherName: (appState.settings && appState.settings.publisher) || 'Research Studio',

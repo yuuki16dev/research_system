@@ -65,6 +65,24 @@ export async function exportPowerPoint(data, brand = {}) {
       return Math.max(minSize, Math.min(defaultSize, size));
     }
 
+    // 描画枠・画像・図形のアスペクト比維持自動Containフィッティング計算ヘルパー
+    // スライド有効領域 (Bounding Box) を超えない安全寸法を算出
+    function fitToBounds(origW, origH, maxW, maxH) {
+      const w = Math.max(0.1, Number(origW) || 1);
+      const h = Math.max(0.1, Number(origH) || 1);
+      const ratio = w / h;
+      const targetRatio = maxW / maxH;
+      let finalW, finalH;
+      if (ratio > targetRatio) {
+        finalW = maxW;
+        finalH = maxW / ratio;
+      } else {
+        finalH = maxH;
+        finalW = maxH * ratio;
+      }
+      return { w: Number(finalW.toFixed(2)), h: Number(finalH.toFixed(2)) };
+    }
+
     // 共通ヘッダー・フッター追加ヘルパー
     function addSlideDecorations(slide, secTitle, pageNum) {
       // 背景色
@@ -454,9 +472,9 @@ export async function exportPowerPoint(data, brand = {}) {
         rowH: rowH,
       });
 
-      // 下部コールアウト（テーブル直下に動的配置）
-      const calloutY = Math.max(5.35, 1.6 + totalTableH + 0.2);
-      const calloutH = Math.min(1.15, 6.75 - calloutY);
+      // 下部コールアウト（テーブル直下に動的配置 & 最大安全領域クランプ）
+      const calloutY = Math.max(5.35, Math.min(5.6, 1.6 + totalTableH + 0.2));
+      const calloutH = Math.min(1.15, Math.max(0.85, 6.75 - calloutY));
 
       s3.addShape(pptx.ShapeType.roundRect, {
         x: 0.8,
@@ -607,7 +625,9 @@ export async function exportPowerPoint(data, brand = {}) {
         bold: true,
       });
 
-      const rawRoadmap = data.deepThinking && Array.isArray(data.deepThinking.roadmap) ? data.deepThinking.roadmap : [];
+      const rawRoadmap = (data.deepThinking && Array.isArray(data.deepThinking.roadmap))
+        ? data.deepThinking.roadmap
+        : (Array.isArray(data.roadmap) ? data.roadmap : []);
       const defaultRoadmap = [
         { phase: 'Phase 1: 検証・PoC', focus: '要件定義・環境構築', actions: ['初期スコープ策定', 'パイロット検証'] },
         { phase: 'Phase 2: 本格展開', focus: 'コア機能統合・連携', actions: ['社内本番適用', '利用定着化トレーニング'] },
@@ -657,8 +677,10 @@ export async function exportPowerPoint(data, brand = {}) {
           shrinkText: true,
         });
 
-        // 施策リスト
-        const actions = Array.isArray(p.actions) ? p.actions : [];
+        // 施策リスト (actions または items に対応)
+        const actions = (Array.isArray(p.actions) && p.actions.length)
+          ? p.actions
+          : (Array.isArray(p.items) ? p.items : []);
         if (actions.length) {
           const actCount = actions.length;
           const baseActSize = actCount <= 3 ? 9.5 : 8.5;
