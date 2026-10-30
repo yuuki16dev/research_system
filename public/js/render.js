@@ -52,6 +52,7 @@ export function renderReport(data, container) {
       <span class="tag"><span data-icon="layers"></span>${esc(data.scopeLabel)}</span>
       <span class="tag tag-period"><span data-icon="calendar"></span>期間: ${esc(data.periodLabel || '直近1年（最新推奨）')}</span>
       <span class="tag"><span data-icon="zap"></span>${esc(data.depthLabel)}</span>
+      ${data.multiHop && data.multiHop.enabled ? `<span class="tag tag-multihop" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border-color: rgba(16, 185, 129, 0.4); font-weight: 600;"><span data-icon="git-merge"></span>自律2段階深層探索済</span>` : ''}
       ${data.framework ? `<span class="tag tag-framework" style="background: rgba(37,99,235,0.12); color: var(--primary-light); border-color: rgba(37,99,235,0.35); font-weight: 600;"><span data-icon="sparkles"></span>${esc(data.framework.focusLabel || 'AI動的構造化')}</span>` : ''}
       <span class="tag"><span data-icon="clock"></span>${esc(createdStr)} (${durationSec}秒)</span>
     </div>
@@ -167,6 +168,31 @@ export function renderReport(data, container) {
             </span>`
             )
             .join('')}
+        </div>`
+            : ''
+        }
+      </div>`
+          : ''
+      }
+
+      ${
+        data.multiHop && data.multiHop.enabled && data.multiHop.hopsExecuted >= 2
+          ? `
+      <div class="multihop-banner glass" style="margin-bottom: 22px; padding: 14px 18px; border-radius: 10px; border: 1px solid rgba(16, 185, 129, 0.35); background: rgba(16, 185, 129, 0.08);">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; flex-wrap: wrap;">
+          <strong style="color: #34d399; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;">
+            <span data-icon="git-merge"></span>自律2段階深層リサーチ完了（2nd Hop ギャップ補完済）
+          </strong>
+          <span style="font-size: 12px; color: var(--muted);">第2次ピンポイント探索: ${data.multiHop.secondHopSourcesCount || 0}件の深層ソースを追加獲得</span>
+        </div>
+        ${
+          data.multiHop.gapsDetected && data.multiHop.gapsDetected.length
+            ? `
+        <div style="margin-top: 6px; font-size: 12px; color: var(--text-secondary);">
+          <span style="font-weight: 600; color: #fbbf24; font-size: 11.5px;">🔍 自律検知された不足ファクト・未解明論点:</span>
+          <ul style="margin: 4px 0 0 18px; padding: 0; line-height: 1.5; font-size: 11.5px;">
+            ${data.multiHop.gapsDetected.map((g) => `<li>${esc(g)}</li>`).join('')}
+          </ul>
         </div>`
             : ''
         }
@@ -550,6 +576,7 @@ export function renderReport(data, container) {
                 <span>${esc(src.domain)}</span>
                 ${src.categoryBadge ? `<span class="tag tag-category" title="ドメイン分類: ${esc(src.categoryLabel || '')}"><span class="badge-icon">${esc(src.categoryBadge)}</span>${esc(src.categoryLabel || '')}</span>` : ''}
                 ${src.fromMemory ? `<span class="tag tag-memory" title="過去の高信頼リサーチから参照されたドメイン"><span data-icon="sparkles"></span>知見メモリ</span>` : ''}
+                ${src.hop === 2 ? `<span class="tag tag-hop2" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border-color: rgba(16, 185, 129, 0.35); font-size: 11px;"><span data-icon="git-merge"></span>2nd Hop（深層追加）</span>` : ''}
                 ${src.publishedDate ? `<span class="tag-date" style="margin-left: 8px;">${esc(src.publishedDate.slice(0, 10))}</span>` : ''}
                 ${src.snippet ? `<small style="margin-left: 8px; opacity: 0.7;">— ${esc(src.snippet.slice(0, 80))}…</small>` : ''}
               </div>
@@ -590,6 +617,15 @@ export function renderReport(data, container) {
         <small>収集ソース数</small>
         <strong>${data.sources ? data.sources.length : 0} 件</strong>
       </div>
+      ${
+        data.multiHop && data.multiHop.enabled
+          ? `
+      <div>
+        <small>自律探索ホップ数</small>
+        <strong style="color: #34d399;">${data.multiHop.hopsExecuted} 段階（2nd Hop 実行済）</strong>
+      </div>`
+          : ''
+      }
     </div>
     ${
       data.queries && data.queries.length

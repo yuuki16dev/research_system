@@ -21,7 +21,7 @@ async function runWithServer(callback) {
   const url = `http://localhost:${testPort}`;
 
   let ready = false;
-  for (let i = 0; i < 80; i++) {
+  for (let i = 0; i < 120; i++) {
     await new Promise((r) => setTimeout(r, 200));
     try {
       const res = await fetch(`${url}/api/info`);

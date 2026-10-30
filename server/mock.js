@@ -101,7 +101,8 @@ function buildSources(p, kw, rand, sites) {
   const out = [];
   for (let i = 0; i < n; i++) {
     const [domain, tpl] = pool[i % pool.length];
-    const title = tpl.replace('{kw}', kw) + (i >= pool.length ? '（続報）' : '');
+    const isHop2 = deep && i >= n - 3;
+    const title = (isHop2 ? '【2次ホップ】' : '') + tpl.replace('{kw}', kw) + (i >= pool.length ? '（続報）' : '');
     const y = p.period === 'month' ? currentYear : baseYear - Math.floor(i / 4);
     const m = String(Math.floor(1 + rand() * 12)).padStart(2, '0');
     const d = String(Math.floor(1 + rand() * 28)).padStart(2, '0');
@@ -109,12 +110,15 @@ function buildSources(p, kw, rand, sites) {
 
     out.push({
       title,
-      url: searchUrl(domain, p.theme),
+      url: searchUrl(domain, isHop2 ? `${p.theme} 料金 比較` : p.theme),
       domain,
-      snippet: `${kw}に関して、具体的な数値・事例・比較観点を含む解説。導入時の注意点や、実際に成果が出た施策のプロセスがまとめられている。（デモ用の要約テキスト）`,
+      snippet: isHop2
+        ? `${kw}に関する2次ホップ深層調査データ。料金体系・具体的なプラン差、および市場規模推移の追加ファクトが整理されている。（デモ用2次ホップテキスト）`
+        : `${kw}に関して、具体的な数値・事例・比較観点を含む解説。導入時の注意点や、実際に成果が出た施策のプロセスがまとめられている。（デモ用の要約テキスト）`,
       type: p.scope === 'sns' ? 'sns' : 'web',
       aiScore: Math.round(55 + rand() * 40),
       publishedDate,
+      hop: isHop2 ? 2 : 1,
     });
   }
   return out;
@@ -463,6 +467,22 @@ function buildMock(p) {
     ],
     tableComparisonAxis: '機能性 vs コスト vs 導入難易度',
   };
+
+  if (deep) {
+    raw.multiHop = {
+      enabled: true,
+      hopsExecuted: 2,
+      gapsDetected: [
+        '主要サービス3社の月額料金プランおよび無料枠の制限についての公式情報',
+        '2025〜2026年に向けたCAGR（年平均成長率）の最新公的試算データ',
+      ],
+      followUpQueries: [
+        `${kw} 料金プラン 比較`,
+        `${kw} CAGR 市場規模 2025 2026`,
+      ],
+      secondHopSourcesCount: 3,
+    };
+  }
 
   return {
     raw,

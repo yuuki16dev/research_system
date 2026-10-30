@@ -193,7 +193,7 @@ async function runLive(p, s, ctx) {
   }
 
   ctx.log(`AI多角クエリ展開 ＆ 動的分析構造の設計中（フォーカス: ${FOCUS_LABELS[focus] || '自動最適化'} / 期間: ${dateParams.label}${isAuthoritative ? ' / 一次情報優先' : ''}）…`, 'plan');
-  const nQ = deep ? 7 : 4;
+  const nQ = deep ? 6 : 4;
   const nHeadings = deep ? '4〜5' : '3〜4';
   const plan = await ai(
     `あなたはトップティア戦略コンサルタントのシニアリサーチディレクターです。次のテーマについて、人間が手作業で何時間もかけて複数回検索する作業を完全に代替するため、多角的で質の高いWeb検索サブクエリを${nQ}個作成すると同時に、このテーマに最も適した動的分析構造（フレームワーク）を設計してください。\n` +
@@ -316,6 +316,7 @@ async function runLive(p, s, ctx) {
       if (t.fromMemory) {
         results.forEach((r) => (r.fromMemory = true));
       }
+      results.forEach((r) => { r.hop = 1; });
       completedTasks++;
       ctx.progress(18 + Math.round(36 * (completedTasks / tasks.length)), 'search');
       ctx.log(`${results.length}件の結果を取得 (${t.query.slice(0, 20)})`, 'ok', results.slice(0, 2).map((r) => r.domain).join(' / '));
@@ -374,6 +375,115 @@ async function runLive(p, s, ctx) {
   }
 
   let sources = rawSources;
+
+  /* ---- 3.5 自律2段階深層探索（Agentic Multi-Hop Loop） ---- */
+  const multiHop = {
+    enabled: !!deep,
+    hopsExecuted: 1,
+    gapsDetected: [],
+    followUpQueries: [],
+    secondHopSourcesCount: 0,
+  };
+
+  if (deep && rawSources.length > 0 && !signal.aborted) {
+    ctx.progress(38, 'search');
+    ctx.log('🧠 自律ギャップ分析: 第1次収集データの不足ファクト・未解明論点を検知中…', 'ai');
+
+    const sampleSnippets = rawSources
+      .slice(0, 8)
+      .map((s, idx) => `[${idx + 1}] ${s.title || s.domain}: ${s.snippet ? s.snippet.slice(0, 160) : s.domain}`)
+      .join('\n');
+
+    try {
+      const gapPlan = await ai(
+        `あなたは世界最高峰のリサーチ機関のアナリストです。以下のテーマについて収集した第1次検索結果を精査し、最終レポートの品質・解像度・説得力を劇的に高めるために「何の情報・具体データが不足しているか（未解明論点・料金プラン・最新市場規模・課題等）」を客観的に自己分析（ギャップ分析）してください。\n` +
+          `そして、その不足をピンポイントで埋めるための【第2次ホップ（深層追加検索クエリ）】を2〜3本策定してください。\n\n` +
+          `テーマ: ${p.theme}\n調査目的: ${purpose}\n` +
+          `第1次収集ソース概要:\n${sampleSnippets}\n\n` +
+          `出力JSON:\n` +
+          `{\n` +
+          `  "gapsDetected": ["不足している決定的なファクトや論点（35字以内）"],\n` +
+          `  "followUpQueries": ["ピンポイント追加検索クエリ（2〜5語）"],\n` +
+          `  "rationale": "第2次ホップを実行する狙い（40字以内）"\n` +
+          `}`,
+        { temperature: 0.3 }
+      );
+
+      const gaps = arr(gapPlan.gapsDetected).map((g) => str(g)).filter(Boolean).slice(0, 3);
+      const followUps = arr(gapPlan.followUpQueries).map((q) => str(q)).filter(Boolean).slice(0, 3);
+
+      if (gaps.length && followUps.length) {
+        multiHop.hopsExecuted = 2;
+        multiHop.gapsDetected = gaps;
+        multiHop.followUpQueries = followUps;
+
+        gaps.forEach((g) => ctx.log(`  └ 不足ファクト検知: ${g}`, 'plan'));
+        ctx.log(`🔍 第2次ホップ（自律深層探索）: ${followUps.length} 本のピンポイント検索を開始…`, 'search');
+
+        const hop2Tasks = followUps.map((q) => ({ query: q, hop: 2 }));
+        const hop2Buckets = [];
+
+        const executeHop2Task = async (t) => {
+          try {
+            ctx.log(`2次ホップ検索中: ${t.query}`, 'search', providerLabel);
+            const results = await search.run({
+              provider,
+              apiKey: s.tavilyApiKey,
+              query: t.query,
+              sns: p.scope === 'sns' ? SNS_DOMAINS : null,
+              maxResults: 4,
+              deep: true,
+              timeRange: dateParams.timeRange,
+              startDate: dateParams.startDate,
+              endDate: dateParams.endDate,
+              df: dateParams.df,
+              signal,
+            });
+            results.forEach((r) => { r.hop = 2; });
+            return results;
+          } catch (e) {
+            if (signal.aborted) throw e;
+            ctx.log(`2次ホップ検索失敗 (${t.query}): ${e.message}`, 'warn');
+            return [];
+          }
+        };
+
+        if (provider === 'tavily') {
+          const res = await Promise.all(hop2Tasks.map(executeHop2Task));
+          hop2Buckets.push(...res);
+        } else {
+          for (let i = 0; i < hop2Tasks.length; i += 2) {
+            if (signal.aborted) break;
+            const batch = hop2Tasks.slice(i, i + 2);
+            const batchResults = await Promise.all(batch.map(executeHop2Task));
+            hop2Buckets.push(...batchResults);
+            if (i + 2 < hop2Tasks.length) await sleep(300, signal);
+          }
+        }
+
+        const hop2NewSources = [];
+        for (const b of hop2Buckets) {
+          for (const r of b) {
+            const key = r.url.replace(/[#?].*$/, '').replace(/\/$/, '');
+            if (!seen.has(key)) {
+              seen.add(key);
+              r.hop = 2;
+              r.type = p.scope === 'sns' ? 'sns' : 'web';
+              rawSources.push(r);
+              hop2NewSources.push(r);
+            }
+          }
+        }
+        multiHop.secondHopSourcesCount = hop2NewSources.length;
+        ctx.log(`第2次ホップ完了: 新たに ${hop2NewSources.length} 件の深層ソースを追加獲得`, 'ok');
+      }
+    } catch (err) {
+      if (signal.aborted) throw err;
+      ctx.log(`自律ギャップ分析をスキップし第1次ソースで継続します: ${err.message}`, 'warn');
+    }
+  }
+
+  sources = rawSources;
   if (isAuthoritative) {
     sources.sort((a, b) => getDomainAuthorityScore(b.url) - getDomainAuthorityScore(a.url));
   }
@@ -435,7 +545,7 @@ async function runLive(p, s, ctx) {
   let raw;
   try {
     try {
-      raw = await ai(synthPrompt(p, sources, sites, deep, framework), {
+      raw = await ai(synthPrompt(p, sources, sites, deep, framework, multiHop), {
         temperature: deep ? 0.4 : 0.35,
         timeoutMs: deep ? 180000 : 90000,
       });
@@ -443,7 +553,7 @@ async function runLive(p, s, ctx) {
       if (signal.aborted) throw err;
       ctx.log(`レポート構造化でエラーを検知しました。AI修復を試行中… (${err.message})`, 'warn');
       try {
-        const repairPrompt = `あなたはJSON修復の専門家です。以下のリサーチレポートのテキストから、構文的に完全に正しいJSONオブジェクトのみを作成してください。マークダウンや解説は含めず、純粋なJSONのみを出力してください。\n\n${err.rawText || synthPrompt(p, sources, sites, deep, framework)}`;
+        const repairPrompt = `あなたはJSON修復の専門家です。以下のリサーチレポートのテキストから、構文的に完全に正しいJSONオブジェクトのみを作成してください。マークダウンや解説は含めず、純粋なJSONのみを出力してください。\n\n${err.rawText || synthPrompt(p, sources, sites, deep, framework, multiHop)}`;
         raw = await ai(repairPrompt, { temperature: 0.2, timeoutMs: deep ? 120000 : 60000 });
       } catch (e2) {
         if (signal.aborted) throw e2;
@@ -470,11 +580,14 @@ async function runLive(p, s, ctx) {
   if (framework) {
     raw.framework = raw.framework || framework;
   }
+  if (multiHop) {
+    raw.multiHop = raw.multiHop || multiHop;
+  }
 
-  return { raw, sources, queries, sites, provider, notices, framework };
+  return { raw, sources, queries, sites, provider, notices, framework, multiHop };
 }
 
-function synthPrompt(p, sources, sites, deep, framework = null) {
+function synthPrompt(p, sources, sites, deep, framework = null, multiHop = null) {
   const currentYear = new Date().getFullYear();
   const dateParams = resolveSearchDateParams(p.period, p.customPeriod);
   const purpose = p.purpose || 'general';
@@ -600,9 +713,20 @@ ${p.referenceContext.trim().slice(0, 3000)}
 
   const block = sources.length
     ? sources
-        .map((s, i) => `[${i + 1}] ${s.title}\nURL: ${s.url}${s.publishedDate ? `\n公開日: ${s.publishedDate}` : ''}\n抜粋: ${s.snippet || '-'}${s.content ? `\n本文: ${s.content}` : ''}`)
+        .map((s, i) => `[${i + 1}] ${s.title}${s.hop === 2 ? ' 【第2次ホップ追加深層ソース】' : ''}\nURL: ${s.url}${s.publishedDate ? `\n公開日: ${s.publishedDate}` : ''}\n抜粋: ${s.snippet || '-'}${s.content ? `\n本文: ${s.content}` : ''}`)
         .join('\n\n---\n\n')
     : '（収集ソースは0件です。一般的な知識に基づいて作成し、その旨をサマリー冒頭に明記してください。sourceAssessments は空配列にしてください）';
+
+  let multiHopInstruction = '';
+  if (multiHop && multiHop.enabled && multiHop.hopsExecuted >= 2) {
+    multiHopInstruction = `
+# 【自律2段階深層探索（Agentic Multi-Hop）の統合指示】
+本調査では第1次検索後に自律ギャップ分析を実施し、以下の不足ファクトを検知して第2次ホップ（追加ピンポイント探索）を実行・補完しました：
+${multiHop.gapsDetected.map((g, i) => `・不足ファクト検知[${i + 1}]: ${g}`).join('\n')}
+${multiHop.followUpQueries.map((q, i) => `・第2次ホップ投入クエリ[${i + 1}]: ${q}`).join('\n')}
+第2次ホップで獲得した最新・深層ソース（【第2次ホップ追加深層ソース】）の知見を、エグゼクティブサマリー、重要指標（metrics）、比較表（table）、各セクション、およびインサイトに漏れなく反映させ、手動検索では到達できない圧倒的な情報密度の深層レポートを完成させてください。
+`;
+  }
 
   const deepInstructions = deep
     ? `
@@ -672,6 +796,7 @@ ${p.referenceContext.trim().slice(0, 3000)}
 Webサイトの簡易スナップショットのような走り書きや抽象的解説を徹底的に排除し、読者がそのまま意思決定・事業戦略・稟議に使用できる、圧倒的な品格・情報密度・論理構造を持つ格調高いレポートを日本語で執筆してください。
 ${purposeFocus}
 ${frameworkFocus}
+${multiHopInstruction}
 ${deepInstructions}
 # テーマ
 ${p.theme}
@@ -763,13 +888,24 @@ async function runMock(p, ctx) {
 
   const qs = m.queries;
   for (let i = 0; i < qs.length; i++) {
-    ctx.progress(15 + Math.round(40 * (i / qs.length)), 'search');
+    ctx.progress(15 + Math.round(20 * (i / qs.length)), 'search');
     const site = p.scope === 'sites' ? m.sites[i % m.sites.length] : null;
     ctx.log(`検索中: ${site ? `site:${site} ` : ''}${qs[i]}`, 'search', 'Mock Search');
     await w(650);
     const slice = m.sources.filter((_, j) => j % qs.length === i);
     ctx.log(`${slice.length + 3}件の結果を取得`, 'ok', slice.map((s) => s.domain).join(' / '));
   }
+
+  if (deep && m.raw.multiHop) {
+    ctx.progress(38, 'search');
+    ctx.log('🧠 自律ギャップ分析: 第1次収集データの不足ファクト・未解明論点を検知中…', 'ai');
+    await w(600);
+    m.raw.multiHop.gapsDetected.forEach((g) => ctx.log(`  └ 不足ファクト検知: ${g}`, 'plan'));
+    ctx.log(`🔍 第2次ホップ（自律深層探索）: ${m.raw.multiHop.followUpQueries.length} 本のピンポイント検索を開始…`, 'search');
+    await w(700);
+    ctx.log(`第2次ホップ完了: 新たに ${m.raw.multiHop.secondHopSourcesCount} 件の深層ソースを追加獲得`, 'ok');
+  }
+
   ctx.progress(55, 'search');
   ctx.log(`重複を除いた ${m.sources.length} 件のソースを解析対象に選定`, 'ok');
 
@@ -798,6 +934,7 @@ async function runMock(p, ctx) {
     sites: m.sites,
     provider: 'mock',
     notices: ['これは DEMO モードのサンプルデータです。API設定で Gemini APIキーを登録すると実際のWeb調査が行われます。'],
+    multiHop: m.raw.multiHop,
   };
 }
 
@@ -837,6 +974,7 @@ async function runResearch(job, settings) {
     queries: out.queries,
     sources: out.sources,
     notices: out.notices,
+    multiHop: out.multiHop,
   });
   ctx.progress(100, 'done');
   ctx.log(`完了しました（${(result.durationMs / 1000).toFixed(1)}秒 / ソース ${result.sources.length}件）`, 'done');

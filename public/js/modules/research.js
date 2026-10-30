@@ -708,9 +708,15 @@ function updateReassuranceGuidance(sec, stage, depth) {
       card.classList.remove('is-waiting');
     } else {
       if (iconEl) iconEl.innerHTML = icon('clock');
-      titleEl.textContent = '多数のWebサイトを横断巡回中…';
-      descEl.textContent = '信頼性の高い最新情報を丁寧に探索・収集しています。少々お時間がかかっていますが、このままお待ちください（フリーズではありません）。';
-      statusEl.textContent = 'じっくり巡回中';
+      if (isDeep) {
+        titleEl.textContent = '自律2段階深層探索（Agentic Multi-Hop）実行中…';
+        descEl.textContent = '第1次検索データの自律ギャップ分析と、不足ファクトを埋める追加ピンポイント探索（2nd Hop）を並列処理しています。';
+        statusEl.textContent = '2段階深層探索中';
+      } else {
+        titleEl.textContent = '多数のWebサイトを横断巡回中…';
+        descEl.textContent = '信頼性の高い最新情報を丁寧に探索・収集しています。少々お時間がかかっていますが、このままお待ちください（フリーズではありません）。';
+        statusEl.textContent = 'じっくり巡回中';
+      }
       card.classList.add('is-waiting');
     }
   } else if (stage === 'analyze') {

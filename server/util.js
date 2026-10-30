@@ -8,8 +8,8 @@ const SCOPE_LABELS = {
 };
 
 const DEPTH_LABELS = {
-  quick: 'クイック（要点のみ・約35〜40秒）',
-  deep: 'ディープ（深層推論・多角分析・約1分以上）',
+  quick: 'クイック（要点のみ・約15〜25秒）',
+  deep: '自律深層リサーチ（2段階探索・約50〜80秒）',
 };
 
 const PERIOD_LABELS = {
@@ -135,6 +135,7 @@ function normalizeResult(raw = {}, meta = {}) {
       type: s.type || 'web',
       publishedDate: str(s.publishedDate),
       fromMemory: !!s.fromMemory,
+      hop: Number(s.hop) || 1,
     };
   });
 
@@ -261,6 +262,15 @@ function normalizeResult(raw = {}, meta = {}) {
             }))
             .filter((dh) => dh.heading),
           tableComparisonAxis: str(raw.framework.tableComparisonAxis),
+        }
+      : null,
+    multiHop: (raw.multiHop || meta.multiHop)
+      ? {
+          enabled: !!((raw.multiHop && raw.multiHop.enabled) || (meta.multiHop && meta.multiHop.enabled)),
+          hopsExecuted: Number((raw.multiHop && raw.multiHop.hopsExecuted) || (meta.multiHop && meta.multiHop.hopsExecuted)) || 1,
+          gapsDetected: arr((raw.multiHop && raw.multiHop.gapsDetected) || (meta.multiHop && meta.multiHop.gapsDetected)).map((g) => str(g)).filter(Boolean),
+          followUpQueries: arr((raw.multiHop && raw.multiHop.followUpQueries) || (meta.multiHop && meta.multiHop.followUpQueries)).map((q) => str(q)).filter(Boolean),
+          secondHopSourcesCount: Number((raw.multiHop && raw.multiHop.secondHopSourcesCount) || (meta.multiHop && meta.multiHop.secondHopSourcesCount)) || 0,
         }
       : null,
     sources,
