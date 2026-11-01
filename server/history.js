@@ -18,7 +18,7 @@ function list() {
   if (!fs.existsSync(DIR)) return [];
   return fs
     .readdirSync(DIR)
-    .filter((f) => f.endsWith('.json'))
+    .filter((f) => f.endsWith('.json') && isId(f.slice(0, -5)))
     .map((f) => {
       try {
         const r = JSON.parse(fs.readFileSync(path.join(DIR, f), 'utf8'));

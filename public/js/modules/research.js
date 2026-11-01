@@ -361,6 +361,177 @@ export function bindFormControls() {
   if (checkAuthoritative) checkAuthoritative.addEventListener('change', updateOptionsSummaryTag);
   updateOptionsSummaryTag();
 
+  // ========================================================
+  // v1.17.0 BYOD (Bring Your Own Data) & 参考URL管理
+  // ========================================================
+  let attachedFiles = [];
+  let referenceUrls = [];
+
+  const byodDropzone = $('#byod-dropzone');
+  const byodFileInput = $('#byod-file-input');
+  const byodFilesList = $('#byod-files-list');
+  const byodUrlInput = $('#byod-url-input');
+  const btnAddRefUrl = $('#btn-add-ref-url');
+  const byodUrlsList = $('#byod-urls-list');
+
+  function renderAttachedFiles() {
+    if (!byodFilesList) return;
+    if (attachedFiles.length === 0) {
+      byodFilesList.style.display = 'none';
+      byodFilesList.innerHTML = '';
+      return;
+    }
+    byodFilesList.style.display = 'flex';
+    byodFilesList.innerHTML = attachedFiles.map((file, idx) => `
+      <div class="byod-file-chip">
+        <span class="chip-icon">${file.name.endsWith('.xlsx') || file.name.endsWith('.xls') || file.name.endsWith('.csv') ? '📊' : file.name.endsWith('.pdf') ? '📄' : '📝'}</span>
+        <span class="chip-name" title="${esc(file.name)}">${esc(file.name)}</span>
+        <span class="chip-size">(${(file.size / 1024).toFixed(1)}KB)</span>
+        <button type="button" class="btn-chip-remove" data-file-idx="${idx}" title="削除">×</button>
+      </div>
+    `).join('');
+
+    byodFilesList.querySelectorAll('.btn-chip-remove').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const idx = Number(btn.dataset.fileIdx);
+        attachedFiles.splice(idx, 1);
+        renderAttachedFiles();
+      });
+    });
+  }
+
+  function renderReferenceUrls() {
+    if (!byodUrlsList) return;
+    if (referenceUrls.length === 0) {
+      byodUrlsList.style.display = 'none';
+      byodUrlsList.innerHTML = '';
+      return;
+    }
+    byodUrlsList.style.display = 'flex';
+    byodUrlsList.innerHTML = referenceUrls.map((url, idx) => `
+      <div class="byod-url-chip">
+        <span class="url-chip-icon">🔗</span>
+        <span class="url-chip-text" title="${esc(url)}">${esc(url)}</span>
+        <button type="button" class="btn-chip-remove" data-url-idx="${idx}" title="削除">×</button>
+      </div>
+    `).join('');
+
+    byodUrlsList.querySelectorAll('.btn-chip-remove').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const idx = Number(btn.dataset.urlIdx);
+        referenceUrls.splice(idx, 1);
+        renderReferenceUrls();
+      });
+    });
+  }
+
+  async function processFiles(files) {
+    for (const file of Array.from(files)) {
+      if (attachedFiles.some(f => f.name === file.name && f.size === file.size)) continue;
+      try {
+        let textContent = '';
+        const name = file.name.toLowerCase();
+        if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+          if (window.XLSX) {
+            const buffer = await file.arrayBuffer();
+            const wb = window.XLSX.read(new Uint8Array(buffer), { type: 'array' });
+            const sheetsText = [];
+            wb.SheetNames.forEach(sheetName => {
+              const csv = window.XLSX.utils.sheet_to_csv(wb.Sheets[sheetName]);
+              if (csv.trim()) {
+                sheetsText.push(`[シート: ${sheetName}]\n${csv}`);
+              }
+            });
+            textContent = sheetsText.join('\n\n');
+          } else {
+            textContent = `[Excelファイル: ${file.name}]`;
+          }
+        } else if (name.endsWith('.pdf')) {
+          textContent = `[PDFファイル: ${file.name} - ${(file.size / 1024).toFixed(1)}KB]`;
+        } else {
+          // テキスト, CSV, Markdown, JSON
+          textContent = await file.text();
+        }
+
+        attachedFiles.push({
+          name: file.name,
+          size: file.size,
+          text: textContent.slice(0, 50000), // 上限50,000文字
+        });
+      } catch (err) {
+        toast(`ファイル ${file.name} の読み込みに失敗しました: ${err.message}`, 'error');
+      }
+    }
+    renderAttachedFiles();
+  }
+
+  if (byodDropzone && byodFileInput) {
+    byodDropzone.addEventListener('click', () => byodFileInput.click());
+    byodDropzone.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        byodFileInput.click();
+      }
+    });
+
+    byodFileInput.addEventListener('change', (e) => {
+      if (e.target.files && e.target.files.length) {
+        processFiles(e.target.files);
+        byodFileInput.value = '';
+      }
+    });
+
+    byodDropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      byodDropzone.classList.add('dragover');
+    });
+    byodDropzone.addEventListener('dragleave', () => {
+      byodDropzone.classList.remove('dragover');
+    });
+    byodDropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      byodDropzone.classList.remove('dragover');
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+        processFiles(e.dataTransfer.files);
+      }
+    });
+  }
+
+  function handleAddRefUrl() {
+    if (!byodUrlInput) return;
+    const url = byodUrlInput.value.trim();
+    if (!url) return;
+    if (!/^https?:\/\/[^\s]+$/i.test(url)) {
+      toast('http:// または https:// から始まる有効なURLを入力してください', 'warn');
+      return;
+    }
+    if (referenceUrls.includes(url)) {
+      toast('このURLは既に追加されています', 'info');
+      return;
+    }
+    if (referenceUrls.length >= 10) {
+      toast('参考URLは最大10件までです', 'warn');
+      return;
+    }
+    referenceUrls.push(url);
+    byodUrlInput.value = '';
+    renderReferenceUrls();
+  }
+
+  if (btnAddRefUrl) {
+    btnAddRefUrl.addEventListener('click', handleAddRefUrl);
+  }
+  if (byodUrlInput) {
+    byodUrlInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleAddRefUrl();
+      }
+    });
+  }
+
   // フォーム送信
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -394,7 +565,21 @@ export function bindFormControls() {
     const referenceContext = ($('#reference-context-input') && $('#reference-context-input').value.trim()) || '';
     const authoritative = !!(checkAuthoritative && checkAuthoritative.checked);
 
-    await startResearch({ theme, scope, depth, sites, period, customPeriod, purpose, focus, customPurpose, referenceContext, authoritative });
+    await startResearch({
+      theme,
+      scope,
+      depth,
+      sites,
+      period,
+      customPeriod,
+      purpose,
+      focus,
+      customPurpose,
+      referenceContext,
+      referenceUrls: [...referenceUrls],
+      attachedFiles: [...attachedFiles],
+      authoritative,
+    });
   });
 
   // 中止ボタンのバインド（プログレス内・フォーム内・トップバー内）
@@ -988,4 +1173,129 @@ function notifyResearchComplete(resultData) {
     document.addEventListener('visibilitychange', onVisible);
   }
 }
+
+// ==========================================================================
+// 過去レポート横断クロス統合 (Cross-Report Synthesis) 実行
+// ==========================================================================
+export async function startCrossSynthesis(reportIds) {
+  if (!Array.isArray(reportIds) || reportIds.length < 2) {
+    toast('2件以上のレポートを選択してください', 'warn');
+    return;
+  }
+
+  if (appState.activeUnsub) {
+    try {
+      appState.activeUnsub();
+    } catch {}
+    appState.activeUnsub = null;
+  }
+  clearInterval(appState.timerInterval);
+  appState.timerInterval = null;
+
+  appState.isFinishing = false;
+  appState.lastParams = { reportIds, isCross: true };
+
+  const progressSection = $('#progress-section');
+  const resultsSection = $('#results-section');
+  const logList = $('#log');
+  const logCount = $('#log-count');
+  const progressFill = $('#progress-fill');
+  const progressPct = $('#progress-pct');
+  const progressTheme = $('#progress-theme');
+  const progressElapsed = $('#progress-elapsed');
+  const stepperItems = $$('#stepper li');
+  const abortedBanner = $('#progress-aborted-banner');
+  const errorBanner = $('#progress-error-banner');
+
+  setRunningState(true);
+  if (abortedBanner) abortedBanner.style.display = 'none';
+  if (errorBanner) errorBanner.style.display = 'none';
+  progressSection.hidden = false;
+  resultsSection.hidden = true;
+  progressSection.classList.remove('is-done', 'is-error');
+  logList.innerHTML = '';
+  logCount.textContent = '0';
+
+  progressFill.style.width = '0%';
+  progressPct.textContent = '0%';
+  progressTheme.textContent = `【過去レポート横断クロス統合】${reportIds.length}件のレポートをマージ・総合分析中`;
+  stepperItems.forEach((li) => li.classList.remove('active', 'done'));
+  stepperItems[0].classList.add('active');
+
+  progressSection.scrollIntoView({ behavior: 'smooth' });
+
+  let currentStage = 'plan';
+  let currentProgressVal = 0;
+  let lastProgressTime = Date.now();
+
+  clearInterval(appState.timerInterval);
+  appState.startTime = Date.now();
+  appState.timerInterval = setInterval(() => {
+    const sec = Math.floor((Date.now() - appState.startTime) / 1000);
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    progressElapsed.textContent = `${m}:${String(s).padStart(2, '0')}`;
+
+    const now = Date.now();
+    if (now - lastProgressTime > 1600 && currentStage !== 'done') {
+      if (currentProgressVal < 96) {
+        currentProgressVal = Math.min(96, currentProgressVal + 0.4);
+        progressFill.style.width = `${currentProgressVal}%`;
+        progressPct.textContent = `${Math.round(currentProgressVal)}%`;
+      }
+    }
+  }, 1000);
+
+  try {
+    const { jobId } = await api.crossSynthesize(reportIds);
+    appState.activeJobId = jobId;
+
+    let logCounter = 0;
+    appState.activeUnsub = api.subscribe(jobId, {
+      onEvent: (evt) => {
+        if (evt.type === 'log') {
+          logCounter++;
+          logCount.textContent = logCounter;
+          const li = document.createElement('li');
+          li.className = `k-${evt.kind || 'info'}`;
+          const time = new Date(evt.ts).toTimeString().slice(0, 8);
+          li.innerHTML = `
+            <span class="log-time">${time}</span>
+            <span class="log-icon">${icon(evt.kind === 'warn' ? 'alert' : evt.kind === 'error' ? 'alert' : evt.kind === 'done' ? 'check' : 'zap')}</span>
+            <div class="log-msg">
+              <div>${esc(evt.message)}</div>
+              ${evt.detail ? `<span class="log-detail">${esc(evt.detail)}</span>` : ''}
+            </div>
+          `;
+          logList.appendChild(li);
+          li.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        } else if (evt.type === 'progress') {
+          const val = Math.min(100, Math.max(0, evt.value));
+          currentProgressVal = Math.max(currentProgressVal, val);
+          lastProgressTime = Date.now();
+          progressFill.style.width = `${currentProgressVal}%`;
+          progressPct.textContent = `${Math.round(currentProgressVal)}%`;
+
+          currentStage = evt.stage || currentStage;
+          updateStepper(evt.stage);
+        } else if (evt.type === 'result') {
+          appState.currentResult = evt.data;
+          finishSuccess(evt.data);
+        } else if (evt.type === 'error') {
+          if (evt.message && (evt.message.includes('キャンセル') || evt.message.includes('中止'))) {
+            handleAborted();
+          } else {
+            finishError(evt.message);
+          }
+        }
+      },
+      onError: (err) => {
+        finishError(err.message);
+      },
+    });
+  } catch (err) {
+    finishError(err.message);
+  }
+}
+
 

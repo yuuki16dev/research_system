@@ -6,7 +6,7 @@
  * 収益化/価格系のテーマには専用の充実データセット、それ以外は汎用テンプレートを使用。
  */
 
-const { parseSites, SNS_DOMAINS } = require('./util');
+const { parseSites, SNS_DOMAINS, domainOf } = require('./util');
 
 function hash(s) {
   let h = 2166136261;
@@ -99,6 +99,21 @@ function buildSources(p, kw, rand, sites) {
   }
 
   const out = [];
+  if (Array.isArray(p.referenceUrls) && p.referenceUrls.length > 0) {
+    p.referenceUrls.forEach((u) => {
+      const dom = domainOf(u) || 'example.com';
+      out.push({
+        title: `【指定参考】${dom} サービス概要・公式知見`,
+        url: u,
+        domain: dom,
+        snippet: `ユーザー指定参考URL「${u}」から抽出した知見データ。`,
+        type: 'reference',
+        aiScore: 94,
+        publishedDate: `${currentYear}-01-10`,
+        hop: 1,
+      });
+    });
+  }
   for (let i = 0; i < n; i++) {
     const [domain, tpl] = pool[i % pool.length];
     const isHop2 = deep && i >= n - 3;
@@ -484,12 +499,17 @@ function buildMock(p) {
     };
   }
 
+  if (p.referenceUrls) raw.referenceUrls = p.referenceUrls;
+  if (p.attachedFiles) raw.attachedFiles = p.attachedFiles;
+
   return {
     raw,
     sources,
     queries: queries.slice(0, deep ? 6 : 3),
     sites: p.scope === 'sites' ? sites : p.scope === 'sns' ? SNS_DOMAINS.slice(0, 3) : [],
     discovered,
+    referenceUrls: p.referenceUrls || [],
+    attachedFiles: p.attachedFiles || [],
   };
 }
 

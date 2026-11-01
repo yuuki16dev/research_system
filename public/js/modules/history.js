@@ -5,6 +5,7 @@
 import { $, $$, icon, hydrateIcons, openModal, closeModal, toast, esc, fmtDate, relTime } from '../ui.js';
 import { api } from '../api.js';
 import { appState } from './state.js';
+import { startCrossSynthesis } from './research.js';
 
 export const historyState = {
   items: [],
@@ -14,6 +15,8 @@ export const historyState = {
   homeFilter: '',
   drawerFilter: '',
   drawerSort: 'desc', // 'desc' | 'asc'
+  isCrossMode: false,
+  selectedCrossIds: new Set(),
 };
 
 let onSelectHistoryCallback = null;
@@ -108,6 +111,83 @@ export function bindHistoryDrawer(onSelectHistory) {
       renderHomeHistory();
     });
   }
+
+  // クロス統合モード切替ボタン（ホーム & ドロワー）
+  const btnCrossHome = $('#btn-toggle-cross-home');
+  const btnCrossDrawer = $('#btn-toggle-cross-drawer');
+
+  function toggleCrossMode() {
+    historyState.isCrossMode = !historyState.isCrossMode;
+    if (!historyState.isCrossMode) {
+      historyState.selectedCrossIds.clear();
+    }
+    updateCrossBar();
+    renderHomeHistory();
+    renderHistoryDrawerList();
+  }
+
+  if (btnCrossHome) btnCrossHome.addEventListener('click', toggleCrossMode);
+  if (btnCrossDrawer) btnCrossDrawer.addEventListener('click', toggleCrossMode);
+
+  // フローティング・クロスバーのアクション
+  const btnCancelCross = $('#btn-cancel-cross');
+  const btnSubmitCross = $('#btn-submit-cross');
+
+  if (btnCancelCross) {
+    btnCancelCross.addEventListener('click', () => {
+      historyState.isCrossMode = false;
+      historyState.selectedCrossIds.clear();
+      updateCrossBar();
+      renderHomeHistory();
+      renderHistoryDrawerList();
+    });
+  }
+
+  if (btnSubmitCross) {
+    btnSubmitCross.addEventListener('click', async () => {
+      const ids = Array.from(historyState.selectedCrossIds);
+      if (ids.length < 2) {
+        toast('2件以上のレポートを選択してください', 'warn');
+        return;
+      }
+      closeModal('drawer-history');
+      historyState.isCrossMode = false;
+      historyState.selectedCrossIds.clear();
+      updateCrossBar();
+      renderHomeHistory();
+      renderHistoryDrawerList();
+      await startCrossSynthesis(ids);
+    });
+  }
+}
+
+export function updateCrossBar() {
+  const bar = $('#history-cross-bar');
+  const countEl = $('#hcb-count');
+  const btnSubmit = $('#btn-submit-cross');
+  const btnCrossHome = $('#btn-toggle-cross-home');
+  const btnCrossDrawer = $('#btn-toggle-cross-drawer');
+
+  if (!bar) return;
+
+  if (!historyState.isCrossMode) {
+    bar.hidden = true;
+    if (btnCrossHome) btnCrossHome.classList.remove('active');
+    if (btnCrossDrawer) btnCrossDrawer.classList.remove('active');
+    return;
+  }
+
+  bar.hidden = false;
+  if (btnCrossHome) btnCrossHome.classList.add('active');
+  if (btnCrossDrawer) btnCrossDrawer.classList.add('active');
+
+  const count = historyState.selectedCrossIds.size;
+  if (countEl) countEl.textContent = `${count}件選択中`;
+  if (btnSubmit) {
+    btnSubmit.disabled = count < 2;
+    btnSubmit.style.opacity = count < 2 ? '0.5' : '1';
+    btnSubmit.style.cursor = count < 2 ? 'not-allowed' : 'pointer';
+  }
 }
 
 export async function openHistoryDrawer() {
@@ -176,9 +256,15 @@ export async function renderHistoryDrawerList() {
       }
       html += `
       <li class="history-item ${item.pinned ? 'is-pinned' : ''}" data-id="${item.id}" data-title="${esc(item.title || item.theme)}">
+        ${historyState.isCrossMode ? `
+          <div class="cross-checkbox-wrap" style="display: flex; align-items: center; margin-right: 10px;">
+            <input type="checkbox" class="cross-checkbox" data-drawer-cross-id="${item.id}" ${historyState.selectedCrossIds.has(item.id) ? 'checked' : ''} style="width: 18px; height: 18px;" />
+          </div>
+        ` : ''}
         <div class="hi-main">
           <div class="hi-title-row">
             ${item.pinned ? '<span class="pin-badge" title="ピン留め済み">⭐</span>' : ''}
+            ${item.isCrossSynthesis ? '<span class="mode-tag" style="background: rgba(168,85,247,0.2); color: #c084fc; border: 1px solid rgba(168,85,247,0.4); font-size: 10px; padding: 1px 5px;">統合クロス</span>' : ''}
             <strong>${esc(item.title || item.theme)}</strong>
           </div>
           <div class="hi-meta">
@@ -203,11 +289,23 @@ export async function renderHistoryDrawerList() {
     listEl.innerHTML = html;
     hydrateIcons(listEl);
 
-    // 履歴クリックで読み込み
+    // 履歴クリックで読み込み（クロス選択モード時は選択トグル）
     $$('.history-item', listEl).forEach((li) => {
       li.addEventListener('click', async (e) => {
         if (e.target.closest('[data-delete-id]') || e.target.closest('[data-pin-id]')) return;
         const id = li.dataset.id;
+        if (historyState.isCrossMode) {
+          if (historyState.selectedCrossIds.has(id)) {
+            historyState.selectedCrossIds.delete(id);
+          } else {
+            historyState.selectedCrossIds.add(id);
+          }
+          const cb = li.querySelector('.cross-checkbox');
+          if (cb) cb.checked = historyState.selectedCrossIds.has(id);
+          updateCrossBar();
+          renderHomeHistory();
+          return;
+        }
         await loadHistoryItem(id);
         closeModal('drawer-history');
       });
@@ -320,7 +418,13 @@ export function renderHomeHistory() {
       <div class="recent-card glass ${item.pinned ? 'is-pinned' : ''}" data-history-id="${item.id}">
         <div class="recent-card-head">
           <div class="recent-head-left">
+            ${historyState.isCrossMode ? `
+              <label class="cross-checkbox-wrap" style="display: flex; align-items: center; margin-right: 6px;">
+                <input type="checkbox" class="cross-checkbox" data-home-cross-id="${item.id}" ${historyState.selectedCrossIds.has(item.id) ? 'checked' : ''} style="width: 17px; height: 17px;" />
+              </label>
+            ` : ''}
             <span class="mode-tag ${item.mode === 'live' ? 'live' : ''}">${item.mode === 'live' ? 'LIVE' : 'DEMO'}</span>
+            ${item.isCrossSynthesis ? '<span class="mode-tag" style="background: rgba(168,85,247,0.2); color: #c084fc; border: 1px solid rgba(168,85,247,0.4); font-size: 10px; padding: 1px 5px;">統合クロス</span>' : ''}
             ${item.pinned ? '<span class="pin-badge" title="ピン留め済み">⭐ ピン留め</span>' : ''}
           </div>
           <div class="recent-head-right">
@@ -352,7 +456,20 @@ export function renderHomeHistory() {
   $$('.recent-card', grid).forEach((card) => {
     card.addEventListener('click', (e) => {
       if (e.target.closest('[data-home-delete-id]') || e.target.closest('[data-home-pin-id]')) return;
-      loadHistoryItem(card.dataset.historyId);
+      const id = card.dataset.historyId;
+      if (historyState.isCrossMode) {
+        if (historyState.selectedCrossIds.has(id)) {
+          historyState.selectedCrossIds.delete(id);
+        } else {
+          historyState.selectedCrossIds.add(id);
+        }
+        const cb = card.querySelector('.cross-checkbox');
+        if (cb) cb.checked = historyState.selectedCrossIds.has(id);
+        updateCrossBar();
+        renderHistoryDrawerList();
+        return;
+      }
+      loadHistoryItem(id);
     });
   });
 

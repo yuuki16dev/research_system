@@ -24,6 +24,7 @@ export const api = {
   saveSettings: (patch) => request('PUT', '/api/settings', patch),
   testSettings: (body) => request('POST', '/api/settings/test', body),
   startResearch: (params) => request('POST', '/api/research', params),
+  crossSynthesize: (reportIds) => request('POST', '/api/research/cross-synthesis', { reportIds }),
   cancelResearch: (id) => request('POST', `/api/research/${id}/cancel`),
   history: () => request('GET', '/api/history'),
   historyItem: (id) => request('GET', `/api/history/${id}`),

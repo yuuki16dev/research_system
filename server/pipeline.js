@@ -276,6 +276,37 @@ async function runLive(p, s, ctx) {
     }
   }
 
+  /* ---- 2.8 指定参考URLの先行解析（BYOD Multi-URL Grounding） ---- */
+  const referenceSources = [];
+  const refUrls = arr(p.referenceUrls).filter((u) => typeof u === 'string' && /^https?:\/\//i.test(u.trim())).slice(0, 5);
+  if (refUrls.length > 0) {
+    ctx.log(`🌐 指定された ${refUrls.length} 件の参考URLを先行解析中…`, 'page');
+    for (const u of refUrls) {
+      if (signal.aborted) break;
+      try {
+        const page = await search.fetchPage(u, { signal, maxChars: 5000, timeoutMs: 6000 });
+        const d = domainOf(u);
+        referenceSources.push({
+          title: `【指定参考】${page.title || d}`,
+          url: u,
+          domain: d,
+          snippet: `ユーザー指定参考URL「${u}」から直接抽出した本文データ。`,
+          content: page.text.slice(0, 5000),
+          type: 'reference',
+          isReference: true,
+          hop: 1,
+        });
+        ctx.log(`参考URL解析完了 (${d}): ${page.text.length.toLocaleString()} 字を抽出`, 'ok');
+      } catch (e) {
+        if (signal.aborted) throw e;
+        ctx.log(`参考URL取得スキップ (${u}): ${e.message}`, 'warn');
+      }
+    }
+  }
+  if (Array.isArray(p.attachedFiles) && p.attachedFiles.length > 0) {
+    ctx.log(`手持ち社内資料 ${p.attachedFiles.length} 件の内容を照合対象に設定`, 'ok');
+  }
+
   /* ---- 3. 検索 */
   const perQuery = deep ? 6 : 4;
   const tasks = [];
@@ -360,6 +391,13 @@ async function runLive(p, s, ctx) {
   const limit = deep ? 22 : 14;
   const seen = new Set();
   const rawSources = [];
+  for (const rs of referenceSources) {
+    const key = rs.url.replace(/[#?].*$/, '').replace(/\/$/, '');
+    if (!seen.has(key)) {
+      seen.add(key);
+      rawSources.push(rs);
+    }
+  }
   for (let round = 0; rawSources.length < limit * 2; round++) {
     let any = false;
     for (const b of buckets) {
@@ -584,7 +622,18 @@ async function runLive(p, s, ctx) {
     raw.multiHop = raw.multiHop || multiHop;
   }
 
-  return { raw, sources, queries, sites, provider, notices, framework, multiHop };
+  return {
+    raw,
+    sources,
+    queries,
+    sites,
+    provider,
+    notices,
+    framework,
+    multiHop,
+    referenceUrls: p.referenceUrls || [],
+    attachedFiles: p.attachedFiles || [],
+  };
 }
 
 function synthPrompt(p, sources, sites, deep, framework = null, multiHop = null) {
@@ -701,13 +750,29 @@ ${p.customPurpose || 'ユーザーの自由な指定に沿って構成してく�
 `;
   }
 
-  const userContextBlock = p.referenceContext && p.referenceContext.trim()
+  let attachedFilesInfo = '';
+  if (Array.isArray(p.attachedFiles) && p.attachedFiles.length > 0) {
+    attachedFilesInfo = `\n【添付された手持ち独自ファイル (${p.attachedFiles.length}件)】:\n` +
+      p.attachedFiles.map((f, idx) => `・ファイル[${idx + 1}]: ${f.name} (${f.type || 'document'}, 約${Math.round((f.size || 0)/1024)}KB)`).join('\n');
+  }
+
+  let refUrlsInfo = '';
+  if (Array.isArray(p.referenceUrls) && p.referenceUrls.length > 0) {
+    refUrlsInfo = `\n【ユーザー指定の参考URL群 (${p.referenceUrls.length}件)】:\n` +
+      p.referenceUrls.map((u, idx) => `・参考URL[${idx + 1}]: ${u}`).join('\n') +
+      '\n※ 上記参考URLの内容・強み・弱みを、一般Web検索情報と明確に対比してください。\n';
+  }
+
+  const userContextBlock = (p.referenceContext && p.referenceContext.trim()) || attachedFilesInfo || refUrlsInfo
     ? `
-# 【ユーザー提供の参考資料・前提メモ】
-以下の情報はユーザーから提供された前提条件や独自資料です。Web検索情報と突き合わせ、ハイブリッドで総合分析してください：
+# 【ユーザー手持ち独自資料・社内データ ＆ 指定参考URL（BYOD: Bring Your Own Data）】
+以下の内容はユーザーから提供された社内資料・独自データ・前提メモです。Web検索情報と突き合わせ、ハイブリッドで総合分析してください：
+${attachedFilesInfo}
+${refUrlsInfo}
 """
-${p.referenceContext.trim().slice(0, 3000)}
+${(p.referenceContext || '').trim().slice(0, 15000)}
 """
+※ 外部Webの一般的な情報だけでなく、上記の手持ち資料に記載された固有の課題・数値・前提条件を必ず最優先でレポートの論理展開に織り込んでください。
 `
     : '';
 
@@ -935,6 +1000,8 @@ async function runMock(p, ctx) {
     provider: 'mock',
     notices: ['これは DEMO モードのサンプルデータです。API設定で Gemini APIキーを登録すると実際のWeb調査が行われます。'],
     multiHop: m.raw.multiHop,
+    referenceUrls: m.raw.referenceUrls || p.referenceUrls || [],
+    attachedFiles: m.raw.attachedFiles || p.attachedFiles || [],
   };
 }
 
@@ -945,9 +1012,21 @@ async function runResearch(job, settings) {
   const live = settings.mode !== 'mock' && !p.forceMock && !!settings.geminiApiKey;
   const t0 = Date.now();
   const ctx = {
-    signal: job.controller.signal,
-    log: (message, kind = 'info', detail) => job.emit({ type: 'log', kind, message, detail: detail || undefined }),
-    progress: (value, stage) => job.emit({ type: 'progress', value, stage }),
+    signal: (job.controller && job.controller.signal) || job.signal || new AbortController().signal,
+    log: (message, kind = 'info', detail) => {
+      if (typeof job.emit === 'function') {
+        job.emit({ type: 'log', kind, message, detail: detail || undefined });
+      } else if (typeof job.log === 'function') {
+        job.log(kind, message, detail);
+      }
+    },
+    progress: (value, stage) => {
+      if (typeof job.emit === 'function') {
+        job.emit({ type: 'progress', value, stage });
+      } else if (typeof job.progress === 'function') {
+        job.progress(stage, value);
+      }
+    },
   };
 
   ctx.log(live ? 'LIVE モードで調査を開始します（Gemini + Web検索）' : 'DEMO モードで調査を開始します（モックデータ）', 'info', `テーマ: ${p.theme}`);
@@ -964,6 +1043,8 @@ async function runResearch(job, settings) {
     purpose: p.purpose || 'business',
     customPurpose: p.customPurpose || '',
     referenceContext: p.referenceContext || '',
+    referenceUrls: out.referenceUrls || p.referenceUrls || [],
+    attachedFiles: out.attachedFiles || p.attachedFiles || [],
     period: p.period,
     customPeriod: p.customPeriod,
     mode: live ? 'live' : 'mock',
@@ -981,4 +1062,245 @@ async function runResearch(job, settings) {
   return result;
 }
 
-module.exports = { runResearch };
+function buildCrossMockRaw(themes, reports) {
+  const t1 = themes[0] || 'アプローチA';
+  const t2 = themes[1] || 'アプローチB';
+
+  return {
+    title: `【統合クロス分析】${themes.join(' × ')}：横断比較と戦略シナジー`,
+    subtitle: `過去${themes.length}件の調査知見から導く構造的差異と最適ポートフォリオ`,
+    summary:
+      `本レポートは、過去に実施された「${themes.join('」「')}」の計${themes.length}件のリサーチ結果を横断統合・分析したクロスレポートである。\n\n` +
+      `各アプローチを同一軸で比較精査した結果、「${t1}」は初期導入の手軽さと即時性に秀でる一方、「${t2}」は長期的な拡張性とTCO（総保有コスト）の抑制において優位性を持つことが判明した。\n\n` +
+      `結論として、単一のアプローチに依存するのではなく、コア機能と周辺業務でそれぞれの強みを棲み分けるハイブリッド戦略が最も高いROIと耐障害性を実現できると結論づけられる。`,
+    keyPoints: [
+      `【構造的ポジショニングの差異】「${t1}」は即効性、「${t2}」は中長期の資産性に優れる`,
+      `【TCO・コスト分岐点】導入後6〜12ヶ月で累積コストとリターン効率の逆転が発生`,
+      `【組織・運用負荷のトレードオフ】初期学習コストと将来のベンダーロックインリスクの二項対立`,
+      `【推奨統合アーキテクチャ】フロントを俊敏に保ちつつ基幹を標準化する段階的移行が最適`,
+    ],
+    metrics: [
+      { label: '横断統合レポート数', value: `${themes.length}件`, note: '過去の蓄積知見を合体' },
+      { label: '統合分析ソース数', value: `${reports.reduce((acc, r) => acc + (r.sources ? r.sources.length : 0), 0)}件`, note: '複数調査の裏付けデータを統合' },
+      { label: 'ハイブリッド期待効果', value: '約1.8倍', note: '単一選択比でのROI向上推計' },
+      { label: 'コスト削減ポテンシャル', value: '25〜35%', note: '重複投資の排除による効果' },
+    ],
+    table: {
+      caption: `「${themes.join('」vs「')}」横断比較マトリクス`,
+      columns: ['比較評価軸', ...themes.slice(0, 3).map((t) => t.slice(0, 18)), '統合推奨方針'],
+      rows: [
+        ['主たる強み・得意領域', '即効性・初期工数極小化', 'スケーラビリティ・自社統制', '両者の長所を組み合わせ最大効果を創出'],
+        ['初期導入・学習コスト', '低（即日〜数週間）', '中〜高（1〜3ヶ月）', 'スモールスタート後に段階的拡張'],
+        ['運用・保守ランニング費用', '従量課金または月額固定', '自社インフラまたは年間契約', '利用量に応じた動的最適化'],
+        ['想定されるリスク・落とし穴', 'ベンダーロックイン・規約変更', '保守属人化・初期投資超過', 'データ連携標準の共通化でリスクヘッジ'],
+        ['最適な適用ユースケース', 'PoC・新規検証・周辺業務', '基幹業務・競争力の源泉', '業務重要度に応じたポートフォリオ配置'],
+      ],
+    },
+    sections: [
+      {
+        heading: '横断背景と各アプローチの全体像',
+        body:
+          `これまでの調査から、「${t1}」と「${t2}」は一見すると競合する選択肢に見えるが、解決しようとしている本質的な課題のレイヤーが異なる。\n\n` +
+          '前者はビジネスの俊敏性（Time-to-Market）を最重視した設計思想であり、後者は持続可能性と堅牢性を重視した思想である。市場の成熟に伴い、両者の境界線は徐々に統合されつつある。',
+        bullets: ['課題レイヤーの違い：俊敏性 vs 堅牢性', '市場の進化：二者択一から共存・連携へ'],
+      },
+      {
+        heading: '主要アプローチの徹底対比と構造的トレードオフ',
+        body:
+          '両者を同一の評価軸で突き合わせると、初期投資と長期保守性の間に明確なトレードオフが存在する。\n\n' +
+          '短期的な成果を急ぐあまり長期の技術的負債を抱え込むケースや、逆に初期設計に時間をかけすぎて事業機会を逸失する失敗パターンが双方に見られる。自社の事業ステージに合わせた冷静な判断が求められる。',
+        bullets: ['短期キャッシュフロー vs 長期TCO', '運用の属人化を防ぐガバナンス設計'],
+      },
+      {
+        heading: 'シナジー創出と統合推奨アーキテクチャ',
+        body:
+          '最も成功確率の高いアプローチは、両者の強みを活かしたハイブリッド型アーキテクチャである。\n\n' +
+          'インターフェースや新規検証領域には柔軟な仕組みを採用しつつ、データ資産やコアロジックは統制の効く基盤で管理することで、俊敏性とガバナンスを高い次元で両立できる。',
+        bullets: ['疎結合な連携設計', 'データの一元化とアクセス制御', '段階的移行プランの策定'],
+      },
+      {
+        heading: '今後のシナリオ分岐と経営判断のチェックポイント',
+        body:
+          '今後のテクノロジー進化と規制動向を鑑みると、1〜2年以内に標準仕様の策定が進む可能性が高い。\n\n' +
+          '経営陣は半期ごとにKPIとROIをモニタリングし、環境変化に応じたリバランスを行える体制を構築しておくことが肝要である。',
+        bullets: ['四半期ごとのROIモニタリング', 'スイッチングコストの最小化施策'],
+      },
+    ],
+    insights: [
+      { title: '二者択一を避け、業務レイヤー別に最適配置する', body: '検証業務と基幹業務を分離し、それぞれの特性に最適なソリューションを割り当てる。', priority: '高' },
+      { title: 'データ連携の共通規格を早期に確立する', body: '将来的な乗り換えや連携拡張に備え、APIやデータ形式の標準化を先行して推進する。', priority: '高' },
+      { title: '1年後のTCO見直しマイルストーンをあらかじめ設定する', body: '利用量の増大に伴うコスト逆転を早期に検知できるよう、定期監査ルールを設ける。', priority: '中' },
+    ],
+    chart: {
+      type: 'radar',
+      title: '各テーマの多角評価比較レーダー',
+      description: '即時性、コスト効率、拡張性、保守性、統制力を5軸で総合評価',
+      labels: ['即時性・手軽さ', '費用対効果', '拡張性・柔軟性', '保守運用性', 'ガバナンス統制'],
+      datasets: themes.slice(0, 3).map((t, i) => ({
+        label: t.slice(0, 15),
+        data: i === 0 ? [90, 75, 60, 65, 55] : i === 1 ? [60, 70, 92, 85, 90] : [75, 85, 80, 80, 80],
+      })),
+    },
+  };
+}
+
+async function runCrossSynthesis(job, settings) {
+  const { reports = [], forceMock } = job.params;
+  const live = settings.mode !== 'mock' && !forceMock && !!settings.geminiApiKey;
+  const t0 = Date.now();
+  const ctx = {
+    signal: (job.controller && job.controller.signal) || job.signal || new AbortController().signal,
+    log: (message, kind = 'info', detail) => {
+      if (typeof job.emit === 'function') {
+        job.emit({ type: 'log', kind, message, detail: detail || undefined });
+      } else if (typeof job.log === 'function') {
+        job.log(kind, message, detail);
+      }
+    },
+    progress: (value, stage) => {
+      if (typeof job.emit === 'function') {
+        job.emit({ type: 'progress', value, stage });
+      } else if (typeof job.progress === 'function') {
+        job.progress(stage, value);
+      }
+    },
+  };
+
+  const themes = reports.map((r) => r.theme || r.title || '調査テーマ');
+  const combinedTheme = themes.slice(0, 3).join(' × ') + (themes.length > 3 ? ` ほか計${themes.length}件` : '');
+
+  ctx.log(
+    live ? 'LIVE モードで複数レポートの横断統合を開始します（Gemini 推論）' : 'DEMO モードで複数レポートの横断統合を開始します（モックデータ）',
+    'info',
+    `対象: ${themes.join(', ')}`
+  );
+
+  ctx.progress(10, 'plan');
+  ctx.log(`${reports.length} 件の過去レポートから前提ファクト・比較軸・重要指標を抽出中…`, 'plan');
+
+  let raw;
+  let allSources = [];
+  reports.forEach((r, idx) => {
+    if (Array.isArray(r.sources)) {
+      r.sources.forEach((s) => {
+        allSources.push({
+          ...s,
+          originReportIndex: idx + 1,
+          originReportTheme: r.theme,
+        });
+      });
+    }
+  });
+
+  const seenUrls = new Set();
+  const sources = [];
+  for (const s of allSources) {
+    const key = (s.url || '').replace(/[#?].*$/, '').replace(/\/$/, '');
+    if (key && !seenUrls.has(key)) {
+      seenUrls.add(key);
+      sources.push(s);
+    }
+  }
+
+  if (live) {
+    const ai = (prompt, opts = {}) =>
+      generateJSON({
+        apiKey: settings.geminiApiKey,
+        model: settings.geminiModel,
+        prompt,
+        signal: ctx.signal,
+        ...opts,
+      });
+
+    ctx.progress(35, 'analyze');
+    ctx.log('各レポートの主張・KPI・トレードオフを横断対比しています…', 'ai');
+
+    const reportsDigest = reports
+      .map(
+        (r, i) => `
+### 【レポート[${i + 1}]】テーマ: ${r.theme}（タイトル: ${r.title}）
+- エグゼクティブサマリー: ${r.summary || 'なし'}
+- 重要指標(metrics): ${(r.metrics || []).map((m) => `${m.label}: ${m.value} (${m.note || ''})`).join(', ')}
+- 要点(keyPoints): ${(r.keyPoints || []).join(' / ')}
+- 比較表概要: ${r.table && r.table.rows ? `${r.table.columns ? r.table.columns.join(' | ') : ''} (計${r.table.rows.length}行)` : 'なし'}
+- 主要示唆(insights): ${(r.insights || []).map((ins) => `${ins.title}: ${ins.body}`).join(' / ')}
+`
+      )
+      .join('\n---\n');
+
+    ctx.progress(70, 'synthesize');
+    ctx.log('横断比較マトリクスおよび統合戦略提言を執筆中…', 'ai');
+    const stop = rampProgress(ctx, 70, 95, 'synthesize');
+
+    try {
+      raw = await ai(
+        `あなたは世界最高峰の戦略コンサルティングファームのシニアディレクターです。
+以下の${reports.length}件の調査レポートの内容を横断比較・統合分析（Cross-Report Synthesis）し、個別の調査だけでは見えてこない「共通する成功要因」「決定的なアプローチの差異・トレードオフ」「全体最適に向けた統合ロードマップ」を導き出した最高水準の『統合クロス分析レポート』を執筆してください。
+
+${reportsDigest}
+
+# 執筆ルール
+- 構成:
+  - title: 「${combinedTheme}：横断比較と統合戦略レポート」などの格調高い題名
+  - subtitle: 統合分析から得られた核心的メッセージ（50字以内）
+  - summary: 500〜700字の統合エグゼクティブサマリー。各テーマ間の比較、共通項、決定的な違い、総合的な推奨方針を論理的に総括（段落間に\\n\\n）
+  - keyPoints: 4〜5点。横断比較から浮かび上がった核心的知見トップ5
+  - metrics: 4点。各テーマを代表する比較数値や市場指標
+  - table: 各テーマを列または行に配置した【統合横断比較マトリクス】（観点: コスト構造、導入難易度、スケーラビリティ、リスク、推奨ユースケース）
+  - sections: 4章構成。①横断背景と各アプローチの全体像、②主要テーマ・プレイヤーの機能・強み弱み徹底比較、③構造的トレードオフと共通の落とし穴、④今後のシナリオ分岐と統合戦略提言
+  - chart: type: 'radar' または 'bar'。各テーマを多角評価した比較グラフ（datasetsに各テーマの数値を配置）
+  - insights: 3点。統合的なアクションプラン
+- JSONスキーマに厳密に従い、純粋なJSONのみを出力してください。`,
+        { temperature: 0.35, timeoutMs: 120000 }
+      );
+    } catch (e) {
+      if (ctx.signal.aborted) throw e;
+      ctx.log(`AI生成フォールバック: ${e.message}`, 'warn');
+      raw = buildCrossMockRaw(themes, reports);
+    } finally {
+      stop();
+    }
+  } else {
+    // DEMO mode
+    await sleep(600, ctx.signal);
+    ctx.progress(35, 'analyze');
+    ctx.log('各レポートの主張・KPI・トレードオフを横断対比しています…', 'ai');
+    await sleep(800, ctx.signal);
+    ctx.progress(70, 'synthesize');
+    ctx.log('横断比較マトリクスおよび統合戦略提言を執筆中…', 'ai');
+    await sleep(1000, ctx.signal);
+    raw = buildCrossMockRaw(themes, reports);
+  }
+
+  raw.isCrossSynthesis = true;
+  raw.synthesizedReportIds = reports.map((r) => r.id);
+  raw.synthesizedThemes = themes;
+
+  const result = normalizeResult(raw, {
+    id: job.id,
+    theme: combinedTheme,
+    scope: 'web',
+    depth: 'deep',
+    focus: 'decision',
+    purpose: 'compare',
+    mode: live ? 'live' : 'mock',
+    model: live ? settings.geminiModel : null,
+    searchProvider: 'cross-synthesis',
+    createdAt: new Date().toISOString(),
+    durationMs: Date.now() - t0,
+    queries: themes.map((t) => `統合分析: ${t}`),
+    sources: sources.slice(0, 15),
+    notices: live
+      ? [`本レポートは過去${reports.length}件のリサーチ履歴（${themes.join(', ')}）を横断統合・クロス分析したレポートです。`]
+      : [`これは DEMO モードでの過去${reports.length}件のサンプルクロス統合レポートです。`],
+    isCrossSynthesis: true,
+    synthesizedReportIds: reports.map((r) => r.id),
+    synthesizedThemes: themes,
+  });
+
+  ctx.progress(100, 'done');
+  ctx.log(`複数レポートの横断統合が完了しました（${(result.durationMs / 1000).toFixed(1)}秒 / ${themes.length}件統合）`, 'done');
+  return result;
+}
+
+module.exports = { runResearch, runCrossSynthesis };

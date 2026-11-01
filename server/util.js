@@ -165,6 +165,20 @@ function normalizeResult(raw = {}, meta = {}) {
         : (PURPOSE_LABELS[meta.purpose] || 'ビジネス・戦略資料'),
     customPurpose: meta.customPurpose || '',
     referenceContext: meta.referenceContext || '',
+    referenceUrls: arr(raw.referenceUrls || meta.referenceUrls)
+      .map(str)
+      .filter((u) => /^https?:\/\//i.test(u))
+      .slice(0, 10),
+    attachedFiles: arr(raw.attachedFiles || meta.attachedFiles)
+      .map((f) => ({
+        name: str(f && f.name),
+        size: Number(f && f.size) || 0,
+        type: str(f && f.type),
+      }))
+      .filter((f) => f.name),
+    isCrossSynthesis: !!(raw.isCrossSynthesis || meta.isCrossSynthesis),
+    synthesizedReportIds: arr(raw.synthesizedReportIds || meta.synthesizedReportIds).map(str).filter(Boolean),
+    synthesizedThemes: arr(raw.synthesizedThemes || meta.synthesizedThemes).map(str).filter(Boolean),
     period: meta.period || 'year',
     periodLabel:
       meta.period === 'custom' && meta.customPeriod
@@ -188,6 +202,17 @@ function normalizeResult(raw = {}, meta = {}) {
       .filter((m) => m.label || m.value)
       .slice(0, 6),
     table: { caption: str(raw.table && raw.table.caption), columns, rows },
+    chart: raw.chart && typeof raw.chart === 'object'
+      ? {
+          type: ['bar', 'radar', 'line', 'pie', 'doughnut'].includes(raw.chart.type) ? raw.chart.type : 'bar',
+          title: str(raw.chart.title),
+          labels: arr(raw.chart.labels).map(str).filter(Boolean),
+          datasets: arr(raw.chart.datasets).map((ds) => ({
+            label: str(ds && ds.label),
+            data: arr(ds && ds.data).map((v) => Number(v) || 0),
+          })),
+        }
+      : null,
     sections: arr(raw.sections)
       .map((s) => ({
         heading: str(s && s.heading),

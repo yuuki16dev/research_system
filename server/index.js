@@ -35,7 +35,7 @@ const settings = require('./settings');
 const history = require('./history');
 const memory = require('./memory');
 const { createJob, getJob } = require('./jobs');
-const { runResearch } = require('./pipeline');
+const { runResearch, runCrossSynthesis } = require('./pipeline');
 const { generate } = require('./gemini');
 const { tavilySearch } = require('./search');
 const deepdive = require('./deepdive');
@@ -330,12 +330,53 @@ app.post('/api/research', (req, res) => {
   const customPurpose = String(b.customPurpose || '').trim().slice(0, 500);
   const customPeriod = String(b.customPeriod || '').trim().slice(0, 100);
   const sites = String(b.sites || '').slice(0, 300);
-  const referenceContext = String(b.referenceContext || '').trim().slice(0, 3000);
+  const referenceContext = String(b.referenceContext || '').trim().slice(0, 15000);
+  const referenceUrls = Array.isArray(b.referenceUrls) ? b.referenceUrls.map(u => String(u || '').trim()).filter(Boolean).slice(0, 10) : [];
+  const attachedFiles = Array.isArray(b.attachedFiles) ? b.attachedFiles.filter(f => f && typeof f === 'object' && f.name).slice(0, 10) : [];
+  const focus = typeof b.focus === 'string' ? b.focus.slice(0, 200) : '';
+  const authoritative = !!b.authoritative;
   if (theme.length < 2) return res.status(400).json({ error: 'テーマを2文字以上で入力してください' });
 
-  console.log(`[リサーチ受付] テーマ: "${theme}" (スコープ: ${scope}, 深度: ${depth}, スタイル: ${purpose})`);
-  const params = { theme, scope, depth, sites, period, customPeriod, purpose, customPurpose, referenceContext, forceMock: !!b.forceMock };
+  console.log(`[リサーチ受付] テーマ: "${theme}" (スコープ: ${scope}, 深度: ${depth}, スタイル: ${purpose}, 参考URL: ${referenceUrls.length}件, 添付: ${attachedFiles.length}件)`);
+  const params = { theme, scope, depth, sites, period, customPeriod, purpose, customPurpose, referenceContext, referenceUrls, attachedFiles, focus, authoritative, forceMock: !!b.forceMock };
   const job = createJob(params, (j) => runResearch(j, settings.load()), {
+    onResult: (result) => {
+      history.save(result);
+      try {
+        memory.learnFromResearch(result);
+      } catch (err) {
+        console.error('[memory] learn error:', err.message);
+      }
+    },
+  });
+  res.status(202).json({ jobId: job.id });
+});
+
+/* ------------------------------------------------ cross-synthesis (v1.17.0) */
+app.post('/api/research/cross-synthesis', (req, res) => {
+  const b = req.body || {};
+  const reportIds = Array.isArray(b.reportIds) ? b.reportIds : [];
+  if (reportIds.length < 2) {
+    return res.status(400).json({ error: 'クロス分析には2件以上のレポート選択が必要です' });
+  }
+
+  const reports = reportIds.map((id) => history.get(id)).filter(Boolean);
+  if (reports.length < 2) {
+    return res.status(404).json({ error: '選択されたレポートが見つかりません（2件以上存在する必要があります）' });
+  }
+
+  const themes = reports.map((r) => r.theme || '無題');
+  const synthesizedTitle = `【統合クロス分析】${themes.join(' × ')}`;
+  console.log(`[クロス統合受付] 対象レポート: ${reports.length}件 ("${themes.join('", "')}")`);
+
+  const params = {
+    theme: synthesizedTitle,
+    reportIds,
+    reports,
+    forceMock: !!b.forceMock,
+  };
+
+  const job = createJob(params, (j) => runCrossSynthesis(j, settings.load()), {
     onResult: (result) => {
       history.save(result);
       try {

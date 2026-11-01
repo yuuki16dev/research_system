@@ -368,10 +368,41 @@
                   </label>
                 </fieldset>
 
-                <fieldset class="option-group context-group">
-                  <legend class="field-label"><span data-icon="file-text"></span>手元の参考資料・前提メモ（任意）</legend>
-                  <textarea id="reference-context-input" name="referenceContext" class="input input-textarea-sm" rows="2" maxlength="3000" placeholder="手持ちの機能リスト、自社サービス概要、比較したい特定URLや前提条件を貼り付けると、Web情報と掛け合わせて分析します"></textarea>
-                  <p class="field-hint"><span data-icon="sparkles"></span>手元のテキスト資料とWeb最新情報をAIが突き合わせてハイブリッド分析します</p>
+                <fieldset class="option-group context-group byod-group">
+                  <div class="period-header">
+                    <legend class="field-label"><span data-icon="file-text"></span>手元の参考資料・データ投入 (BYOD) ＆ 参考URL</legend>
+                    <span class="period-rec-tag"><span data-icon="sparkles"></span>ハイブリッド分析</span>
+                  </div>
+                  
+                  <!-- BYOD ファイルドラッグ＆ドロップ -->
+                  <div class="byod-dropzone" id="byod-dropzone" tabindex="0" role="button" aria-label="ファイルをアップロード">
+                    <input type="file" id="byod-file-input" multiple accept=".pdf,.xlsx,.xls,.csv,.txt,.md,.json" style="display: none;" />
+                    <div class="byod-drop-content">
+                      <span class="byod-drop-icon">📂</span>
+                      <div class="byod-drop-text">
+                        <strong>ファイル（PDF / Excel / CSV / テキスト等）をドラッグ＆ドロップ</strong>
+                        <small>またはクリックして手持ち資料を選択（複数ファイル対応・ブラウザ内で即時テキスト抽出）</small>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="byod-files-list" id="byod-files-list" style="display: none;"></div>
+
+                  <!-- 参考URL先行分析 -->
+                  <div class="byod-url-input-wrap">
+                    <div class="byod-url-row">
+                      <span class="byod-url-icon">🔗</span>
+                      <input type="url" id="byod-url-input" class="input input-sm" placeholder="先行調査したい特定URL（競合サイト、製品ページ、ニュース等）を入力して追加" />
+                      <button type="button" class="btn btn-secondary btn-sm" id="btn-add-ref-url"><span data-icon="plus">+</span>追加</button>
+                    </div>
+                    <div class="byod-urls-list" id="byod-urls-list" style="display: none;"></div>
+                  </div>
+
+                  <!-- 前提条件・メモ欄 -->
+                  <div class="byod-memo-wrap">
+                    <label for="reference-context-input" class="field-sublabel">前提メモ・補足指示（任意）</label>
+                    <textarea id="reference-context-input" name="referenceContext" class="input input-textarea-sm" rows="2" maxlength="15000" placeholder="手持ちの機能リスト、自社サービス概要、比較したい特定URLや前提条件を貼り付けると、Web情報と掛け合わせて分析します"></textarea>
+                  </div>
+                  <p class="field-hint"><span data-icon="sparkles"></span>手持ち資料・先行URLの一次情報とWeb最新情報をAIが突き合わせてハイブリッド分析します</p>
                 </fieldset>
               </div>
             </div>
@@ -552,6 +583,7 @@
                 <button type="button" class="htab-btn active" id="tab-recent-view" data-view="recent">最新 6 件</button>
                 <button type="button" class="htab-btn" id="tab-all-view" data-view="all">すべての履歴を遡る</button>
               </div>
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-toggle-cross-home" title="複数のレポートを選択して横断統合レポートを生成"><span data-icon="sparkles"></span><span class="label">クロス統合</span></button>
               <button type="button" class="btn btn-ghost btn-sm" id="btn-history-drawer-open"><span data-icon="sidebar"></span><span class="label">サイドバー</span></button>
             </div>
           </div>
@@ -594,7 +626,7 @@
     </main>
 
     <footer class="footer">
-      <span id="footer-version">Research Studio v1.16.0</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span><span class="sep">·</span><a href="https://github.com/yuuki16dev/research_system/issues" target="_blank" rel="noopener" class="footer-link"><span data-icon="github"></span>GitHubでお問い合わせ</a>
+      <span id="footer-version">Research Studio v1.17.0</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span><span class="sep">·</span><a href="https://github.com/yuuki16dev/research_system/issues" target="_blank" rel="noopener" class="footer-link"><span data-icon="github"></span>GitHubでお問い合わせ</a>
     </footer>
   </div>
 
@@ -603,7 +635,7 @@
     <div class="modal-backdrop" data-close></div>
     <div class="modal-card glass">
       <header class="modal-head">
-        <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v1.16.0</small></h2>
+        <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v1.17.0</small></h2>
         <div style="display: flex; gap: 8px; align-items: center; margin-left: auto;">
           <button class="btn btn-ghost btn-sm" type="button" id="btn-settings-changelog" title="アップデート履歴 &amp; リリースノート"><span data-icon="book-open"></span><span class="label">更新履歴</span></button>
           <button class="btn btn-ghost btn-sm" type="button" id="btn-open-guide-from-settings" title="APIキー取得ガイド &amp; GitHubお問い合わせ"><span data-icon="help-circle"></span><span class="label">ガイド・問い合わせ</span></button>
@@ -790,6 +822,9 @@
           <span data-icon="search"></span>
           <input type="search" class="input input-sm" id="history-filter" placeholder="タイトルやテーマで履歴を検索…" />
         </div>
+        <button type="button" class="btn btn-ghost btn-sm" id="btn-toggle-cross-drawer" title="複数レポートを選択して統合">
+          <span data-icon="sparkles"></span><span class="label">クロス統合</span>
+        </button>
         <button type="button" class="btn btn-ghost btn-sm" id="btn-history-sort" title="並び替え切替">
           <span data-icon="sort"></span><span id="history-sort-label">新しい順</span>
         </button>
@@ -1333,6 +1368,23 @@
     <div class="vub-actions">
       <a href="https://github.com/yuuki16dev/research_system/releases" target="_blank" rel="noopener" class="btn btn-sm btn-primary" id="vub-link">更新内容を見る</a>
       <button type="button" class="btn btn-ghost btn-sm btn-icon" id="vub-dismiss" title="閉じる" aria-label="閉じる"><span data-icon="x"></span></button>
+    </div>
+  </div>
+
+  <!-- ============================================== FLOATING CROSS SYNTHESIS BAR -->
+  <div class="history-cross-bar" id="history-cross-bar" hidden>
+    <div class="hcb-content glass">
+      <div class="hcb-info">
+        <span class="hcb-icon">🔄</span>
+        <strong class="hcb-count" id="hcb-count">0件選択中</strong>
+        <span class="hcb-hint">（異なる視点・対象の過去リサーチを1本にクロス統合）</span>
+      </div>
+      <div class="hcb-actions">
+        <button type="button" class="btn btn-ghost btn-sm" id="btn-cancel-cross">キャンセル</button>
+        <button type="button" class="btn btn-primary btn-sm btn-cross-submit" id="btn-submit-cross" disabled>
+          <span data-icon="sparkles"></span><span>横断比較・合体レポートを生成</span>
+        </button>
+      </div>
     </div>
   </div>
 

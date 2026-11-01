@@ -47,11 +47,25 @@ export function renderReport(data, container) {
   // 1. レポートヘッダーカード
   html += `
   <section class="card glass report-hero" id="sec-hero">
+    ${data.isCrossSynthesis ? `
+      <div class="cross-synthesis-banner">
+        <span class="csb-icon">🔄</span>
+        <div class="csb-body">
+          <strong>過去レポート横断クロス統合レポート（Cross-Report Synthesis）</strong>
+          <p>異なる視点・テーマで実施された過去の複数リサーチ（${(data.synthesizedThemes || []).length}件）を横断比較・マージし、総合示唆を導出しました。</p>
+          <div class="csb-themes">
+            ${(data.synthesizedThemes || []).map(t => `<span class="csb-theme-tag">${esc(t)}</span>`).join('')}
+          </div>
+        </div>
+      </div>
+    ` : ''}
     <div class="rh-meta">
       <span class="tag"><span data-icon="target"></span>${esc(data.theme)}</span>
       <span class="tag"><span data-icon="layers"></span>${esc(data.scopeLabel)}</span>
       <span class="tag tag-period"><span data-icon="calendar"></span>期間: ${esc(data.periodLabel || '直近1年（最新推奨）')}</span>
       <span class="tag"><span data-icon="zap"></span>${esc(data.depthLabel)}</span>
+      ${data.attachedFiles && data.attachedFiles.length ? `<span class="tag" style="background: rgba(99, 102, 241, 0.15); color: #c7d2fe; border-color: rgba(99, 102, 241, 0.4);"><span data-icon="file-text"></span>BYOD手持ち資料: ${esc(data.attachedFiles.map(f => f.name).join(', '))}</span>` : ''}
+      ${data.referenceUrls && data.referenceUrls.length ? `<span class="tag" style="background: rgba(14, 165, 233, 0.15); color: #7dd3fc; border-color: rgba(14, 165, 233, 0.4);"><span data-icon="link"></span>先行参考URL: ${data.referenceUrls.length}件</span>` : ''}
       ${data.multiHop && data.multiHop.enabled ? `<span class="tag tag-multihop" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border-color: rgba(16, 185, 129, 0.4); font-weight: 600;"><span data-icon="git-merge"></span>自律2段階深層探索済</span>` : ''}
       ${data.framework ? `<span class="tag tag-framework" style="background: rgba(37,99,235,0.12); color: var(--primary-light); border-color: rgba(37,99,235,0.35); font-weight: 600;"><span data-icon="sparkles"></span>${esc(data.framework.focusLabel || 'AI動的構造化')}</span>` : ''}
       <span class="tag"><span data-icon="clock"></span>${esc(createdStr)} (${durationSec}秒)</span>
