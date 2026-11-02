@@ -412,6 +412,7 @@ export function bindSettingsModal() {
       author: $('#publisher-author').value.trim(),
       confidentiality: $('#publisher-confidentiality').value || 'CONFIDENTIAL',
       disclaimer: $('#publisher-disclaimer').value.trim(),
+      themePreset: $('#setting-theme-preset') ? $('#setting-theme-preset').value : 'corporate-blue',
     };
     const gKey = $('#gemini-key').value.trim();
     const tKey = $('#tavily-key').value.trim();
@@ -499,6 +500,7 @@ export async function loadSettingsIntoForm() {
   if ($('#publisher-author')) $('#publisher-author').value = s.author || '';
   if ($('#publisher-confidentiality')) $('#publisher-confidentiality').value = s.confidentiality || 'CONFIDENTIAL';
   if ($('#publisher-disclaimer')) $('#publisher-disclaimer').value = s.disclaimer !== undefined ? s.disclaimer : '本レポートはAIによる自動リサーチ集計結果であり、意思決定の参考情報としてご活用ください。';
+  if ($('#setting-theme-preset')) $('#setting-theme-preset').value = s.themePreset || 'corporate-blue';
   $('#test-result').hidden = true;
 }
 

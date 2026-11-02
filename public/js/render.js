@@ -6,6 +6,7 @@ import { esc, icon, fmtDate, hydrateIcons, toast, copyText } from './ui.js';
 import { tableToTSV } from './exporters.js';
 import { renderSvgChart } from './modules/charts.js';
 import { startDeltaTracking } from './modules/research.js';
+import { applyReportTheme } from './modules/theme-designer.js';
 
 let currentReportSources = [];
 let currentSourcesMap = new Map();
@@ -33,6 +34,7 @@ function scoreClass(score) {
  */
 export function renderReport(data, container) {
   if (!data || !container) return;
+  if (data.reportTheme) applyReportTheme(data.reportTheme, false);
 
   currentReportSources = data.sources || [];
   currentSourcesMap = new Map();

@@ -4,6 +4,7 @@
 // ==========================================================================
 
 import { toast, safeFilename } from '../ui.js';
+import { resolveTheme } from './theme-presets.js';
 
 /**
  * 現在のデータおよびブランド設定をもとに編集可能な .pptx を生成・ダウンロード
@@ -39,15 +40,21 @@ export async function exportPowerPoint(data, brand = {}) {
     pptx.author = author || publisher;
     pptx.company = publisher;
 
+    // ブランドテーマの解決 (v1.19.0)
+    const reportTheme = resolveTheme(brand.theme || brand.reportTheme || data.reportTheme);
+    const pColor = (reportTheme.primary || '#3B82F6').replace('#', '').toUpperCase();
+    const aColor = (reportTheme.accent || '#06B6D4').replace('#', '').toUpperCase();
+    const dColor = (reportTheme.dark || '#070A14').replace('#', '').toUpperCase();
+
     // カラーパレット定義 (Hex without #)
     const C = {
       bgDark: '070A14',
-      bgCard: '0F172A',
+      bgCard: dColor === '070A14' ? '0F172A' : dColor,
       bgCardAlt: '1E293B',
       border: '334155',
-      primary: '3B82F6',
-      primaryDark: '1D4ED8',
-      cyan: '06B6D4',
+      primary: pColor,
+      primaryDark: pColor,
+      cyan: aColor,
       textWhite: 'FFFFFF',
       textMuted: '94A3B8',
       textDim: '64748B',

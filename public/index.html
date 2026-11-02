@@ -520,6 +520,9 @@
               <button type="button" class="btn btn-secondary btn-sm btn-delta-action" id="btn-delta-tracking" title="前回の調査日以降のWeb新着情報と突き合わせ、変化点や料金改定の差分レポートを自動生成">
                 <span data-icon="refresh"></span><span>新着差分を再調査</span>
               </button>
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-open-theme-designer" title="レポートのブランド配色やPDF/PowerPoint/Excelのエクスポートテーマを着せ替え">
+                <span data-icon="palette"></span><span>テーマ着せ替え</span>
+              </button>
             </div>
 
             <div class="export-secondary-group">
@@ -629,7 +632,7 @@
     </main>
 
     <footer class="footer">
-      <span id="footer-version">Research Studio v1.18.0</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span><span class="sep">·</span><a href="https://github.com/yuuki16dev/research_system/issues" target="_blank" rel="noopener" class="footer-link"><span data-icon="github"></span>GitHubでお問い合わせ</a>
+      <span id="footer-version">Research Studio v1.19.0</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span><span class="sep">·</span><a href="https://github.com/yuuki16dev/research_system/issues" target="_blank" rel="noopener" class="footer-link"><span data-icon="github"></span>GitHubでお問い合わせ</a>
     </footer>
   </div>
 
@@ -638,7 +641,7 @@
     <div class="modal-backdrop" data-close></div>
     <div class="modal-card glass">
       <header class="modal-head">
-        <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v1.18.0</small></h2>
+        <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v1.19.0</small></h2>
         <div style="display: flex; gap: 8px; align-items: center; margin-left: auto;">
           <button class="btn btn-ghost btn-sm" type="button" id="btn-settings-changelog" title="アップデート履歴 &amp; リリースノート"><span data-icon="book-open"></span><span class="label">更新履歴</span></button>
           <button class="btn btn-ghost btn-sm" type="button" id="btn-open-guide-from-settings" title="APIキー取得ガイド &amp; GitHubお問い合わせ"><span data-icon="help-circle"></span><span class="label">ガイド・問い合わせ</span></button>
@@ -730,6 +733,18 @@
           <div style="margin-top: 8px;">
             <label class="field-label sm" for="publisher-disclaimer">免責事項（レポート末尾に記載）</label>
             <input class="input" id="publisher-disclaimer" maxlength="150" placeholder="本レポートはAIによる自動リサーチ集計結果であり、意思決定の参考情報としてご活用ください。" />
+          </div>
+          <div style="margin-top: 8px;">
+            <label class="field-label sm" for="setting-theme-preset">規定のブランドテーマ（PDF / PPTX / Excel）</label>
+            <select class="input" id="setting-theme-preset">
+              <option value="corporate-blue">コーポレート・ネイビー (標準・金融/コンサル)</option>
+              <option value="tech-emerald">テック・エメラルド (テクノロジー/AI/DX)</option>
+              <option value="executive-slate">エグゼクティブ・スレート (役員会/重厚感/法務)</option>
+              <option value="vibrant-violet">ロイヤル・バイオレット (イノベーション/新事業)</option>
+              <option value="warm-amber">アンバー・サンライズ (スタートアップ/活力)</option>
+              <option value="crimson-burgundy">クリムゾン・バーガンディ (プレミアム/伝統)</option>
+              <option value="custom">カスタム（自由指定）</option>
+            </select>
           </div>
         </div>
 
@@ -1337,6 +1352,53 @@
       </div>
       <footer class="modal-foot" style="display: flex; justify-content: flex-end;">
         <button class="btn btn-ghost" data-close type="button">閉じる</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Theme Designer Modal (v1.19.0) -->
+  <div class="modal" id="modal-theme-designer" role="dialog" aria-modal="true" aria-labelledby="theme-designer-title" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card glass" style="max-width: 680px;">
+      <header class="modal-head">
+        <h2 id="theme-designer-title"><span data-icon="palette"></span>商用レポート・ブランドテーマ設定</h2>
+        <button class="btn btn-ghost btn-icon btn-sm" type="button" data-close aria-label="閉じる"><span data-icon="x"></span></button>
+      </header>
+      <div class="modal-body theme-designer-wrap">
+        <p class="theme-designer-desc">
+          自社のコーポレートカラーや提案先の企業カラーに合わせて、Web画面・PDF・PowerPoint・Excelの配色を一括で着せ替えます。
+        </p>
+
+        <div class="theme-preview-banner" id="theme-preview-banner">
+          <span>現在プレビュー中: <strong id="theme-preview-name">コーポレート・ネイビー</strong></span>
+          <span style="font-size: 11.5px; opacity: 0.9;">PDF / PPTX / Excel 全連動</span>
+        </div>
+
+        <div class="theme-preset-grid" id="theme-preset-grid"></div>
+
+        <div class="theme-custom-box">
+          <div style="font-size: 12.5px; font-weight: 700; color: var(--text-1);">🎨 カスタム・ブランドカラー指定</div>
+          <div class="theme-custom-inputs">
+            <div class="theme-color-field">
+              <label for="theme-custom-primary">プライマリ (主色):</label>
+              <input type="color" id="theme-custom-primary" value="#2563eb" />
+              <input type="text" id="theme-custom-primary-text" value="#2563eb" maxlength="7" />
+            </div>
+            <div class="theme-color-field">
+              <label for="theme-custom-accent">アクセント (副色):</label>
+              <input type="color" id="theme-custom-accent" value="#06b6d4" />
+              <input type="text" id="theme-custom-accent-text" value="#06b6d4" maxlength="7" />
+            </div>
+          </div>
+        </div>
+      </div>
+      <footer class="modal-foot" style="display: flex; justify-content: space-between; align-items: center;">
+        <button type="button" class="btn btn-ghost btn-sm" id="btn-save-default-theme" title="今後の新規レポートの初期配色として保存">
+          <span data-icon="check"></span><span>デフォルトとして保存</span>
+        </button>
+        <button type="button" class="btn btn-primary btn-sm" id="btn-close-theme-designer">
+          <span>決定して適用</span>
+        </button>
       </footer>
     </div>
   </div>

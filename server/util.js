@@ -1,5 +1,7 @@
 'use strict';
 
+const { resolveTheme } = require('./themes');
+
 /** 調査範囲ラベル */
 const SCOPE_LABELS = {
   web: 'Web全体',
@@ -193,6 +195,7 @@ function normalizeResult(raw = {}, meta = {}) {
           : '中',
       }))
       .filter((dh) => dh.title || dh.description),
+    reportTheme: resolveTheme(raw.reportTheme || meta.reportTheme || meta.themePreset),
     period: meta.period || 'year',
     periodLabel:
       meta.period === 'custom' && meta.customPeriod

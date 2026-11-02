@@ -36,6 +36,9 @@ const DEFAULTS = {
   author: '',
   confidentiality: 'CONFIDENTIAL', // CONFIDENTIAL | INTERNAL | PUBLIC | NONE
   disclaimer: '本レポートはAIによる自動リサーチ集計結果であり、意思決定の参考情報としてご活用ください。',
+  themePreset: 'corporate-blue', // corporate-blue | tech-emerald | executive-slate | vibrant-violet | warm-amber | crimson-burgundy | custom
+  themePrimaryColor: '',
+  themeAccentColor: '',
 };
 
 const ALLOWED = Object.keys(DEFAULTS);
@@ -43,6 +46,7 @@ const ENUMS = {
   searchProvider: ['auto', 'tavily', 'duckduckgo'],
   mode: ['auto', 'mock'],
   confidentiality: ['CONFIDENTIAL', 'INTERNAL', 'PUBLIC', 'NONE'],
+  themePreset: ['corporate-blue', 'tech-emerald', 'executive-slate', 'vibrant-violet', 'warm-amber', 'crimson-burgundy', 'custom'],
 };
 
 function migrateOldDataIfNeeded() {
@@ -101,6 +105,7 @@ function save(patch = {}) {
     const v = patch[key].trim();
     if (ENUMS[key] && !ENUMS[key].includes(v)) continue;
     if (key === 'geminiModel' && !/^[\w.\-]+$/.test(v)) continue;
+    if ((key === 'themePrimaryColor' || key === 'themeAccentColor') && v && !/^#[0-9a-fA-F]{6}$/.test(v)) continue;
     cur[key] = v;
   }
   fs.writeFileSync(FILE, JSON.stringify(cur, null, 2), 'utf8');
@@ -136,6 +141,9 @@ function publicView(s = load()) {
     author: s.author,
     confidentiality: s.confidentiality,
     disclaimer: s.disclaimer,
+    themePreset: s.themePreset || 'corporate-blue',
+    themePrimaryColor: s.themePrimaryColor || '',
+    themeAccentColor: s.themeAccentColor || '',
     effectiveMode: effectiveMode(s),
     effectiveSearch: effectiveSearch(s),
   };

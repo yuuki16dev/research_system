@@ -1,6 +1,7 @@
 'use strict';
 
 const ExcelJS = require('exceljs');
+const { resolveTheme } = require('./themes');
 
 /**
  * Research Studio — 商用グレード Excel レポート生成エンジン（ExcelJS）
@@ -14,7 +15,7 @@ const ExcelJS = require('exceljs');
 /* =========================================================
    1. ブランドトークン（Web / PDF と完全共通）
    ========================================================= */
-const BRAND = {
+const DEFAULT_BRAND = {
   navy:     '0F172A',  // ヘッダー主色
   navy2:    '1E293B',
   blueDeep: '1E3A8A',  // バナーのグラデーション終点
@@ -34,6 +35,27 @@ const BRAND = {
   warnBg:   'FFFBEB', warnFg: 'B45309',  // 要注意・リスク
   critBg:   'FEF2F2', critFg: 'B91C1C',  // 機密区分
 };
+
+const BRAND = { ...DEFAULT_BRAND };
+
+function applyThemeTokens(themeConfig) {
+  if (!themeConfig) return;
+  const t = resolveTheme(themeConfig);
+  const primaryHex = t.primary.replace('#', '').toUpperCase();
+  const accentHex = t.accent.replace('#', '').toUpperCase();
+  const darkHex = (t.dark || '#0F172A').replace('#', '').toUpperCase();
+
+  Object.assign(BRAND, {
+    ...DEFAULT_BRAND,
+    navy: darkHex,
+    navy2: darkHex,
+    blueDeep: primaryHex,
+    blue: primaryHex,
+    cyan: accentHex,
+    cyanText: accentHex,
+    indigo: primaryHex,
+  });
+}
 
 const FONT = 'Meiryo UI';
 
@@ -764,6 +786,12 @@ async function buildWorkbook(data) {
  * @returns {Promise<Buffer>}
  */
 async function generateExcelReport(data, brand = {}) {
+  const theme = brand.theme || brand.reportTheme || (data && data.reportTheme);
+  if (theme) {
+    applyThemeTokens(theme);
+  } else {
+    Object.assign(BRAND, DEFAULT_BRAND);
+  }
   const formatted = transformDataToExcelFormat(data, brand);
   const wb = await buildWorkbook(formatted);
   const buffer = await wb.xlsx.writeBuffer();
@@ -774,5 +802,6 @@ module.exports = {
   generateExcelReport,
   transformDataToExcelFormat,
   buildWorkbook,
+  applyThemeTokens,
   BRAND,
 };

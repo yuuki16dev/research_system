@@ -4,6 +4,7 @@
 
 import { safeFilename, fmtDate, toast, esc, downloadBlob } from './ui.js';
 import { renderSvgChart } from './modules/charts.js';
+import { resolveTheme } from './modules/theme-presets.js';
 
 /**
  * 0. 即戦力出力：Slack/Teams用サマリー
@@ -1020,6 +1021,29 @@ export function resolveOptimalPdfTemplate(data) {
 }
 
 /**
+ * ブランドテーマに応じた PDF 注入用 CSS 変数スタイルを生成 (v1.19.0)
+ */
+export function buildThemePdfStyle(themeConfig) {
+  if (!themeConfig) return '';
+  const t = resolveTheme(themeConfig);
+  return `
+    <style class="rs-theme-pdf-overrides">
+      .deck, .doc {
+        --blue: ${t.primary} !important;
+        --cyan: ${t.accent} !important;
+        --indigo: ${t.primary} !important;
+        --c-primary: ${t.primary} !important;
+        --c-accent: ${t.accent} !important;
+        --grad: linear-gradient(90deg, ${t.primary} 0%, ${t.accent} 100%) !important;
+      }
+      .deck .s-cover, .doc .masthead {
+        border-top: 4px solid ${t.primary} !important;
+      }
+    </style>
+  `;
+}
+
+/**
  * 意思決定ペーパー型（A4縦 3ページ）HTMLマークアップを生成
  */
 export function buildDecisionBriefHtml(data, brand = 'Research Studio') {
@@ -1031,6 +1055,9 @@ export function buildDecisionBriefHtml(data, brand = 'Research Studio') {
   const disclaimer = (typeof brand === 'object' && brand.disclaimer && brand.disclaimer.trim())
     ? brand.disclaimer
     : '本書は公開情報をもとにAIが自動収集・分析した結果であり、正確性・完全性を保証しません。最終判断の前に出典の原文を確認してください。掲載情報は各出典の参照日時点のものです。';
+
+  const reportTheme = (typeof brand === 'object' && (brand.theme || brand.reportTheme)) || data.reportTheme;
+  const themeStyle = buildThemePdfStyle(reportTheme);
 
   const createdStr = fmtDate(data.createdAt, false);
   const reportId = data.id ? ('RS-' + data.id.slice(0, 8).toUpperCase()) : ('RS-' + createdStr.replace(/\./g, '') + '-DB01');
@@ -1173,7 +1200,7 @@ export function buildDecisionBriefHtml(data, brand = 'Research Studio') {
     <li><span class="sid">S3</span><span class="t">企業活用実態およびセキュリティ調査<span class="d">research.example.org</span></span><span class="grade A">A</span></li>
   `;
 
-  let html = '<div class="doc">';
+  let html = `<div class="doc">${themeStyle}`;
 
   // =====================================================================
   // PAGE 1 — 判断（Decision）
@@ -1497,6 +1524,8 @@ export function buildSlideDeckHtml(data, brand = 'Research Studio') {
     : '本レポートは公開情報をもとにAIが自動収集・分析した結果をまとめたものであり、内容の正確性・完全性を保証するものではありません。意思決定にあたっては、出典の原文を確認のうえ、専門家の助言を併せてご活用ください。掲載情報は各出典の参照日時点のものです。各出典の著作権はそれぞれの権利者に帰属します。';
 
   const createdStr = fmtDate(data.createdAt, false);
+  const reportTheme = (typeof brand === 'object' && (brand.theme || brand.reportTheme)) || data.reportTheme;
+  const themeStyle = buildThemePdfStyle(reportTheme);
   const reportId = data.id ? ('RS-' + data.id.slice(0, 8).toUpperCase()) : ('RS-' + createdStr.replace(/\./g, '') + '-01');
   const totalSources = data.sources ? data.sources.length : 0;
   const primaryRate = data.primarySourceRate || Math.min(85, Math.max(55, Math.round(52 + (totalSources * 1.4))));
@@ -1636,7 +1665,7 @@ export function buildSlideDeckHtml(data, brand = 'Research Studio') {
       }).join('')
     : '<tr><td colspan="6" style="text-align:center; padding: 6mm; color: var(--muted);">参照ソース情報がありません</td></tr>';
 
-  let html = '<div class="deck">';
+  let html = `<div class="deck">${themeStyle}`;
 
   // =====================================================================
   // 01 COVER
