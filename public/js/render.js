@@ -5,6 +5,7 @@
 import { esc, icon, fmtDate, hydrateIcons, toast, copyText } from './ui.js';
 import { tableToTSV } from './exporters.js';
 import { renderSvgChart } from './modules/charts.js';
+import { startDeltaTracking } from './modules/research.js';
 
 let currentReportSources = [];
 let currentSourcesMap = new Map();
@@ -47,6 +48,19 @@ export function renderReport(data, container) {
   // 1. レポートヘッダーカード
   html += `
   <section class="card glass report-hero" id="sec-hero">
+    ${data.isDeltaTracking ? `
+      <div class="delta-tracking-banner">
+        <span class="dtb-icon">⚡</span>
+        <div class="dtb-body">
+          <strong>定点観測・新着差分レポート（Delta Tracking Report）</strong>
+          <p>本レポートは、前回（${esc(data.baseReportDate || '過去')}）に実施された「${esc(data.baseReportTitle || data.theme)}」の調査結果をベースに、最新のWebファクトと照合して「変化点・新着差分（Delta）」をピンポイントで抽出した定点観測レポートです。</p>
+          <div class="dtb-meta">
+            <span class="dtb-tag">定点観測モード</span>
+            ${data.baseReportDate ? `<span class="dtb-tag">基準日: ${esc(data.baseReportDate)}</span>` : ''}
+          </div>
+        </div>
+      </div>
+    ` : ''}
     ${data.isCrossSynthesis ? `
       <div class="cross-synthesis-banner">
         <span class="csb-icon">🔄</span>
@@ -675,6 +689,7 @@ export function renderReport(data, container) {
 
   // セクション深掘りボタンのバインド
   bindSectionDeepDives(container);
+  bindDeltaTrackingButton(data);
 
   // URLハッシュが #sec-summary の状態で開かれた場合の初期位置補正（画像1のラインへ自動調整）
   if (window.location.hash === '#sec-summary') {
@@ -1070,4 +1085,14 @@ function bindSectionDeepDives(container) {
       );
     });
   });
+}
+
+/** 定点差分再調査ボタンのバインド (v1.18.0) */
+function bindDeltaTrackingButton(data) {
+  const btn = document.getElementById('btn-delta-tracking');
+  if (!btn) return;
+  btn.onclick = async () => {
+    if (!data || !data.id) return;
+    await startDeltaTracking(data.id, data.theme);
+  };
 }

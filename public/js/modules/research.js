@@ -1298,4 +1298,128 @@ export async function startCrossSynthesis(reportIds) {
   }
 }
 
+// ==========================================================================
+// 定点観測・新着差分リサーチ (Delta Tracking) 実行 (v1.18.0)
+// ==========================================================================
+export async function startDeltaTracking(baseReportId, baseReportTitle = '') {
+  if (!baseReportId) {
+    toast('差分更新元のレポートが指定されていません', 'warn');
+    return;
+  }
+
+  if (appState.activeUnsub) {
+    try {
+      appState.activeUnsub();
+    } catch {}
+    appState.activeUnsub = null;
+  }
+  clearInterval(appState.timerInterval);
+  appState.timerInterval = null;
+
+  appState.isFinishing = false;
+  appState.lastParams = { baseReportId, isDelta: true };
+
+  const progressSection = $('#progress-section');
+  const resultsSection = $('#results-section');
+  const logList = $('#log');
+  const logCount = $('#log-count');
+  const progressFill = $('#progress-fill');
+  const progressPct = $('#progress-pct');
+  const progressTheme = $('#progress-theme');
+  const progressElapsed = $('#progress-elapsed');
+  const stepperItems = $$('#stepper li');
+  const abortedBanner = $('#progress-aborted-banner');
+  const errorBanner = $('#progress-error-banner');
+
+  setRunningState(true);
+  if (abortedBanner) abortedBanner.style.display = 'none';
+  if (errorBanner) errorBanner.style.display = 'none';
+  progressSection.hidden = false;
+  resultsSection.hidden = true;
+  progressSection.classList.remove('is-done', 'is-error');
+  logList.innerHTML = '';
+  logCount.textContent = '0';
+
+  progressFill.style.width = '0%';
+  progressPct.textContent = '0%';
+  progressTheme.textContent = `【定点差分リサーチ】「${baseReportTitle || '前回調査'}」からの最新の変化点を分析中…`;
+  stepperItems.forEach((li) => li.classList.remove('active', 'done'));
+  stepperItems[0].classList.add('active');
+
+  progressSection.scrollIntoView({ behavior: 'smooth' });
+
+  let currentStage = 'plan';
+  let currentProgressVal = 0;
+  let lastProgressTime = Date.now();
+
+  clearInterval(appState.timerInterval);
+  appState.startTime = Date.now();
+  appState.timerInterval = setInterval(() => {
+    const sec = Math.floor((Date.now() - appState.startTime) / 1000);
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    progressElapsed.textContent = `${m}:${String(s).padStart(2, '0')}`;
+
+    const now = Date.now();
+    if (now - lastProgressTime > 1600 && currentStage !== 'done') {
+      if (currentProgressVal < 96) {
+        currentProgressVal = Math.min(96, currentProgressVal + 0.4);
+        progressFill.style.width = `${currentProgressVal}%`;
+        progressPct.textContent = `${Math.round(currentProgressVal)}%`;
+      }
+    }
+  }, 1000);
+
+  try {
+    const { jobId } = await api.startDeltaTracking(baseReportId);
+    appState.activeJobId = jobId;
+
+    let logCounter = 0;
+    appState.activeUnsub = api.subscribe(jobId, {
+      onEvent: (evt) => {
+        if (evt.type === 'log') {
+          logCounter++;
+          logCount.textContent = logCounter;
+          const li = document.createElement('li');
+          li.className = `k-${evt.kind || 'info'}`;
+          const time = new Date(evt.ts).toTimeString().slice(0, 8);
+          li.innerHTML = `
+            <span class="log-time">${time}</span>
+            <span class="log-icon">${icon(evt.kind === 'warn' ? 'alert' : evt.kind === 'error' ? 'alert' : evt.kind === 'done' ? 'check' : 'zap')}</span>
+            <div class="log-msg">
+              <div>${esc(evt.message)}</div>
+              ${evt.detail ? `<span class="log-detail">${esc(evt.detail)}</span>` : ''}
+            </div>
+          `;
+          logList.appendChild(li);
+          li.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        } else if (evt.type === 'progress') {
+          const val = Math.min(100, Math.max(0, evt.value));
+          currentProgressVal = Math.max(currentProgressVal, val);
+          lastProgressTime = Date.now();
+          progressFill.style.width = `${currentProgressVal}%`;
+          progressPct.textContent = `${Math.round(currentProgressVal)}%`;
+
+          currentStage = evt.stage || currentStage;
+          updateStepper(evt.stage);
+        } else if (evt.type === 'result') {
+          appState.currentResult = evt.data;
+          finishSuccess(evt.data);
+        } else if (evt.type === 'error') {
+          if (evt.message && (evt.message.includes('キャンセル') || evt.message.includes('中止'))) {
+            handleAborted();
+          } else {
+            finishError(evt.message);
+          }
+        }
+      },
+      onError: (err) => {
+        finishError(err.message);
+      },
+    });
+  } catch (err) {
+    finishError(err.message);
+  }
+}
+
 

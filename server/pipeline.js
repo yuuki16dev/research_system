@@ -2,7 +2,7 @@
 
 const { generateJSON } = require('./gemini');
 const search = require('./search');
-const { buildMock } = require('./mock');
+const { buildMock, buildDeltaMockRaw } = require('./mock');
 const memory = require('./memory');
 const { normalizeResult, parseSites, domainOf, arr, str, SCOPE_LABELS, SNS_DOMAINS, FOCUS_LABELS } = require('./util');
 
@@ -1303,4 +1303,272 @@ ${reportsDigest}
   return result;
 }
 
-module.exports = { runResearch, runCrossSynthesis };
+/**
+ * 定点観測・新着差分リサーチ実行エンジン (v1.18.0)
+ * 過去の調査レポートをベースに、前回調査時点からの変化点・新着差分（Delta）をAIが抽出
+ */
+async function runDeltaTracking(job, settings) {
+  const { baseReport = {}, forceMock } = job.params;
+  const live = settings.mode !== 'mock' && !forceMock && !!settings.geminiApiKey;
+  const t0 = Date.now();
+  const theme = baseReport.theme || baseReport.title || '調査テーマ';
+  const baseDate = baseReport.createdAt ? String(baseReport.createdAt).slice(0, 10) : '前回';
+
+  const ctx = {
+    signal: (job.controller && job.controller.signal) || job.signal || new AbortController().signal,
+    log: (message, kind = 'info', detail) => {
+      if (typeof job.emit === 'function') {
+        job.emit({ type: 'log', kind, message, detail: detail || undefined });
+      } else if (typeof job.log === 'function') {
+        job.log(kind, message, detail);
+      }
+    },
+    progress: (value, stage) => {
+      if (typeof job.emit === 'function') {
+        job.emit({ type: 'progress', value, stage });
+      } else if (typeof job.progress === 'function') {
+        job.progress(stage, value);
+      }
+    },
+  };
+
+  ctx.log(
+    live ? 'LIVE モードで定点観測・新着差分リサーチを開始します（Gemini 推論）' : 'DEMO モードで定点観測・新着差分リサーチを開始します（モックデータ）',
+    'info',
+    `対象: 「${theme}」（前回: ${baseDate}）`
+  );
+
+  ctx.progress(10, 'plan');
+  ctx.log(`前回調査（${baseDate}）からの差分・変化点を捉えるための検索クエリを展開中…`, 'plan');
+
+  let raw;
+  let sources = [];
+  let queries = [];
+  const currentYear = new Date().getFullYear();
+
+  if (live) {
+    const ai = (prompt, opts = {}) =>
+      generateJSON({
+        apiKey: settings.geminiApiKey,
+        model: settings.geminiModel,
+        prompt,
+        signal: ctx.signal,
+        ...opts,
+      });
+
+    // 1. 差分特定用クエリの生成
+    ctx.progress(20, 'plan');
+    queries = [
+      `${theme} 最新 ニュース ${currentYear}`,
+      `${theme} アップデート 変更点`,
+      `${theme} 料金プラン 改定`,
+      `${theme} 新機能 動向`,
+    ];
+
+    try {
+      const qRes = await ai(
+        `あなたは市場調査のプロフェッショナルです。
+テーマ「${theme}」について、前回調査時点（${baseDate}）以降の「新着ニュース」「料金改定」「機能アップデート」「市場変化」をピンポイントで洗い出すためのWeb検索クエリを日本語で4本生成してください。
+純粋なJSON配列 ["クエリ1", "クエリ2", ...] のみを出力してください。`,
+        { temperature: 0.2, timeoutMs: 15000 }
+      );
+      if (Array.isArray(qRes) && qRes.length > 0) {
+        queries = qRes.map(String).filter(Boolean).slice(0, 5);
+      }
+    } catch (e) {
+      ctx.log(`クエリ展開フォールバック: ${e.message}`, 'warn');
+    }
+
+    // 2. Web検索
+    ctx.progress(35, 'search');
+    ctx.log(`展開した ${queries.length} 本のクエリで最新の差分情報を検索中…`, 'search', queries.join(' / '));
+
+    const searchProvider = settings.searchProvider === 'duckduckgo' || !settings.tavilyApiKey ? 'duckduckgo' : 'tavily';
+    const searchTasks = queries.map((q) =>
+      searchProvider === 'tavily'
+        ? search.tavilySearch({
+            apiKey: settings.tavilyApiKey,
+            query: q,
+            maxResults: 4,
+            signal: ctx.signal,
+          })
+        : search.duckduckgoSearch({
+            query: q,
+            maxResults: 4,
+            signal: ctx.signal,
+          })
+    );
+
+    const searchResults = await Promise.allSettled(searchTasks);
+    const seenUrls = new Set();
+
+    searchResults.forEach((sr) => {
+      if (sr.status === 'fulfilled' && Array.isArray(sr.value)) {
+        sr.value.forEach((item) => {
+          if (item && item.url && !seenUrls.has(item.url)) {
+            seenUrls.add(item.url);
+            sources.push({
+              title: item.title || item.url,
+              url: item.url,
+              domain: domainOf(item.url),
+              snippet: item.snippet || '',
+              score: 85,
+              type: 'web',
+              publishedDate: item.publishedDate || `${currentYear}-01-15`,
+            });
+          }
+        });
+      }
+    });
+
+    ctx.log(`${sources.length} 件の最新Webソースを取得しました。前回データと照合中…`, 'analyze');
+    ctx.progress(60, 'analyze');
+
+    // 3. 差分照合とレポート生成
+    const baseSummary = baseReport.summary || '';
+    const baseKeyPoints = (baseReport.keyPoints || []).join('\n- ');
+    const sourcesContext = sources.map((s, idx) => `[${idx + 1}] ${s.title}\nURL: ${s.url}\n${s.snippet}`).slice(0, 12).join('\n\n');
+
+    ctx.progress(75, 'synthesize');
+    ctx.log('前回調査からの新着差分ハイライトおよび最新レポートを執筆中…', 'ai');
+    const stop = rampProgress(ctx, 75, 95, 'synthesize');
+
+    try {
+      raw = await ai(
+        `あなたは第一線の産業アナリストです。
+前回（${baseDate}）に調査された「${theme}」のレポート情報と、今回収集したWeb上の最新情報（${currentYear}年）を綿密に突き合わせ、
+【定点観測・新着差分レポート（Delta Tracking Report）】を執筆してください。
+
+# 前回の調査内容（${baseDate}時点）
+- 要約: ${baseSummary}
+- 主要ポイント:
+- ${baseKeyPoints}
+
+# 今回収集した最新Webファクト
+${sourcesContext}
+
+# 出力JSON形式の要件
+{
+  "title": "【定点差分観測】${theme}（最新アップデート・動向変化速報）",
+  "subtitle": "前回調査（${baseDate}）からの変化点・新着差分ハイライト",
+  "summary": "前回調査との比較を軸にした最新要約（400〜600字）。前回からの決定的な変化、新着アップデート、今後の示唆を明瞭に解説（段落間に\\n\\n）。",
+  "keyPoints": ["前回からの決定的な変化点1", "新機能・新発表の要点2", "市場・数値の最新動向3", "今後の注目点4"],
+  "deltaHighlights": [
+    {
+      "category": "機能・料金改定 または 新着ニュース または 市場・統計数値更新 または 新規参入・競合動向",
+      "title": "変化の簡潔な見出し",
+      "description": "何がどのように変化したのか、前回と現在の差異を具体的に記述（100〜150字）",
+      "impact": "高 または 中 または 低"
+    }
+  ],
+  "metrics": [
+    {"label": "項目名", "value": "数値", "note": "前回比や補足"}
+  ],
+  "table": {
+    "caption": "前回調査時と最新動向の項目別差分比較マトリクス",
+    "columns": ["比較項目", "前回調査時点（${baseDate}）", "最新動向（今回）", "変化の方向性・影響度"],
+    "rows": [
+      ["項目1", "前回の状態", "現在の最新状態", "影響度評価"],
+      ["項目2", "前回の状態", "現在の最新状態", "影響度評価"],
+      ["項目3", "前回の状態", "現在の最新状態", "影響度評価"],
+      ["項目4", "前回の状態", "現在の最新状態", "影響度評価"]
+    ]
+  },
+  "sections": [
+    {"heading": "1. 前回調査からの主要な変化点と新着トピックス", "body": "...", "bullets": ["...", "..."]},
+    {"heading": "2. 機能改定・料金プランの最新状況と競合比較", "body": "...", "bullets": ["...", "..."]},
+    {"heading": "3. 定点観測を踏まえた今後の推奨アクション", "body": "...", "bullets": ["...", "..."]}
+  ],
+  "chart": {
+    "type": "bar",
+    "title": "前回調査時と最新の項目別評価比較（5点満点）",
+    "labels": ["コスト効率", "機能成熟度", "導入容易性", "拡張性", "市場推奨度"],
+    "datasets": [
+      {"label": "前回時点", "data": [3.6, 3.8, 3.2, 3.5, 4.0]},
+      {"label": "最新差分", "data": [4.3, 4.6, 4.1, 4.4, 4.7]}
+    ]
+  },
+  "insights": [
+    {"title": "即時アクション", "body": "...", "priority": "高"},
+    {"title": "検証推奨", "body": "...", "priority": "中"},
+    {"title": "定期モニタリング", "body": "...", "priority": "中"}
+  ]
+}
+
+必ず純粋なJSONのみを出力してください。`,
+        { temperature: 0.3, timeoutMs: 120000 }
+      );
+    } catch (e) {
+      if (ctx.signal.aborted) throw e;
+      ctx.log(`AI差分執筆フォールバック: ${e.message}`, 'warn');
+      raw = buildDeltaMockRaw(baseReport);
+    } finally {
+      stop();
+    }
+  } else {
+    // DEMO mode
+    await sleep(600, ctx.signal);
+    ctx.progress(35, 'search');
+    ctx.log('デモ用差分クエリを実行し最新トピックスを検索しています…', 'search');
+    await sleep(800, ctx.signal);
+    ctx.progress(70, 'synthesize');
+    ctx.log('前回調査からの新着差分ハイライトおよび最新比較マトリクスを執筆中…', 'ai');
+    await sleep(1000, ctx.signal);
+    raw = buildDeltaMockRaw(baseReport);
+    sources = [
+      {
+        title: `【公式アップデート速報】${theme} 最新リリースノート`,
+        url: `https://example.com/updates/${currentYear}`,
+        domain: 'example.com',
+        snippet: `前回（${baseDate}）以降に追加された新機能・プラン改定の公式アナウンス。`,
+        score: 95,
+        type: 'web',
+        publishedDate: `${currentYear}-02-01`,
+      },
+      {
+        title: `【業界動向】${theme} の最新市場シェアと導入事例`,
+        url: `https://news.example.com/report-${currentYear}`,
+        domain: 'news.example.com',
+        snippet: `最新四半期の導入企業数推移とユーザー評価のまとめ。`,
+        score: 88,
+        type: 'web',
+        publishedDate: `${currentYear}-02-15`,
+      },
+    ];
+  }
+
+  raw.isDeltaTracking = true;
+  raw.baseReportId = baseReport.id || '';
+  raw.baseReportDate = baseDate;
+  raw.baseReportTitle = baseReport.title || theme;
+
+  const result = normalizeResult(raw, {
+    id: job.id,
+    theme: `【定点差分】${theme}`,
+    scope: baseReport.scope || 'web',
+    depth: 'quick',
+    focus: 'decision',
+    purpose: 'trend',
+    mode: live ? 'live' : 'mock',
+    model: live ? settings.geminiModel : null,
+    searchProvider: live ? (settings.searchProvider === 'duckduckgo' || !settings.tavilyApiKey ? 'duckduckgo' : 'tavily') : 'delta-mock',
+    createdAt: new Date().toISOString(),
+    durationMs: Date.now() - t0,
+    queries: live ? queries : [`${theme} 最新 差分 ${currentYear}`],
+    sources: sources.slice(0, 15),
+    notices: live
+      ? [`本レポートは前回調査（${baseDate}）からの新着差分（Delta）を抽出した定点観測レポートです。`]
+      : [`これは DEMO モードでのサンプル定点差分観測レポート（前回: ${baseDate}）です。`],
+    isDeltaTracking: true,
+    baseReportId: baseReport.id || '',
+    baseReportDate: baseDate,
+    baseReportTitle: baseReport.title || theme,
+    deltaHighlights: raw.deltaHighlights || [],
+  });
+
+  ctx.progress(100, 'done');
+  ctx.log(`定点観測・新着差分リサーチが完了しました（${(result.durationMs / 1000).toFixed(1)}秒）`, 'done');
+  return result;
+}
+
+module.exports = { runResearch, runCrossSynthesis, runDeltaTracking };

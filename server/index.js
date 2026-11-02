@@ -35,7 +35,7 @@ const settings = require('./settings');
 const history = require('./history');
 const memory = require('./memory');
 const { createJob, getJob } = require('./jobs');
-const { runResearch, runCrossSynthesis } = require('./pipeline');
+const { runResearch, runCrossSynthesis, runDeltaTracking } = require('./pipeline');
 const { generate } = require('./gemini');
 const { tavilySearch } = require('./search');
 const deepdive = require('./deepdive');
@@ -377,6 +377,42 @@ app.post('/api/research/cross-synthesis', (req, res) => {
   };
 
   const job = createJob(params, (j) => runCrossSynthesis(j, settings.load()), {
+    onResult: (result) => {
+      history.save(result);
+      try {
+        memory.learnFromResearch(result);
+      } catch (err) {
+        console.error('[memory] learn error:', err.message);
+      }
+    },
+  });
+  res.status(202).json({ jobId: job.id });
+});
+
+/* ------------------------------------------------ delta-tracking (v1.18.0) */
+app.post('/api/research/delta', (req, res) => {
+  const b = req.body || {};
+  const baseReportId = String(b.baseReportId || '').trim();
+  if (!baseReportId) {
+    return res.status(400).json({ error: '差分更新元のレポートID（baseReportId）が必要です' });
+  }
+
+  const baseReport = history.get(baseReportId);
+  if (!baseReport) {
+    return res.status(404).json({ error: '差分更新元のレポートが見つかりません' });
+  }
+
+  const theme = baseReport.theme || baseReport.title || '調査テーマ';
+  console.log(`[定点差分受付] 元レポート: "${theme}" (ID: ${baseReportId})`);
+
+  const params = {
+    theme: `【定点差分】${theme}`,
+    baseReportId,
+    baseReport,
+    forceMock: !!b.forceMock,
+  };
+
+  const job = createJob(params, (j) => runDeltaTracking(j, settings.load()), {
     onResult: (result) => {
       history.save(result);
       try {

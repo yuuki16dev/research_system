@@ -35,6 +35,8 @@ function list() {
           periodLabel: r.periodLabel || '直近1年',
           sourceCount: (r.sources || []).length,
           pinned: !!r.pinned,
+          isDeltaTracking: !!r.isDeltaTracking,
+          isCrossSynthesis: !!r.isCrossSynthesis,
         };
       } catch {
         return null;

@@ -265,6 +265,7 @@ export async function renderHistoryDrawerList() {
           <div class="hi-title-row">
             ${item.pinned ? '<span class="pin-badge" title="ピン留め済み">⭐</span>' : ''}
             ${item.isCrossSynthesis ? '<span class="mode-tag" style="background: rgba(168,85,247,0.2); color: #c084fc; border: 1px solid rgba(168,85,247,0.4); font-size: 10px; padding: 1px 5px;">統合クロス</span>' : ''}
+            ${item.isDeltaTracking ? '<span class="mode-tag badge-delta" style="font-size: 10px; padding: 1px 5px;">定点差分</span>' : ''}
             <strong>${esc(item.title || item.theme)}</strong>
           </div>
           <div class="hi-meta">
@@ -425,6 +426,7 @@ export function renderHomeHistory() {
             ` : ''}
             <span class="mode-tag ${item.mode === 'live' ? 'live' : ''}">${item.mode === 'live' ? 'LIVE' : 'DEMO'}</span>
             ${item.isCrossSynthesis ? '<span class="mode-tag" style="background: rgba(168,85,247,0.2); color: #c084fc; border: 1px solid rgba(168,85,247,0.4); font-size: 10px; padding: 1px 5px;">統合クロス</span>' : ''}
+            ${item.isDeltaTracking ? '<span class="mode-tag badge-delta">定点差分</span>' : ''}
             ${item.pinned ? '<span class="pin-badge" title="ピン留め済み">⭐ ピン留め</span>' : ''}
           </div>
           <div class="recent-head-right">

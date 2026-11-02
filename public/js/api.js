@@ -25,6 +25,7 @@ export const api = {
   testSettings: (body) => request('POST', '/api/settings/test', body),
   startResearch: (params) => request('POST', '/api/research', params),
   crossSynthesize: (reportIds) => request('POST', '/api/research/cross-synthesis', { reportIds }),
+  startDeltaTracking: (baseReportId) => request('POST', '/api/research/delta', { baseReportId }),
   cancelResearch: (id) => request('POST', `/api/research/${id}/cancel`),
   history: () => request('GET', '/api/history'),
   historyItem: (id) => request('GET', `/api/history/${id}`),

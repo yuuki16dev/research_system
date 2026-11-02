@@ -179,6 +179,20 @@ function normalizeResult(raw = {}, meta = {}) {
     isCrossSynthesis: !!(raw.isCrossSynthesis || meta.isCrossSynthesis),
     synthesizedReportIds: arr(raw.synthesizedReportIds || meta.synthesizedReportIds).map(str).filter(Boolean),
     synthesizedThemes: arr(raw.synthesizedThemes || meta.synthesizedThemes).map(str).filter(Boolean),
+    isDeltaTracking: !!(raw.isDeltaTracking || meta.isDeltaTracking),
+    baseReportId: str(raw.baseReportId || meta.baseReportId),
+    baseReportDate: str(raw.baseReportDate || meta.baseReportDate),
+    baseReportTitle: str(raw.baseReportTitle || meta.baseReportTitle),
+    deltaHighlights: arr(raw.deltaHighlights || meta.deltaHighlights)
+      .map((dh) => ({
+        category: str(dh && dh.category) || '新着アップデート',
+        title: str(dh && dh.title),
+        description: str(dh && (dh.description || dh.body)),
+        impact: ['高', '中', '低'].includes(str(dh && (dh.impact || dh.priority)))
+          ? str(dh && (dh.impact || dh.priority))
+          : '中',
+      }))
+      .filter((dh) => dh.title || dh.description),
     period: meta.period || 'year',
     periodLabel:
       meta.period === 'custom' && meta.customPeriod

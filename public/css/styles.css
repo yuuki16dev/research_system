@@ -9085,6 +9085,179 @@ body.dd-expanded {
   color: #f3e8ff;
 }
 
+/* ==========================================================================
+   v1.18.0 定点観測・新着差分リサーチ (Delta Tracking) Styles
+   ========================================================================== */
+
+/* エクスポートバー内の差分再調査ボタン */
+.btn-delta-action {
+  background: rgba(16, 185, 129, 0.12) !important;
+  border-color: rgba(16, 185, 129, 0.35) !important;
+  color: #6ee7b7 !important;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.btn-delta-action:hover {
+  background: rgba(16, 185, 129, 0.24) !important;
+  border-color: rgba(16, 185, 129, 0.6) !important;
+  color: #ffffff !important;
+  transform: translateY(-1px);
+}
+
+/* 定点観測ヘッダーバナー */
+.delta-tracking-banner {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(6, 182, 212, 0.15));
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  border-radius: 10px;
+  padding: 14px 18px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.dtb-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.dtb-body strong {
+  display: block;
+  font-size: 14px;
+  color: #6ee7b7;
+  margin-bottom: 4px;
+}
+
+.dtb-body p {
+  font-size: 12px;
+  color: var(--text-2, #cbd5e1);
+  margin: 0 0 6px 0;
+  line-height: 1.5;
+}
+
+.dtb-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.dtb-tag {
+  background: rgba(16, 185, 129, 0.2);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  color: #a7f3d0;
+}
+
+.dtb-base-link {
+  font-size: 11.5px;
+  color: #38bdf8;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* 新着差分ハイライトカード */
+.delta-highlights-card {
+  margin-bottom: 24px;
+  border: 1px solid rgba(16, 185, 129, 0.3) !important;
+  background: radial-gradient(circle at 10% 20%, rgba(16, 185, 129, 0.08) 0%, transparent 80%) !important;
+}
+
+.delta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.delta-item-card {
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.delta-item-card:hover {
+  border-color: rgba(16, 185, 129, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.dic-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.dic-category {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
+.dic-impact {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+
+.impact-hi {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.impact-md {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.impact-lo {
+  background: rgba(148, 163, 184, 0.15);
+  color: #94a3b8;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+.dic-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-1, #f8fafc);
+  line-height: 1.4;
+  margin: 2px 0 0 0;
+}
+
+.dic-desc {
+  font-size: 12px;
+  color: var(--text-2, #94a3b8);
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* 履歴上の定点差分バッジ */
+.badge-delta {
+  background: rgba(16, 185, 129, 0.2) !important;
+  color: #6ee7b7 !important;
+  border: 1px solid rgba(16, 185, 129, 0.4) !important;
+  font-size: 10.5px !important;
+  padding: 1px 6px !important;
+}
+
+
 
 
 
