@@ -394,6 +394,13 @@ svg.i {
   background: var(--topbar-bg);
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
+  transition: transform 0.28s var(--ease), opacity 0.22s var(--ease);
+}
+
+.topbar.is-scrolled-hidden {
+  transform: translateY(-130%);
+  opacity: 0;
+  pointer-events: none;
 }
 
 .brand {
@@ -2265,10 +2272,79 @@ select.input option {
   background: #0f1629; /* 不透明な背景で背後文字透けを遮断 */
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
+  transition: top 0.28s var(--ease), padding 0.2s var(--ease), max-height 0.25s var(--ease), background 0.2s var(--ease);
+}
+
+body.topbar-hidden .export-bar {
+  top: 10px;
 }
 
 [data-theme='light'] .export-bar {
   background: #ffffff;
+}
+
+/* スクロール中のウルトラスリム・スマートバー（専有高さを210px➔48pxに劇的圧縮） */
+.export-bar.is-sticky-slim {
+  padding: 6px 14px;
+  min-height: 46px;
+  max-height: 50px;
+  flex-wrap: nowrap;
+  gap: 10px;
+  background: rgba(15, 22, 41, 0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.55), 0 0 0 1px var(--border);
+}
+
+[data-theme='light'] .export-bar.is-sticky-slim {
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 6px 20px -4px rgba(15, 23, 42, 0.12), 0 0 0 1px var(--border);
+}
+
+.export-bar.is-sticky-slim .export-info {
+  max-width: 260px;
+  flex-shrink: 1;
+}
+
+.export-bar.is-sticky-slim .export-info strong {
+  font-size: 13.5px;
+}
+
+/* スクロール中は2行目のサブ操作を隠して画面を広々と確保 */
+.export-bar.is-sticky-slim .export-secondary-group {
+  display: none !important;
+}
+
+.export-bar.is-sticky-slim .btn-sm {
+  padding: 4px 9px;
+  font-size: 12.5px;
+}
+
+/* ユーザーが手動で展開トグルを押した時、またはホバー時 */
+.export-bar.is-sticky-slim.is-expanded,
+.export-bar.is-sticky-slim:hover {
+  max-height: 220px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  background: #0f1629;
+}
+[data-theme='light'] .export-bar.is-sticky-slim.is-expanded,
+[data-theme='light'] .export-bar.is-sticky-slim:hover {
+  background: #ffffff;
+}
+.export-bar.is-sticky-slim.is-expanded .export-secondary-group,
+.export-bar.is-sticky-slim:hover .export-secondary-group {
+  display: flex !important;
+}
+
+.btn-collapse-header {
+  color: var(--text-3);
+  transition: transform 0.2s, color 0.2s;
+  padding: 4px !important;
+}
+.btn-collapse-header:hover {
+  color: var(--text);
+  background: var(--surface-hover);
 }
 
 .export-info {
@@ -2404,6 +2480,11 @@ select.input option {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  transition: top 0.28s var(--ease);
+}
+
+body.topbar-hidden .toc {
+  top: calc(10px + 52px + 12px);
 }
 
 .toc-title {

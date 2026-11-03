@@ -22,6 +22,7 @@ import { bindReportEditor } from './modules/editor.js';
 import { initChangelogModal, openChangelogModal } from './modules/changelog-modal.js';
 import { initPresentationModal } from './modules/presentation-modal.js';
 import { initThemeDesigner } from './modules/theme-designer.js';
+import { initSmartHeader } from './modules/smart-header.js';
 import { api } from './api.js';
 
 // ==========================================================================
@@ -95,6 +96,7 @@ async function initApp() {
     initChangelogModal();
     initPresentationModal();
     initThemeDesigner();
+    initSmartHeader();
 
     // 3. リサーチ実行中・深掘り実行中の誤終了ガード (beforeunload)
     window.addEventListener('beforeunload', (e) => {

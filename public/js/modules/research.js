@@ -642,21 +642,29 @@ export function bindFormControls() {
 // ==========================================================================
 // 実行中ステート管理 & 中止ハンドリング
 // ==========================================================================
+
+let activeProgressVal = 0;
+let activeLastProgressTime = Date.now();
+let activeStage = 'plan';
+
 export function setRunningState(running) {
   const btnFormStop = $('#btn-form-stop');
   const btnStart = $('#btn-start');
   const btnTopbarCancel = $('#btn-topbar-cancel');
   const themeInput = $('#theme-input');
+  const btnCancel = $('#btn-cancel');
 
   if (running) {
     if (btnFormStop) btnFormStop.style.display = 'inline-flex';
     if (btnStart) btnStart.style.display = 'none';
     if (btnTopbarCancel) btnTopbarCancel.style.display = 'inline-flex';
+    if (btnCancel) btnCancel.style.display = 'inline-flex';
     if (themeInput) themeInput.setAttribute('readonly', 'true');
   } else {
     if (btnFormStop) btnFormStop.style.display = 'none';
     if (btnStart) btnStart.style.display = 'inline-flex';
     if (btnTopbarCancel) btnTopbarCancel.style.display = 'none';
+    if (btnCancel) btnCancel.style.display = 'none';
     if (themeInput) themeInput.removeAttribute('readonly');
   }
 }
@@ -759,6 +767,8 @@ export async function startResearch(params) {
 
   // UI状態のリセット & 実行中ステート適用
   setRunningState(true);
+  const progressTitle = $('#progress-title');
+  if (progressTitle) progressTitle.textContent = 'リサーチを実行中';
   if (abortedBanner) abortedBanner.style.display = 'none';
   if (errorBanner) errorBanner.style.display = 'none';
   progressSection.hidden = false;
@@ -776,9 +786,9 @@ export async function startResearch(params) {
   // スクロール
   progressSection.scrollIntoView({ behavior: 'smooth' });
 
-  let currentStage = 'plan';
-  let currentProgressVal = 0;
-  let lastProgressTime = Date.now();
+  activeStage = 'plan';
+  activeProgressVal = 0;
+  activeLastProgressTime = Date.now();
   updateReassuranceGuidance(0, 'plan', params.depth);
 
   // タイマー開始
@@ -788,18 +798,18 @@ export async function startResearch(params) {
     const sec = Math.floor((Date.now() - appState.startTime) / 1000);
     const m = Math.floor(sec / 60);
     const s = sec % 60;
-    progressElapsed.textContent = `${m}:${String(s).padStart(2, '0')}`;
+    if (progressElapsed) progressElapsed.textContent = `${m}:${String(s).padStart(2, '0')}`;
 
     // 時間経過に応じた安心メッセージの自動更新
-    updateReassuranceGuidance(sec, currentStage, params.depth);
+    updateReassuranceGuidance(sec, activeStage, params.depth);
 
     // 長時間プログレスバーが止まっている場合の微細な前進アニメーション（固まった印象を完全に防止）
     const now = Date.now();
-    if (now - lastProgressTime > 1600 && currentStage !== 'done') {
-      if (currentProgressVal < 96) {
-        currentProgressVal = Math.min(96, currentProgressVal + 0.35);
-        progressFill.style.width = `${currentProgressVal}%`;
-        progressPct.textContent = `${Math.round(currentProgressVal)}%`;
+    if (now - activeLastProgressTime > 1600 && activeStage !== 'done') {
+      if (activeProgressVal < 96) {
+        activeProgressVal = Math.min(96, activeProgressVal + 0.35);
+        if (progressFill) progressFill.style.width = `${activeProgressVal}%`;
+        if (progressPct) progressPct.textContent = `${Math.round(activeProgressVal)}%`;
       }
     }
   }, 1000);
@@ -820,36 +830,43 @@ function subscribeJob(jobId, depth = 'quick') {
   appState.activeJobId = jobId;
   let logCounter = 0;
 
+  const logList = $('#log');
+  const logCount = $('#log-count');
+  const progressFill = $('#progress-fill');
+  const progressPct = $('#progress-pct');
+
   appState.activeUnsub = api.subscribe(jobId, {
     onEvent: (evt) => {
       if (evt.type === 'log') {
         logCounter++;
-        logCount.textContent = logCounter;
-        const li = document.createElement('li');
-        li.className = `k-${evt.kind || 'info'}`;
-        const time = new Date(evt.ts).toTimeString().slice(0, 8);
-        li.innerHTML = `
-          <span class="log-time">${time}</span>
-          <span class="log-icon">${icon(evt.kind === 'warn' ? 'alert' : evt.kind === 'error' ? 'alert' : evt.kind === 'done' ? 'check' : 'zap')}</span>
-          <div class="log-msg">
-            <div>${esc(evt.message)}</div>
-            ${evt.detail ? `<span class="log-detail">${esc(evt.detail)}</span>` : ''}
-          </div>
-        `;
-        logList.appendChild(li);
-        li.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        if (logCount) logCount.textContent = String(logCounter);
+        if (logList) {
+          const li = document.createElement('li');
+          li.className = `k-${evt.kind || 'info'}`;
+          const time = new Date(evt.ts).toTimeString().slice(0, 8);
+          li.innerHTML = `
+            <span class="log-time">${time}</span>
+            <span class="log-icon">${icon(evt.kind === 'warn' ? 'alert' : evt.kind === 'error' ? 'alert' : evt.kind === 'done' ? 'check' : 'zap')}</span>
+            <div class="log-msg">
+              <div>${esc(evt.message)}</div>
+              ${evt.detail ? `<span class="log-detail">${esc(evt.detail)}</span>` : ''}
+            </div>
+          `;
+          logList.appendChild(li);
+          li.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
       } else if (evt.type === 'progress') {
         const val = Math.min(100, Math.max(0, evt.value));
-        currentProgressVal = Math.max(currentProgressVal, val);
-        lastProgressTime = Date.now();
-        progressFill.style.width = `${currentProgressVal}%`;
-        progressPct.textContent = `${Math.round(currentProgressVal)}%`;
+        activeProgressVal = Math.max(activeProgressVal, val);
+        activeLastProgressTime = Date.now();
+        if (progressFill) progressFill.style.width = `${activeProgressVal}%`;
+        if (progressPct) progressPct.textContent = `${Math.round(activeProgressVal)}%`;
 
-        currentStage = evt.stage || currentStage;
+        activeStage = evt.stage || activeStage;
         updateStepper(evt.stage);
 
         const sec = Math.floor((Date.now() - appState.startTime) / 1000);
-        updateReassuranceGuidance(sec, currentStage, depth);
+        updateReassuranceGuidance(sec, activeStage, depth);
       } else if (evt.type === 'result') {
         appState.currentResult = evt.data;
         updateReassuranceGuidance(0, 'done', depth);
@@ -982,8 +999,19 @@ export function finishSuccess(resultData) {
 
   const progressSection = $('#progress-section');
   const resultsSection = $('#results-section');
+  const progressTitle = $('#progress-title');
+  const progressFill = $('#progress-fill');
+  const progressPct = $('#progress-pct');
+  const btnCancel = $('#btn-cancel');
 
-  progressSection.classList.add('is-done');
+  // プログレスバーを100%完了状態に確定
+  activeProgressVal = 100;
+  if (progressFill) progressFill.style.width = '100%';
+  if (progressPct) progressPct.textContent = '100%';
+  if (progressTitle) progressTitle.textContent = 'リサーチ完了！';
+  if (btnCancel) btnCancel.style.display = 'none';
+
+  if (progressSection) progressSection.classList.add('is-done');
   updateStepper('done');
 
   // 編集モードを初期化して結果描画
@@ -1209,6 +1237,8 @@ export async function startCrossSynthesis(reportIds) {
   const errorBanner = $('#progress-error-banner');
 
   setRunningState(true);
+  const progressTitle = $('#progress-title');
+  if (progressTitle) progressTitle.textContent = 'クロス統合リサーチを実行中';
   if (abortedBanner) abortedBanner.style.display = 'none';
   if (errorBanner) errorBanner.style.display = 'none';
   progressSection.hidden = false;
@@ -1225,9 +1255,9 @@ export async function startCrossSynthesis(reportIds) {
 
   progressSection.scrollIntoView({ behavior: 'smooth' });
 
-  let currentStage = 'plan';
-  let currentProgressVal = 0;
-  let lastProgressTime = Date.now();
+  activeStage = 'plan';
+  activeProgressVal = 0;
+  activeLastProgressTime = Date.now();
 
   clearInterval(appState.timerInterval);
   appState.startTime = Date.now();
@@ -1235,14 +1265,14 @@ export async function startCrossSynthesis(reportIds) {
     const sec = Math.floor((Date.now() - appState.startTime) / 1000);
     const m = Math.floor(sec / 60);
     const s = sec % 60;
-    progressElapsed.textContent = `${m}:${String(s).padStart(2, '0')}`;
+    if (progressElapsed) progressElapsed.textContent = `${m}:${String(s).padStart(2, '0')}`;
 
     const now = Date.now();
-    if (now - lastProgressTime > 1600 && currentStage !== 'done') {
-      if (currentProgressVal < 96) {
-        currentProgressVal = Math.min(96, currentProgressVal + 0.4);
-        progressFill.style.width = `${currentProgressVal}%`;
-        progressPct.textContent = `${Math.round(currentProgressVal)}%`;
+    if (now - activeLastProgressTime > 1600 && activeStage !== 'done') {
+      if (activeProgressVal < 96) {
+        activeProgressVal = Math.min(96, activeProgressVal + 0.4);
+        if (progressFill) progressFill.style.width = `${activeProgressVal}%`;
+        if (progressPct) progressPct.textContent = `${Math.round(activeProgressVal)}%`;
       }
     }
   }, 1000);
@@ -1289,6 +1319,8 @@ export async function startDeltaTracking(baseReportId, baseReportTitle = '') {
   const errorBanner = $('#progress-error-banner');
 
   setRunningState(true);
+  const progressTitle = $('#progress-title');
+  if (progressTitle) progressTitle.textContent = '定点差分リサーチを実行中';
   if (abortedBanner) abortedBanner.style.display = 'none';
   if (errorBanner) errorBanner.style.display = 'none';
   progressSection.hidden = false;
@@ -1305,9 +1337,9 @@ export async function startDeltaTracking(baseReportId, baseReportTitle = '') {
 
   progressSection.scrollIntoView({ behavior: 'smooth' });
 
-  let currentStage = 'plan';
-  let currentProgressVal = 0;
-  let lastProgressTime = Date.now();
+  activeStage = 'plan';
+  activeProgressVal = 0;
+  activeLastProgressTime = Date.now();
 
   clearInterval(appState.timerInterval);
   appState.startTime = Date.now();
@@ -1315,14 +1347,14 @@ export async function startDeltaTracking(baseReportId, baseReportTitle = '') {
     const sec = Math.floor((Date.now() - appState.startTime) / 1000);
     const m = Math.floor(sec / 60);
     const s = sec % 60;
-    progressElapsed.textContent = `${m}:${String(s).padStart(2, '0')}`;
+    if (progressElapsed) progressElapsed.textContent = `${m}:${String(s).padStart(2, '0')}`;
 
     const now = Date.now();
-    if (now - lastProgressTime > 1600 && currentStage !== 'done') {
-      if (currentProgressVal < 96) {
-        currentProgressVal = Math.min(96, currentProgressVal + 0.4);
-        progressFill.style.width = `${currentProgressVal}%`;
-        progressPct.textContent = `${Math.round(currentProgressVal)}%`;
+    if (now - activeLastProgressTime > 1600 && activeStage !== 'done') {
+      if (activeProgressVal < 96) {
+        activeProgressVal = Math.min(96, activeProgressVal + 0.4);
+        if (progressFill) progressFill.style.width = `${activeProgressVal}%`;
+        if (progressPct) progressPct.textContent = `${Math.round(activeProgressVal)}%`;
       }
     }
   }, 1000);
