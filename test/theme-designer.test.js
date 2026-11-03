@@ -115,3 +115,4 @@ test('Theme Designer: PDF exporters include theme CSS overrides', () => {
   const slideHtml = buildSlideDeckHtml(mockData);
   assert.ok(slideHtml.includes('rs-theme-pdf-overrides'), 'Slide deck must contain theme override style tag');
 });
+

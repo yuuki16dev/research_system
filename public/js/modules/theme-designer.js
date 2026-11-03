@@ -10,6 +10,7 @@ import { $, $$, esc, toast, openModal, closeModal } from '../ui.js';
 import { api } from '../api.js';
 import { appState } from './state.js';
 import { THEME_PRESETS, resolveTheme } from './theme-presets.js';
+import { renderSvgChart } from './charts.js';
 
 let activeTheme = resolveTheme('corporate-blue');
 
@@ -63,16 +64,17 @@ export function applyReportTheme(themeConfig, persistToReport = true) {
  * 画面上のSVGチャートの色をテーマパレットに合わせて即座に再描画
  */
 function updateChartThemesIfPresent(theme) {
-  const chartWrap = document.querySelector('.chart-card svg');
-  if (!chartWrap || !appState.currentResult || !appState.currentResult.chart) return;
+  const chartBox = document.querySelector('.rs-chart-card');
+  if (!chartBox || !appState.currentResult || !appState.currentResult.chart) return;
 
-  // charts.js を動的インポートまたはイベント経由で更新
   try {
-    const chartSvgContainer = document.querySelector('.chart-card');
-    if (chartSvgContainer && window.__rs_renderCurrentChart) {
-      window.__rs_renderCurrentChart();
+    const updatedSvg = renderSvgChart(appState.currentResult.chart);
+    if (updatedSvg) {
+      chartBox.innerHTML = updatedSvg;
     }
-  } catch {}
+  } catch (e) {
+    console.warn('[theme-designer] Failed to re-render chart:', e);
+  }
 }
 
 /**
@@ -215,3 +217,4 @@ export function initThemeDesigner() {
     });
   }
 }
+

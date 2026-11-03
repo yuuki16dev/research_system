@@ -1561,7 +1561,7 @@ export function buildSlideDeckHtml(data, brand = 'Research Studio') {
 
   // SVGチャート（存在する場合）
   const chartHtml = (data.chart && data.chart.labels && data.chart.labels.length)
-    ? `<div class="pr-chart-wrap" style="max-width: 100%; margin: 3mm 0;">${renderSvgChart(data.chart)}</div>`
+    ? `<div class="pr-chart-wrap" style="max-width: 100%; margin: 3mm 0;">${renderSvgChart(data.chart, { isPrint: true })}</div>`
     : '';
 
   // 2. キーインサイト（4カード）の整形

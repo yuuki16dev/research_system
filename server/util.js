@@ -223,6 +223,7 @@ function normalizeResult(raw = {}, meta = {}) {
       ? {
           type: ['bar', 'radar', 'line', 'pie', 'doughnut'].includes(raw.chart.type) ? raw.chart.type : 'bar',
           title: str(raw.chart.title),
+          description: str(raw.chart.description),
           labels: arr(raw.chart.labels).map(str).filter(Boolean),
           datasets: arr(raw.chart.datasets).map((ds) => ({
             label: str(ds && ds.label),

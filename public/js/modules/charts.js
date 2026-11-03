@@ -118,19 +118,31 @@ function renderBarChart(chart, { width = 640, height = 300, isPrint = false }) {
  */
 function renderRadarChart(chart, { width = 480, height = 340, isPrint = false }) {
   const cx = width / 2;
-  const cy = height / 2 + 10;
-  const radius = Math.min(width, height) * 0.36;
+  const cy = height / 2 + 12;
+  const radius = Math.min(width, height) * 0.35;
 
   const labels = chart.labels || [];
   const datasets = chart.datasets || [];
   const numAxes = labels.length;
   if (numAxes < 3 || !datasets.length) return '';
 
-  const textColor = isPrint ? '#334155' : 'rgba(255, 255, 255, 0.85)';
-  const gridColor = isPrint ? '#cbd5e1' : 'rgba(255, 255, 255, 0.15)';
+  const textColor = isPrint ? '#0f172a' : 'rgba(255, 255, 255, 0.9)';
+  const gridColor = isPrint ? '#cbd5e1' : 'rgba(255, 255, 255, 0.18)';
+  const scaleTextColor = isPrint ? '#64748b' : 'rgba(255, 255, 255, 0.4)';
+
+  // 最大値の自動判定（5点/10点/100点スケール自動正規化）
+  let rawMax = 0;
+  datasets.forEach((ds) => {
+    (ds.data || []).forEach((v) => {
+      const num = Number(v) || 0;
+      if (num > rawMax) rawMax = num;
+    });
+  });
+  const scaleMax = rawMax <= 5 ? 5 : rawMax <= 10 ? 10 : 100;
 
   let webSvg = '';
-  // 5階層の同心多角形
+  let scaleTicksSvg = '';
+  // 4階層の同心多角形
   for (let lvl = 1; lvl <= 4; lvl++) {
     const r = (radius / 4) * lvl;
     let points = '';
@@ -141,6 +153,11 @@ function renderRadarChart(chart, { width = 480, height = 340, isPrint = false })
       points += `${x},${y} `;
     }
     webSvg += `<polygon points="${points.trim()}" fill="none" stroke="${gridColor}" stroke-width="1" stroke-dasharray="${lvl === 4 ? 'none' : '2,2'}" />`;
+
+    // 縦軸（第1軸）に薄く目盛り数値を描画
+    const tickVal = (scaleMax / 4) * lvl;
+    const formattedTick = scaleMax <= 10 ? tickVal.toFixed(1) : Math.round(tickVal).toString();
+    scaleTicksSvg += `<text x="${cx + 4}" y="${cy - r + 3}" font-size="9" fill="${scaleTextColor}" font-family="'Outfit', sans-serif">${formattedTick}</text>`;
   }
 
   // 軸とラベル
@@ -157,18 +174,36 @@ function renderRadarChart(chart, { width = 480, height = 340, isPrint = false })
     axesSvg += `<text x="${lx}" y="${ly + 4}" font-size="11" fill="${textColor}" text-anchor="${align}" font-weight="700">${esc(labels[i])}</text>`;
   }
 
-  // データ系列ポリゴン
+  // 凡例（複数系列時）
+  let legendSvg = '';
+  if (datasets.length > 1) {
+    let legX = 20;
+    datasets.forEach((ds, dIdx) => {
+      const color = PALETTE[dIdx % PALETTE.length];
+      const lbl = ds.label || `系列 ${dIdx + 1}`;
+      legendSvg += `
+        <rect x="${legX}" y="10" width="12" height="12" rx="2" fill="${color.stroke}" />
+        <text x="${legX + 16}" y="20" font-size="11" fill="${textColor}" font-weight="600">${esc(lbl)}</text>
+      `;
+      legX += (lbl.length * 9) + 36;
+    });
+  }
+
+  // データ系列ポリゴン & プロット点
   let seriesSvg = '';
+  let pointsSvg = '';
   datasets.forEach((ds, dIdx) => {
     const color = PALETTE[dIdx % PALETTE.length];
     let points = '';
     labels.forEach((_, i) => {
-      const val = Math.min(100, Math.max(0, Number(ds.data[i]) || 0));
-      const r = (radius * (val / 100));
+      const val = Math.max(0, Number(ds.data[i]) || 0);
+      const ratio = Math.min(1, val / scaleMax);
+      const r = radius * ratio;
       const angle = (Math.PI * 2 / numAxes) * i - Math.PI / 2;
       const x = cx + Math.cos(angle) * r;
       const y = cy + Math.sin(angle) * r;
       points += `${x},${y} `;
+      pointsSvg += `<circle cx="${x}" cy="${y}" r="3.5" fill="${color.stroke}" stroke="${isPrint ? '#ffffff' : '#0f172a'}" stroke-width="1.5" />`;
     });
 
     seriesSvg += `
@@ -178,9 +213,12 @@ function renderRadarChart(chart, { width = 480, height = 340, isPrint = false })
 
   return `
     <svg viewBox="0 0 ${width} ${height}" width="100%" height="auto" class="rs-chart-svg" style="max-height: ${height}px;">
+      ${legendSvg}
       ${webSvg}
+      ${scaleTicksSvg}
       ${axesSvg}
       ${seriesSvg}
+      ${pointsSvg}
     </svg>
   `;
 }

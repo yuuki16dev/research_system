@@ -7,6 +7,29 @@
 - **マイナー (1.X.0)**: 後方互換性のある新機能の追加
 - **パッチ (1.0.X)**: 後方互換性のあるバグ修正や安定化・改善
 
+## [v1.19.1] - 2026-11-03
+
+### 🛡️ 改善・バグ修正: SVGチャート高コントラスト印刷・レーダー自動正規化・UI/ライトモード完全補正（プランA）
+- **PDF印刷時のSVGチャート白飛びバグ解消**:
+  - `public/js/exporters.js` における `renderSvgChart` 呼び出し時に `{ isPrint: true }` オプションを確実に渡し、白背景印刷時にテキストが白文字で不可視になる重大な不具合を完全修正。高コントラストな濃紺/黒文字でくっきり鮮明に出力可能に。
+- **レーダーチャートのスケール自動正規化 ＆ 視認性大幅強化**:
+  - `public/js/modules/charts.js` の `renderRadarChart` において、データ値に応じた自動スケール判定（5点満点 / 10点満点 / 100点満点）を導入。5点満点データ（例: 4.2）等で中心付近にゴマ粒のように密集して縮んでいた問題を解消し、枠いっぱいに美しく展開。
+  - 同心多角形の目盛り数値表示、各プロット点へのハイコントラストマーカー円追加、複数系列時の凡例表示に対応。
+- **ライトモード（白背景）の白飛び・視認性完全補正**:
+  - `public/css/styles.css` 内で参照されていた未定義CSS変数（`--text-1`, `--text-muted`, `--surface-hover`, `--bg-input`, `--border-subtle` 等）を `:root`, `[data-theme='dark']`, `[data-theme='light']` にエイリアス完全定義。白背景にした際に入力枠や文字が白飛び・消失する現象を根絶。
+- **UI未定義アイコン（9種）のSVGパス復活**:
+  - `public/js/ui.js` に `monitor`, `plus`, `minus`, `palette`, `edit-3`, `upload-cloud`, `users`, `git-merge`, `database` のLucide標準SVGパスを追加し、アイコン消失問題を完全解消。
+- **上部エクスポートバー（#export-bar）の過密＆目次（.toc）重なり解消**:
+  - 18個のコントロールによるタイトル領域の潰れ（幅0px化）を防ぐため、`min-width: 160px; max-width: 340px;` の保護と柔軟な `flex-wrap: wrap` レスポンシブレイアウトを適用。画面幅が狭い場合でも目次と衝突せず美しく整列。
+- **不要・重複コードの整理＆保守性向上**:
+  - `public/css/styles.css`: `#compare-modal-card` 関連の古い重複定義（約120行）を削除。
+  - `public/js/modules/research.js`: SSE購読ハンドラの重複コード（約120行）を共通関数 `subscribeJob` に統合。存在しない `#purpose-chip-trend` の残骸処理を安全に除去。
+  - `server/index.js`: `【定点差分】` 接頭辞の多重重複増殖（正規表現 `/^(【定点差分】)+/`）を防止。
+  - `server/pipeline.js` & `server/util.js`: `settings.themePreset` を新規リサーチ時の初期テーマに正常引き継ぎ、`chart.description` のサニタイズ保持に対応。
+  - `public/js/modules/theme-designer.js`: テーマ変更時のチャートリアルタイム再描画連携を完全化。
+
+---
+
 ## [v1.19.0] - 2026-11-03
 
 ### 🎨 新機能: 商用レポート・スタイルデザイナー ＆ ブランドテーマ自由着せ替え（Enterprise Custom Themes & White-labeling）

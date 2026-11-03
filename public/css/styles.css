@@ -35,6 +35,12 @@
   --claude: #ea580c;
   --claude-hover: #c2410c;
 
+  --primary-dark: #4338ca;
+  --font-sans: var(--font);
+  --transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+
   --grad-primary: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
   --grad-text: linear-gradient(135deg, #818cf8 0%, #38bdf8 100%);
   --grad-danger: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
@@ -79,7 +85,14 @@
 
   --glass-bg: #131c31;
   --input-bg: #0c1224;
+  --bg-input: #0c1224;
   --topbar-bg: rgba(13, 18, 33, 0.92);
+
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --surface-card: #131c31;
+  --surface-hover: rgba(255, 255, 255, 0.05);
+  --text-1: #ffffff;
+  --text-muted: #94a3b8;
 }
 
 /* -------------------------------------------------------------- light theme */
@@ -111,7 +124,14 @@
 
   --glass-bg: #ffffff;
   --input-bg: #ffffff;
+  --bg-input: #ffffff;
   --topbar-bg: rgba(255, 255, 255, 0.94);
+
+  --border-subtle: #e2e8f0;
+  --surface-card: #ffffff;
+  --surface-hover: rgba(0, 0, 0, 0.04);
+  --text-1: #0f172a;
+  --text-muted: #64748b;
 }
 
 /* -------------------------------------------------------------------- base */
@@ -2238,7 +2258,8 @@ select.input option {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px 14px;
+  flex-wrap: wrap;
   padding: 10px 14px;
   border-radius: var(--radius);
   background: #0f1629; /* 不透明な背景で背後文字透けを遮断 */
@@ -2254,7 +2275,9 @@ select.input option {
   display: flex;
   align-items: center;
   gap: 10px;
-  min-width: 0;
+  min-width: 160px;
+  max-width: 340px;
+  flex: 0 1 auto;
 }
 
 .export-info strong {
@@ -5026,125 +5049,6 @@ table.matrix {
 }
 .pdf-stage-inner .pr {
   padding: 0;
-}
-
-/* ---------------------------------------------------------------- compare modal */
-#compare-modal-card {
-  height: 94vh;
-}
-.compare-selector-bar {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 12px 20px;
-  background: var(--surface-recessed);
-  border-bottom: 1px solid var(--border);
-}
-.cs-col {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-.cs-col select {
-  flex: 1;
-  height: 38px;
-  font-size: 13.5px;
-  padding: 0 12px;
-  border-radius: 8px;
-  background: var(--surface);
-  color: var(--text);
-  border: 1px solid var(--border-strong);
-}
-.badge-a {
-  background: rgba(99, 102, 241, 0.2);
-  color: var(--primary-light);
-  border: 1px solid rgba(99, 102, 241, 0.4);
-  font-weight: 800;
-  font-size: 12px;
-  padding: 4px 10px;
-  border-radius: 6px;
-  white-space: nowrap;
-}
-.badge-b {
-  background: rgba(14, 165, 233, 0.2);
-  color: var(--accent-light);
-  border: 1px solid rgba(14, 165, 233, 0.4);
-  font-weight: 800;
-  font-size: 12px;
-  padding: 4px 10px;
-  border-radius: 6px;
-  white-space: nowrap;
-}
-.compare-body {
-  padding: 20px;
-  overflow-y: auto;
-  flex: 1;
-}
-.compare-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-}
-@media (max-width: 860px) {
-  .compare-grid {
-    grid-template-columns: 1fr;
-  }
-}
-.compare-col {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  min-width: 0;
-}
-.compare-header-box {
-  padding: 16px 20px;
-  border-radius: 12px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-}
-.compare-header-box.col-a {
-  border-top: 3px solid var(--primary);
-}
-.compare-header-box.col-b {
-  border-top: 3px solid var(--accent);
-}
-.compare-header-box h3 {
-  font-size: 16px;
-  font-weight: 800;
-  color: var(--text);
-  line-height: 1.4;
-  margin-bottom: 6px;
-}
-.compare-stat-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  font-size: 12px;
-  color: var(--text-2);
-}
-.compare-diff-card {
-  padding: 14px 18px;
-  border-radius: 12px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.compare-diff-card h4 {
-  font-size: 14px;
-  font-weight: 750;
-  color: var(--text);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.compare-diff-card p {
-  font-size: 13.5px;
-  line-height: 1.7;
-  color: var(--text-body);
 }
 
 /* ------------------------------------------------------ prompt templates modal */

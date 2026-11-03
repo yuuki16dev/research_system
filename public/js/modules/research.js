@@ -65,11 +65,6 @@ export function bindFormControls() {
     chipTrend.dataset.example = `${currentYear}年のショート動画マーケティングのトレンド`;
   }
 
-  const purposeTrend = $('#purpose-chip-trend');
-  if (purposeTrend) {
-    purposeTrend.title = `直近数ヶ月の最新速報・大型アプデ・${currentYear}年動向`;
-  }
-
   const cpStartSelect = $('#custom-period-start');
   const cpEndSelect = $('#custom-period-end');
   if (cpStartSelect && cpEndSelect) {
@@ -812,59 +807,65 @@ export async function startResearch(params) {
   // ジョブの開始
   try {
     const { jobId } = await api.startResearch(params);
-    appState.activeJobId = jobId;
-
-    let logCounter = 0;
-
-    appState.activeUnsub = api.subscribe(jobId, {
-      onEvent: (evt) => {
-        if (evt.type === 'log') {
-          logCounter++;
-          logCount.textContent = logCounter;
-          const li = document.createElement('li');
-          li.className = `k-${evt.kind || 'info'}`;
-          const time = new Date(evt.ts).toTimeString().slice(0, 8);
-          li.innerHTML = `
-            <span class="log-time">${time}</span>
-            <span class="log-icon">${icon(evt.kind === 'warn' ? 'alert' : evt.kind === 'error' ? 'alert' : evt.kind === 'done' ? 'check' : 'zap')}</span>
-            <div class="log-msg">
-              <div>${esc(evt.message)}</div>
-              ${evt.detail ? `<span class="log-detail">${esc(evt.detail)}</span>` : ''}
-            </div>
-          `;
-          logList.appendChild(li);
-          li.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        } else if (evt.type === 'progress') {
-          const val = Math.min(100, Math.max(0, evt.value));
-          currentProgressVal = Math.max(currentProgressVal, val);
-          lastProgressTime = Date.now();
-          progressFill.style.width = `${currentProgressVal}%`;
-          progressPct.textContent = `${Math.round(currentProgressVal)}%`;
-
-          currentStage = evt.stage || currentStage;
-          updateStepper(evt.stage);
-
-          const sec = Math.floor((Date.now() - appState.startTime) / 1000);
-          updateReassuranceGuidance(sec, currentStage, params.depth);
-        } else if (evt.type === 'result') {
-          appState.currentResult = evt.data;
-          updateReassuranceGuidance(0, 'done', params.depth);
-          finishSuccess(evt.data);
-        } else if (evt.type === 'error') {
-          if (evt.message && (evt.message.includes('キャンセル') || evt.message.includes('中止'))) {
-            handleAborted();
-          } else {
-            finishError(evt.message);
-          }
-        }
-      },
-      onError: (err) => {
-        finishError(err.message);
-      },
-    });
+    subscribeJob(jobId, params.depth);
   } catch (err) {
     finishError(err.message);
   }
+}
+
+/**
+ * SSE ジョブ購読の共通ハンドラ
+ */
+function subscribeJob(jobId, depth = 'quick') {
+  appState.activeJobId = jobId;
+  let logCounter = 0;
+
+  appState.activeUnsub = api.subscribe(jobId, {
+    onEvent: (evt) => {
+      if (evt.type === 'log') {
+        logCounter++;
+        logCount.textContent = logCounter;
+        const li = document.createElement('li');
+        li.className = `k-${evt.kind || 'info'}`;
+        const time = new Date(evt.ts).toTimeString().slice(0, 8);
+        li.innerHTML = `
+          <span class="log-time">${time}</span>
+          <span class="log-icon">${icon(evt.kind === 'warn' ? 'alert' : evt.kind === 'error' ? 'alert' : evt.kind === 'done' ? 'check' : 'zap')}</span>
+          <div class="log-msg">
+            <div>${esc(evt.message)}</div>
+            ${evt.detail ? `<span class="log-detail">${esc(evt.detail)}</span>` : ''}
+          </div>
+        `;
+        logList.appendChild(li);
+        li.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      } else if (evt.type === 'progress') {
+        const val = Math.min(100, Math.max(0, evt.value));
+        currentProgressVal = Math.max(currentProgressVal, val);
+        lastProgressTime = Date.now();
+        progressFill.style.width = `${currentProgressVal}%`;
+        progressPct.textContent = `${Math.round(currentProgressVal)}%`;
+
+        currentStage = evt.stage || currentStage;
+        updateStepper(evt.stage);
+
+        const sec = Math.floor((Date.now() - appState.startTime) / 1000);
+        updateReassuranceGuidance(sec, currentStage, depth);
+      } else if (evt.type === 'result') {
+        appState.currentResult = evt.data;
+        updateReassuranceGuidance(0, 'done', depth);
+        finishSuccess(evt.data);
+      } else if (evt.type === 'error') {
+        if (evt.message && (evt.message.includes('キャンセル') || evt.message.includes('中止'))) {
+          handleAborted();
+        } else {
+          finishError(evt.message);
+        }
+      }
+    },
+    onError: (err) => {
+      finishError(err.message);
+    },
+  });
 }
 
 function updateReassuranceGuidance(sec, stage, depth) {
@@ -1248,51 +1249,7 @@ export async function startCrossSynthesis(reportIds) {
 
   try {
     const { jobId } = await api.crossSynthesize(reportIds);
-    appState.activeJobId = jobId;
-
-    let logCounter = 0;
-    appState.activeUnsub = api.subscribe(jobId, {
-      onEvent: (evt) => {
-        if (evt.type === 'log') {
-          logCounter++;
-          logCount.textContent = logCounter;
-          const li = document.createElement('li');
-          li.className = `k-${evt.kind || 'info'}`;
-          const time = new Date(evt.ts).toTimeString().slice(0, 8);
-          li.innerHTML = `
-            <span class="log-time">${time}</span>
-            <span class="log-icon">${icon(evt.kind === 'warn' ? 'alert' : evt.kind === 'error' ? 'alert' : evt.kind === 'done' ? 'check' : 'zap')}</span>
-            <div class="log-msg">
-              <div>${esc(evt.message)}</div>
-              ${evt.detail ? `<span class="log-detail">${esc(evt.detail)}</span>` : ''}
-            </div>
-          `;
-          logList.appendChild(li);
-          li.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        } else if (evt.type === 'progress') {
-          const val = Math.min(100, Math.max(0, evt.value));
-          currentProgressVal = Math.max(currentProgressVal, val);
-          lastProgressTime = Date.now();
-          progressFill.style.width = `${currentProgressVal}%`;
-          progressPct.textContent = `${Math.round(currentProgressVal)}%`;
-
-          currentStage = evt.stage || currentStage;
-          updateStepper(evt.stage);
-        } else if (evt.type === 'result') {
-          appState.currentResult = evt.data;
-          finishSuccess(evt.data);
-        } else if (evt.type === 'error') {
-          if (evt.message && (evt.message.includes('キャンセル') || evt.message.includes('中止'))) {
-            handleAborted();
-          } else {
-            finishError(evt.message);
-          }
-        }
-      },
-      onError: (err) => {
-        finishError(err.message);
-      },
-    });
+    subscribeJob(jobId, 'deep');
   } catch (err) {
     finishError(err.message);
   }
@@ -1372,51 +1329,7 @@ export async function startDeltaTracking(baseReportId, baseReportTitle = '') {
 
   try {
     const { jobId } = await api.startDeltaTracking(baseReportId);
-    appState.activeJobId = jobId;
-
-    let logCounter = 0;
-    appState.activeUnsub = api.subscribe(jobId, {
-      onEvent: (evt) => {
-        if (evt.type === 'log') {
-          logCounter++;
-          logCount.textContent = logCounter;
-          const li = document.createElement('li');
-          li.className = `k-${evt.kind || 'info'}`;
-          const time = new Date(evt.ts).toTimeString().slice(0, 8);
-          li.innerHTML = `
-            <span class="log-time">${time}</span>
-            <span class="log-icon">${icon(evt.kind === 'warn' ? 'alert' : evt.kind === 'error' ? 'alert' : evt.kind === 'done' ? 'check' : 'zap')}</span>
-            <div class="log-msg">
-              <div>${esc(evt.message)}</div>
-              ${evt.detail ? `<span class="log-detail">${esc(evt.detail)}</span>` : ''}
-            </div>
-          `;
-          logList.appendChild(li);
-          li.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        } else if (evt.type === 'progress') {
-          const val = Math.min(100, Math.max(0, evt.value));
-          currentProgressVal = Math.max(currentProgressVal, val);
-          lastProgressTime = Date.now();
-          progressFill.style.width = `${currentProgressVal}%`;
-          progressPct.textContent = `${Math.round(currentProgressVal)}%`;
-
-          currentStage = evt.stage || currentStage;
-          updateStepper(evt.stage);
-        } else if (evt.type === 'result') {
-          appState.currentResult = evt.data;
-          finishSuccess(evt.data);
-        } else if (evt.type === 'error') {
-          if (evt.message && (evt.message.includes('キャンセル') || evt.message.includes('中止'))) {
-            handleAborted();
-          } else {
-            finishError(evt.message);
-          }
-        }
-      },
-      onError: (err) => {
-        finishError(err.message);
-      },
-    });
+    subscribeJob(jobId, 'quick');
   } catch (err) {
     finishError(err.message);
   }

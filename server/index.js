@@ -402,11 +402,13 @@ app.post('/api/research/delta', (req, res) => {
     return res.status(404).json({ error: '差分更新元のレポートが見つかりません' });
   }
 
-  const theme = baseReport.theme || baseReport.title || '調査テーマ';
-  console.log(`[定点差分受付] 元レポート: "${theme}" (ID: ${baseReportId})`);
+  const rawTheme = baseReport.theme || baseReport.title || '調査テーマ';
+  const cleanTheme = rawTheme.replace(/^(【定点差分】)+/, '');
+  const theme = `【定点差分】${cleanTheme}`;
+  console.log(`[定点差分受付] 元レポート: "${rawTheme}" -> "${theme}" (ID: ${baseReportId})`);
 
   const params = {
-    theme: `【定点差分】${theme}`,
+    theme,
     baseReportId,
     baseReport,
     forceMock: !!b.forceMock,

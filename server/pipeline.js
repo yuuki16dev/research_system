@@ -1056,6 +1056,7 @@ async function runResearch(job, settings) {
     sources: out.sources,
     notices: out.notices,
     multiHop: out.multiHop,
+    themePreset: settings.themePreset,
   });
   ctx.progress(100, 'done');
   ctx.log(`完了しました（${(result.durationMs / 1000).toFixed(1)}秒 / ソース ${result.sources.length}件）`, 'done');
@@ -1296,6 +1297,7 @@ ${reportsDigest}
     isCrossSynthesis: true,
     synthesizedReportIds: reports.map((r) => r.id),
     synthesizedThemes: themes,
+    themePreset: (reports[0] && reports[0].reportTheme && reports[0].reportTheme.preset) || settings.themePreset,
   });
 
   ctx.progress(100, 'done');
@@ -1564,6 +1566,7 @@ ${sourcesContext}
     baseReportDate: baseDate,
     baseReportTitle: baseReport.title || theme,
     deltaHighlights: raw.deltaHighlights || [],
+    themePreset: (baseReport.reportTheme && baseReport.reportTheme.preset) || settings.themePreset,
   });
 
   ctx.progress(100, 'done');
