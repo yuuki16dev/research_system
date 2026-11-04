@@ -37,6 +37,7 @@ const memory = require('./memory');
 const { createJob, getJob } = require('./jobs');
 const { runResearch, runCrossSynthesis, runDeltaTracking } = require('./pipeline');
 const { generate } = require('./gemini');
+const { generateGroq } = require('./groq');
 const { tavilySearch } = require('./search');
 const deepdive = require('./deepdive');
 const pdf = require('./pdf');
@@ -284,7 +285,9 @@ app.post('/api/settings/test', async (req, res) => {
   const body = req.body || {};
   const geminiKey = String(body.geminiApiKey || cur.geminiApiKey || '').trim();
   const tavilyKey = String(body.tavilyApiKey || cur.tavilyApiKey || '').trim();
+  const groqKey = String(body.groqApiKey || cur.groqApiKey || '').trim();
   const model = body.geminiModel || cur.geminiModel || 'gemini-3.8-flash';
+  const groqModel = body.groqModel || cur.groqModel || 'llama-3.3-70b-versatile';
   const out = {};
 
   if (geminiKey) {
@@ -348,6 +351,24 @@ app.post('/api/settings/test', async (req, res) => {
     }
   } else {
     out.tavily = { ok: false, message: 'APIキー未設定（DuckDuckGoを使用）' };
+  }
+
+  if (groqKey) {
+    try {
+      const t0 = Date.now();
+      await generateGroq({
+        apiKey: groqKey,
+        model: groqModel,
+        prompt: 'Reply with the single word: OK',
+        json: false,
+        timeoutMs: 10000,
+      });
+      out.groq = { ok: true, message: `接続OK（${groqModel} / ${Date.now() - t0}ms / 補欠スタンバイ中）` };
+    } catch (e) {
+      out.groq = { ok: false, message: `Groq接続失敗: ${e.message}` };
+    }
+  } else {
+    out.groq = { ok: false, message: '未設定（Gemini単体で稼働）' };
   }
 
   res.json(out);

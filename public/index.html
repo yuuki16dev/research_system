@@ -638,7 +638,7 @@
     </main>
 
     <footer class="footer">
-      <span id="footer-version">Research Studio v1.22.0</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span><span class="sep">·</span><a href="https://github.com/yuuki16dev/research_system/issues" target="_blank" rel="noopener" class="footer-link"><span data-icon="github"></span>GitHubでお問い合わせ</a>
+      <span id="footer-version">Research Studio v1.23.0</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span><span class="sep">·</span><a href="https://github.com/yuuki16dev/research_system/issues" target="_blank" rel="noopener" class="footer-link"><span data-icon="github"></span>GitHubでお問い合わせ</a>
     </footer>
   </div>
 
@@ -647,7 +647,7 @@
     <div class="modal-backdrop" data-close></div>
     <div class="modal-card glass">
       <header class="modal-head">
-        <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v1.22.0</small></h2>
+        <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v1.23.0</small></h2>
         <div style="display: flex; gap: 8px; align-items: center; margin-left: auto;">
           <button class="btn btn-ghost btn-sm" type="button" id="btn-settings-changelog" title="アップデート履歴 &amp; リリースノート"><span data-icon="book-open"></span><span class="label">更新履歴</span></button>
           <button class="btn btn-ghost btn-sm" type="button" id="btn-open-guide-from-settings" title="APIキー取得ガイド &amp; GitHubお問い合わせ"><span data-icon="help-circle"></span><span class="label">ガイド・問い合わせ</span></button>
@@ -725,6 +725,40 @@
             <option value="auto">自動（Tavilyキーがあれば Tavily）</option>
             <option value="tavily">Tavily</option>
             <option value="duckduckgo">DuckDuckGo（無料・キー不要）</option>
+          </select>
+        </div>
+
+        <div class="setting-block">
+          <div class="setting-title">
+            <strong>Groq（補欠バックアップLLM）</strong><span class="chip-status" id="groq-status">未設定</span>
+            <a class="ext-link" href="https://console.groq.com/keys" target="_blank" rel="noopener">キーを取得 <span data-icon="external"></span></a>
+          </div>
+
+          <!-- Groq クイックガイドカード -->
+          <div class="api-guide-quick-card" style="border-left: 3px solid #f97316; background: rgba(249, 115, 22, 0.08);">
+            <div class="agq-head">
+              <span class="agq-badge" style="background: rgba(249, 115, 22, 0.2); color: #fb923c;">⚡ クレカ不要・完全無料 ＆ 秒速数百トークン爆速</span>
+              <a class="agq-btn-link" href="https://console.groq.com/keys" target="_blank" rel="noopener">
+                <span>Groq Console を開く ↗</span>
+              </a>
+            </div>
+            <div class="agq-desc">
+              Googleアカウント等で無料登録し、「<strong>Create API Key</strong>」でコピーしたキー（<code>gsk_...</code>）を貼り付けると、<strong>Gemini無料枠が混雑した際にGroq（Llama 3.3 70B）へ自動リレーして瞬時にレポートを完成</strong>させます。
+            </div>
+          </div>
+
+          <label class="field-label sm" for="groq-key">Groq APIキー（任意・補欠用）</label>
+          <div class="input-group">
+            <input class="input" type="password" id="groq-key" placeholder="gsk_…（設定するとGemini混雑時に自動リレー）" spellcheck="false" />
+            <button class="btn btn-ghost btn-icon" type="button" data-toggle-visibility="groq-key" aria-label="表示切替"><span data-icon="eye"></span></button>
+            <button class="btn btn-ghost btn-sm" type="button" data-clear-key="groqApiKey">削除</button>
+          </div>
+          <label class="field-label sm" for="groq-model">Groq モデル</label>
+          <select class="input" id="groq-model" style="height: 38px;">
+            <option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile (高知能・128kコンテキスト・推奨)</option>
+            <option value="llama-3.1-8b-instant">llama-3.1-8b-instant (超軽量・最高速)</option>
+            <option value="mixtral-8x7b-32768">mixtral-8x7b-32768 (MoEアーキテクチャ)</option>
+            <option value="gemma2-9b-it">gemma2-9b-it (Google Gemma 2)</option>
           </select>
         </div>
 
@@ -1103,6 +1137,40 @@
             </a>
           </div>
           <p class="guide-note">より大量のWebサイトや最新ニュースを高速・高精度に巡回させたい場合のみ、<a href="https://tavily.com/" target="_blank" rel="noopener">Tavily公式サイト</a> で無料登録（月1,000回無料）してキーを設定してください。</p>
+        </div>
+
+        <!-- オプション Groq キー -->
+        <div class="guide-section">
+          <div class="guide-section-head">
+            <div class="gsh-title">
+              <span class="gsh-num">3</span>
+              <div>
+                <h4>【任意・超おすすめ】Groq API キー（Gemini混雑時の爆速補欠バックアップ）</h4>
+                <p>クレジットカード登録不要・完全無料で誰でも2分で取得できます（秒速数百トークンの爆速LPU）。</p>
+              </div>
+            </div>
+            <a href="https://console.groq.com/keys" target="_blank" rel="noopener" class="btn btn-secondary btn-sm">
+              <span data-icon="external"></span><span>Groq Console を開く ↗</span>
+            </a>
+          </div>
+
+          <div class="guide-steps-grid">
+            <div class="guide-step-card">
+              <div class="gsc-num">Step 1</div>
+              <strong>公式サイトにアクセス</strong>
+              <p><a href="https://console.groq.com/keys" target="_blank" rel="noopener">Groq Console</a> を開き、Googleアカウント等で無料登録（サインアップ）します。</p>
+            </div>
+            <div class="guide-step-card">
+              <div class="gsc-num">Step 2</div>
+              <strong>APIキーを発行してコピー</strong>
+              <p>左メニューの「API Keys」から「<strong>Create API Key</strong>」をクリックし、生成されたキー（<code>gsk_...</code>）をコピーします。</p>
+            </div>
+            <div class="guide-step-card">
+              <div class="gsc-num">Step 3</div>
+              <strong>アプリに貼り付けて保存</strong>
+              <p>本アプリの「⚙️ 設定」➔「Groq APIキー」に貼り付けて保存します。Google無料枠が混雑した際、自動でGroqへリレーして一瞬でレポートを完成させます。</p>
+            </div>
+          </div>
         </div>
 
         <!-- よくある質問 Q&A -->

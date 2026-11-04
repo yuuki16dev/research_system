@@ -1,6 +1,7 @@
 'use strict';
 
 const { generateJSON } = require('./gemini');
+const { generateGroq } = require('./groq');
 const search = require('./search');
 const { buildMock, buildDeltaMockRaw } = require('./mock');
 const memory = require('./memory');
@@ -385,9 +386,26 @@ async function runLive(p, s, ctx) {
     );
   } catch (errPlan) {
     if (signal && signal.aborted) throw errPlan;
-    ctx.log('Google無料枠サーバーの混雑を検知。自律ローカルクエリ展開エンジンで検索を続行します', 'warn');
-    plan = buildLocalSearchPlan(p.theme, p.purpose, p.period, deep);
-    notices.push('Google無料枠混雑のため、ローカル高速クエリ展開エンジンでWeb検索を実行しました');
+    if (s.groqApiKey) {
+      try {
+        ctx.log(`🚀 Google混雑検知。補欠の Groq (${s.groqModel || 'Llama 3.3 70B'}) で検索クエリを展開中…`, 'ai');
+        plan = await generateGroq({
+          apiKey: s.groqApiKey,
+          model: s.groqModel,
+          prompt: `あなたはトップティア戦略コンサルタントのリサーチディレクターです。以下のテーマについて検索サブクエリ${nQ}個と動的分析構造をJSONで作成してください：\nテーマ: ${p.theme}\n出力JSON:\n{"queries": ["クエリ1", "クエリ2"], "angles": ["観点1"], "framework": {"focus": "${focus}", "focusLabel": "${FOCUS_LABELS[focus]}", "dynamicHeadings": [{"heading": "見出し", "keyQuestion": "問い"}], "tableComparisonAxis": "軸"}}`,
+          signal,
+          timeoutMs: 15000,
+        });
+        notices.push(`💡 Google無料枠混雑のため、補欠の Groq (${s.groqModel || 'Llama 3.3 70B'}) により高速クエリ展開を実行しました`);
+      } catch (_) {
+        plan = null;
+      }
+    }
+    if (!plan || !plan.queries) {
+      ctx.log('Google無料枠サーバーの混雑を検知。自律ローカルクエリ展開エンジンで検索を続行します', 'warn');
+      plan = buildLocalSearchPlan(p.theme, p.purpose, p.period, deep);
+      notices.push('Google無料枠混雑のため、ローカル高速クエリ展開エンジンでWeb検索を実行しました');
+    }
   }
   let queries = arr(plan.queries).map((q) => str(q)).filter(Boolean).slice(0, nQ);
   if (!queries.length) queries = [p.theme];
@@ -778,18 +796,41 @@ async function runLive(p, s, ctx) {
         raw = await ai(repairPrompt, { parts: geminiParts, temperature: 0.2, timeoutMs: deep ? 120000 : 60000 });
       } catch (e2) {
         if (signal && signal.aborted) throw e2;
-        ctx.log('Google無料枠サーバーの過負荷継続を検知。収集したWeb一次情報から高精度レポートを即座に自動合成します', 'warn');
-        raw = buildLiveFallbackReport({
-          theme: p.theme,
-          purpose: p.purpose,
-          sources,
-          sites,
-          framework,
-          deep,
-          attachedFiles: p.attachedFiles,
-          referenceUrls: p.referenceUrls,
-        });
-        notices.push('💡 Google無料枠サーバーの一時的混雑のため、収集したWebソースの一次情報を直接統合してレポートを完成させました。');
+        let groqSuccess = false;
+        if (s.groqApiKey) {
+          try {
+            ctx.log(`🚀 Google混雑検知。補欠の Groq (${s.groqModel || 'Llama 3.3 70B'}) へ自動リレーしてレポートを爆速生成中…`, 'ai');
+            const groqPrompt = synthPrompt(p, sources, sites, deep, framework, multiHop, true);
+            raw = await generateGroq({
+              apiKey: s.groqApiKey,
+              model: s.groqModel,
+              prompt: groqPrompt,
+              signal,
+              temperature: 0.3,
+              timeoutMs: 45000,
+            });
+            if (raw && (raw.summary || raw.keyPoints)) {
+              groqSuccess = true;
+              notices.push(`💡 Google無料枠混雑のため、補欠の Groq (${s.groqModel || 'Llama 3.3 70B'}) により爆速でレポートを完成させました。`);
+            }
+          } catch (eGroq) {
+            ctx.log(`Groq通信エラー: ${eGroq.message}`, 'warn');
+          }
+        }
+        if (!groqSuccess) {
+          ctx.log('Google無料枠サーバーの過負荷継続を検知。収集したWeb一次情報から高精度レポートを即座に自動合成します', 'warn');
+          raw = buildLiveFallbackReport({
+            theme: p.theme,
+            purpose: p.purpose,
+            sources,
+            sites,
+            framework,
+            deep,
+            attachedFiles: p.attachedFiles,
+            referenceUrls: p.referenceUrls,
+          });
+          notices.push('💡 Google無料枠サーバーの一時的混雑のため、収集したWebソースの一次情報を直接統合してレポートを完成させました。');
+        }
       }
     }
   } finally {

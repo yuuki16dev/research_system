@@ -374,8 +374,10 @@ export function bindSettingsModal() {
     const body = {
       geminiApiKey: $('#gemini-key').value.trim() || undefined,
       tavilyApiKey: $('#tavily-key').value.trim() || undefined,
+      groqApiKey: $('#groq-key') ? $('#groq-key').value.trim() || undefined : undefined,
       geminiModel: $('#gemini-model').value.trim() || undefined,
       geminiAccountTier: $('#gemini-tier') ? $('#gemini-tier').value : undefined,
+      groqModel: $('#groq-model') ? $('#groq-model').value : undefined,
     };
 
     try {
@@ -391,6 +393,12 @@ export function bindSettingsModal() {
         html += `<div class="test-row ${res.tavily.ok ? 'ok' : 'ng'}">
           <span data-icon="${res.tavily.ok ? 'check' : 'alert'}"></span>
           <span><strong>Tavily:</strong> ${esc(res.tavily.message)}</span>
+        </div>`;
+      }
+      if (res.groq) {
+        html += `<div class="test-row ${res.groq.ok ? 'ok' : 'ng'}">
+          <span data-icon="${res.groq.ok ? 'check' : 'alert'}"></span>
+          <span><strong>Groq (補欠):</strong> ${esc(res.groq.message)}</span>
         </div>`;
       }
       testBox.innerHTML = html;
@@ -415,11 +423,14 @@ export function bindSettingsModal() {
       confidentiality: $('#publisher-confidentiality').value || 'CONFIDENTIAL',
       disclaimer: $('#publisher-disclaimer').value.trim(),
       themePreset: $('#setting-theme-preset') ? $('#setting-theme-preset').value : 'corporate-blue',
+      groqModel: $('#groq-model') ? $('#groq-model').value : 'llama-3.3-70b-versatile',
     };
     const gKey = $('#gemini-key').value.trim();
     const tKey = $('#tavily-key').value.trim();
+    const grKey = $('#groq-key') ? $('#groq-key').value.trim() : '';
     if (gKey) patch.geminiApiKey = gKey;
     if (tKey) patch.tavilyApiKey = tKey;
+    if (grKey) patch.groqApiKey = grKey;
 
     try {
       await api.saveSettings(patch);
@@ -491,11 +502,17 @@ export async function loadSettingsIntoForm() {
   $('#gemini-status').className = `chip-status ${s.geminiApiKey.set ? 'set' : ''}`;
   $('#tavily-status').textContent = s.tavilyApiKey.set ? `設定済 (${s.tavilyApiKey.masked})` : '未設定';
   $('#tavily-status').className = `chip-status ${s.tavilyApiKey.set ? 'set' : ''}`;
+  if ($('#groq-status') && s.groqApiKey) {
+    $('#groq-status').textContent = s.groqApiKey.set ? `設定済 (${s.groqApiKey.masked})` : '未設定';
+    $('#groq-status').className = `chip-status ${s.groqApiKey.set ? 'set' : ''}`;
+  }
 
   $('#gemini-key').value = '';
   $('#tavily-key').value = '';
+  if ($('#groq-key')) $('#groq-key').value = '';
   $('#gemini-model').value = s.geminiModel || 'gemini-3.8-flash';
   if ($('#gemini-tier')) $('#gemini-tier').value = s.geminiAccountTier || 'auto';
+  if ($('#groq-model')) $('#groq-model').value = s.groqModel || 'llama-3.3-70b-versatile';
   $('#search-provider').value = s.searchProvider || 'auto';
   $('#mode-mock').checked = s.mode === 'mock';
   $('#publisher').value = s.publisher || 'Research Studio';

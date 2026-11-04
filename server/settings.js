@@ -29,6 +29,8 @@ const DEFAULTS = {
   tavilyApiKey: '',
   geminiModel: 'gemini-3.8-flash',
   geminiAccountTier: 'auto', // auto | free (完全無料枠・トークン圧縮&過負荷回避) | tier1 (クレカ登録済・フルパワー)
+  groqApiKey: '', // 補欠バックアップLLM（完全無料・クレカ不要）
+  groqModel: 'llama-3.3-70b-versatile',
   searchProvider: 'auto', // auto | tavily | duckduckgo
   mode: 'auto', // auto（キーがあればLIVE） | mock（常にデモ）
   publisher: 'Research Studio',
@@ -193,7 +195,10 @@ function publicView(s = load()) {
   return {
     geminiApiKey: { set: !!s.geminiApiKey, masked: mask(s.geminiApiKey) },
     tavilyApiKey: { set: !!s.tavilyApiKey, masked: mask(s.tavilyApiKey) },
+    groqApiKey: { set: !!s.groqApiKey, masked: maskSingle(s.groqApiKey) },
     geminiModel: s.geminiModel,
+    geminiAccountTier: s.geminiAccountTier || 'auto',
+    groqModel: s.groqModel || 'llama-3.3-70b-versatile',
     searchProvider: s.searchProvider,
     mode: s.mode,
     publisher: s.publisher,

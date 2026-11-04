@@ -35,7 +35,13 @@
 
 - Google Gemini API（必須・完全無料）:
   https://aistudio.google.com/
-  最新モデル（Gemini 3.8 Flash 等）が無料で利用可能です。
+  最新モデル（Gemini 3.8 Flash 等）が無料で利用可能です（1日1,500回まで$0）。
+
+- Groq API（任意・補欠バックアップ用 / 完全無料・クレジットカード不要）:
+  https://console.groq.com/keys
+  独自LPUチップによる秒速数百トークンの爆速AI。
+  無料登録してAPIキーを設定しておくと、Google無料枠が混雑した際に
+  自動で Groq（Llama 3.3 70B）へリレーして一瞬でレポートを完成させます（大変推奨）。
 
 - Tavily Search API（任意・月1,000回無料）:
   https://app.tavily.com/
