@@ -107,12 +107,12 @@ async function runLive(p, s, ctx) {
       onRetry: ({ attempt, maxRetries, waitMs, currentModel, isFallback, error }) => {
         if (isFallback) {
           ctx.log(
-            `⚠️ Google API混雑・高負荷（503/429）を検知したため、高可用性バックアップモデル「${currentModel}」へ自動切替して再試行中 (${attempt}/${maxRetries}回目, ${(waitMs / 1000).toFixed(1)}秒後)…`,
+            `🔄 Google無料枠サーバーの混雑（503/429）を検知。安定モデル「${currentModel}」へ自動迂回して調査を続行中 (${attempt}/${maxRetries}回目)…`,
             'warn'
           );
         } else {
           ctx.log(
-            `Google API通信が不安定なため再試行しています (${attempt}/${maxRetries}回目, ${(waitMs / 1000).toFixed(1)}秒後)…`,
+            `Google API通信を最適化して再試行中 (${attempt}/${maxRetries}回目, ${(waitMs / 1000).toFixed(1)}秒後)…`,
             'warn'
           );
         }

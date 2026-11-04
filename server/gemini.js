@@ -600,14 +600,16 @@ async function generate({
           let prevModel = currentModel;
 
           const isModelUnavailable = status === 404 || msg.toLowerCase().includes('no longer available');
-          const isPersistentOverload = attempt >= 2 && (status === 503 || msg.toLowerCase().includes('high demand') || status === 429);
+          const isOverloadOrQuota = status === 503 || msg.toLowerCase().includes('high demand') || status === 429 || msg.toLowerCase().includes('resource_exhausted');
 
-          if ((isModelUnavailable || isPersistentOverload) && fallbackIdx < fallbackModels.length) {
+          // 無料枠（クレジットカード未登録）のユーザーでも止まらないよう、初回混雑・上限検知から即座に別モデルへ迂回
+          if ((isModelUnavailable || isOverloadOrQuota) && fallbackIdx < fallbackModels.length) {
             currentModel = fallbackModels[fallbackIdx++];
             isFallback = true;
           }
 
-          const waitMs = attempt === 1 ? 3500 : attempt === 2 ? 6000 : 10000;
+          // モデル迂回時は別枠の新品クォータを叩くため即時リカバリ（1.2秒待機）
+          const waitMs = isFallback ? 1200 : (attempt === 1 ? 3000 : attempt === 2 ? 5000 : 8000);
           if (typeof onRetry === 'function') {
             try {
               onRetry({
