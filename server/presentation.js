@@ -138,7 +138,7 @@ async function generateSlides({ document, audience, goal, apiKey, model, files =
     throw new Error('Gemini APIキーが設定されていません。ヘッダーの「設定」からAPIキーを入力してください。');
   }
 
-  const effectiveModel = model || settings.get().geminiModel || 'gemini-2.5-flash';
+  const effectiveModel = model || settings.get().geminiModel || 'gemini-3.8-flash';
 
   const systemInstruction = `あなたは戦略コンサルタントおよびエグゼクティブ・スライド作成のプロフェッショナルです。
 入力された企画書・資料（テキストおよび添付ファイル）をもとに、指定された発表対象（${profile.name}）に向けて最適なA4横型商用レポートスライドを構成するJSONを出力してください。

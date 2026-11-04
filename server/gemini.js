@@ -82,9 +82,24 @@ function humanizeError(err) {
   return msg;
 }
 
+const OBSOLETE_GEMINI_MODELS = [
+  'gemini-2.5-flash',
+  'gemini-2.5-pro',
+  'gemini-3.5-flash',
+  'gemini-3.7-flash',
+];
+
+function normalizeModel(m) {
+  const norm = String(m || '').toLowerCase().trim();
+  if (!norm || OBSOLETE_GEMINI_MODELS.includes(norm)) {
+    return 'gemini-3.8-flash';
+  }
+  return norm;
+}
+
 /** Google公式現行の安定モデルリスト（廃止・未提供モデルは排除） */
 function getFallbackModels(currentModel) {
-  const norm = String(currentModel || '').toLowerCase().trim();
+  const norm = normalizeModel(currentModel);
   const candidates = [
     'gemini-2.0-flash',
     'gemini-1.5-flash',
@@ -521,8 +536,8 @@ async function generate({
 }) {
   if (!apiKey) throw new Error('Gemini APIキーが設定されていません');
   
-  let currentModel = model;
-  const fallbackModels = getFallbackModels(model);
+  let currentModel = normalizeModel(model);
+  const fallbackModels = getFallbackModels(currentModel);
   let fallbackIdx = 0;
 
   const contentParts = [{ text: prompt }];
@@ -690,4 +705,4 @@ function generateJSON(opts) {
   return generate({ ...opts, json: true });
 }
 
-module.exports = { generate, generateJSON, repairJSON, fallbackExtract };
+module.exports = { generate, generateJSON, repairJSON, fallbackExtract, normalizeModel };

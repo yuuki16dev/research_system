@@ -79,3 +79,21 @@ test('byod: pipeline accurately integrates attachedFiles text into prompts', () 
   assert.ok(pipelineCode.includes('application/pdf'));
 });
 
+test('gemini & settings: auto-sanitizes obsolete model names to gemini-3.8-flash', () => {
+  const { normalizeModel } = require('../server/gemini');
+  const settings = require('../server/settings');
+
+  // gemini.normalizeModel
+  assert.equal(normalizeModel('gemini-2.5-flash'), 'gemini-3.8-flash');
+  assert.equal(normalizeModel('gemini-2.5-pro'), 'gemini-3.8-flash');
+  assert.equal(normalizeModel('gemini-3.5-flash'), 'gemini-3.8-flash');
+  assert.equal(normalizeModel('gemini-2.0-flash'), 'gemini-2.0-flash');
+  assert.equal(normalizeModel('gemini-1.5-flash'), 'gemini-1.5-flash');
+  assert.equal(normalizeModel(''), 'gemini-3.8-flash');
+
+  // settings.save sanitizes obsolete models
+  settings.save({ geminiModel: 'gemini-2.5-flash' });
+  const loaded = settings.load();
+  assert.equal(loaded.geminiModel, 'gemini-3.8-flash');
+});
+

@@ -77,6 +77,21 @@ function ensureDir() {
   migrateOldDataIfNeeded();
 }
 
+const OBSOLETE_GEMINI_MODELS = [
+  'gemini-2.5-flash',
+  'gemini-2.5-pro',
+  'gemini-3.5-flash',
+  'gemini-3.7-flash',
+];
+
+function sanitizeGeminiModel(m) {
+  const norm = String(m || '').toLowerCase().trim();
+  if (!norm || OBSOLETE_GEMINI_MODELS.includes(norm)) {
+    return 'gemini-3.8-flash';
+  }
+  return norm;
+}
+
 function readFile() {
   try {
     return JSON.parse(fs.readFileSync(FILE, 'utf8'));
@@ -87,9 +102,26 @@ function readFile() {
 
 /** 保存値 + 環境変数フォールバックを合成した実効設定 */
 function load() {
-  const s = { ...DEFAULTS, ...readFile() };
+  const raw = readFile();
+  let needsPersist = false;
+  // 他PCや過去バージョンで廃止モデルが保存されていた場合は自動修復して即時永続化
+  if (raw.geminiModel && OBSOLETE_GEMINI_MODELS.includes(String(raw.geminiModel).toLowerCase().trim())) {
+    raw.geminiModel = 'gemini-3.8-flash';
+    needsPersist = true;
+  }
+  const s = { ...DEFAULTS, ...raw };
+  s.geminiModel = sanitizeGeminiModel(s.geminiModel);
   if (!s.geminiApiKey && process.env.GEMINI_API_KEY) s.geminiApiKey = process.env.GEMINI_API_KEY;
   if (!s.tavilyApiKey && process.env.TAVILY_API_KEY) s.tavilyApiKey = process.env.TAVILY_API_KEY;
+
+  if (needsPersist) {
+    try {
+      ensureDir();
+      fs.writeFileSync(FILE, JSON.stringify({ ...DEFAULTS, ...raw }, null, 2), 'utf8');
+    } catch {
+      // 永続化に失敗しても実行は継続
+    }
+  }
   return s;
 }
 
@@ -101,9 +133,12 @@ function save(patch = {}) {
   const cur = { ...DEFAULTS, ...readFile() };
   for (const key of ALLOWED) {
     if (typeof patch[key] !== 'string') continue;
-    const v = patch[key].trim();
+    let v = patch[key].trim();
     if (ENUMS[key] && !ENUMS[key].includes(v)) continue;
-    if (key === 'geminiModel' && !/^[\w.\-]+$/.test(v)) continue;
+    if (key === 'geminiModel') {
+      v = sanitizeGeminiModel(v);
+      if (!/^[\w.\-]+$/.test(v)) continue;
+    }
     if ((key === 'themePrimaryColor' || key === 'themeAccentColor') && v && !/^#[0-9a-fA-F]{6}$/.test(v)) continue;
     cur[key] = v;
   }
