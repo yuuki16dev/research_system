@@ -300,21 +300,21 @@ app.post('/api/settings/test', async (req, res) => {
       });
       out.gemini = { ok: true, message: `接続OK（${model} / ${Date.now() - t0}ms）` };
     } catch (e) {
-      // 最初のモデルで失敗した場合、Google公式の安定モデル（gemini-2.0-flash）で即座に代替診断
+      // 最初のモデルで失敗した場合、Google公式の安定モデル（gemini-3.7-flash）で即座に代替診断
       let altTested = null;
-      if (model !== 'gemini-2.0-flash') {
+      if (model !== 'gemini-3.7-flash') {
         try {
           const t1 = Date.now();
           await generate({
             apiKey: geminiKey,
-            model: 'gemini-2.0-flash',
+            model: 'gemini-3.7-flash',
             prompt: 'Reply with the single word: OK',
             json: false,
             temperature: 0,
             maxRetries: 1,
             signal: AbortSignal.timeout(10000),
           });
-          altTested = `gemini-2.0-flash（${Date.now() - t1}msで接続成功）`;
+          altTested = `gemini-3.7-flash（${Date.now() - t1}msで接続成功）`;
         } catch {
           // ignore
         }
@@ -323,7 +323,7 @@ app.post('/api/settings/test', async (req, res) => {
       if (altTested) {
         out.gemini = {
           ok: false,
-          message: `${model} でエラー [${e.message}] ➔ 【解決策】${altTested} は正常に利用可能です！モデル欄に「gemini-2.0-flash」と入力して保存してください。`,
+          message: `${model} でエラー [${e.message}] ➔ 【解決策】${altTested} は正常に利用可能です！モデル欄に「gemini-3.7-flash」と入力して保存してください。`,
         };
       } else {
         out.gemini = {

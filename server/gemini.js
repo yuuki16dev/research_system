@@ -83,10 +83,12 @@ function humanizeError(err) {
 }
 
 const OBSOLETE_GEMINI_MODELS = [
+  'gemini-1.5-flash',
+  'gemini-1.5-pro',
+  'gemini-2.0-flash',
+  'gemini-2.0-flash-exp',
   'gemini-2.5-flash',
   'gemini-2.5-pro',
-  'gemini-3.5-flash',
-  'gemini-3.7-flash',
 ];
 
 function normalizeModel(m) {
@@ -97,12 +99,14 @@ function normalizeModel(m) {
   return norm;
 }
 
-/** Google公式現行の安定モデルリスト（廃止・未提供モデルは排除） */
+/** Google公式現行の安定モデルリスト（2026年現行: 3.7 / 3.5 / flash-latest / 3.1-lite） */
 function getFallbackModels(currentModel) {
   const norm = normalizeModel(currentModel);
   const candidates = [
-    'gemini-2.0-flash',
-    'gemini-1.5-flash',
+    'gemini-3.7-flash',
+    'gemini-3.5-flash',
+    'gemini-flash-latest',
+    'gemini-3.1-flash-lite',
     'gemini-3.8-flash',
   ];
   return candidates.filter((m) => m !== norm);

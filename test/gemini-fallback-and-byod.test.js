@@ -57,8 +57,9 @@ test('gemini: auto-failovers to valid fallback model (gemini-2.0-flash) when 404
     assert.equal(res.status, 'ok');
     assert.equal(res.tested, true);
     assert.ok(requestedUrls[0].includes('gemini-3.8-flash'));
-    // 2nd request must switch to an officially available fallback model (gemini-2.0-flash)
-    assert.ok(requestedUrls[1].includes('gemini-2.0-flash') || requestedUrls[1].includes('gemini-1.5-flash'));
+    // 2nd request must switch to an officially available fallback model (gemini-3.7-flash / gemini-3.5-flash)
+    assert.ok(requestedUrls[1].includes('gemini-3.7-flash') || requestedUrls[1].includes('gemini-3.5-flash'));
+    assert.ok(!requestedUrls[1].includes('gemini-2.0-flash')); // MUST NOT contain obsolete 2.0
     assert.ok(!requestedUrls[1].includes('gemini-2.5-flash')); // MUST NOT contain obsolete 2.5
     assert.equal(retryEvents.length, 1);
     assert.equal(retryEvents[0].isFallback, true);
@@ -83,16 +84,18 @@ test('gemini & settings: auto-sanitizes obsolete model names to gemini-3.8-flash
   const { normalizeModel } = require('../server/gemini');
   const settings = require('../server/settings');
 
-  // gemini.normalizeModel
+  // gemini.normalizeModel: 1.5, 2.0, 2.5 are obsolete and sanitized to 3.8
+  assert.equal(normalizeModel('gemini-2.0-flash'), 'gemini-3.8-flash');
+  assert.equal(normalizeModel('gemini-1.5-flash'), 'gemini-3.8-flash');
   assert.equal(normalizeModel('gemini-2.5-flash'), 'gemini-3.8-flash');
   assert.equal(normalizeModel('gemini-2.5-pro'), 'gemini-3.8-flash');
-  assert.equal(normalizeModel('gemini-3.5-flash'), 'gemini-3.8-flash');
-  assert.equal(normalizeModel('gemini-2.0-flash'), 'gemini-2.0-flash');
-  assert.equal(normalizeModel('gemini-1.5-flash'), 'gemini-1.5-flash');
+  // 3.7 and 3.5 are valid official models
+  assert.equal(normalizeModel('gemini-3.7-flash'), 'gemini-3.7-flash');
+  assert.equal(normalizeModel('gemini-3.5-flash'), 'gemini-3.5-flash');
   assert.equal(normalizeModel(''), 'gemini-3.8-flash');
 
   // settings.save sanitizes obsolete models
-  settings.save({ geminiModel: 'gemini-2.5-flash' });
+  settings.save({ geminiModel: 'gemini-2.0-flash' });
   const loaded = settings.load();
   assert.equal(loaded.geminiModel, 'gemini-3.8-flash');
 });

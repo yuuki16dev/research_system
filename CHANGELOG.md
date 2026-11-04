@@ -7,6 +7,20 @@
 - **マイナー (1.X.0)**: 後方互換性のある新機能の追加
 - **パッチ (1.0.X)**: 後方互換性のあるバグ修正や安定化・改善
 
+## [v1.19.8] - 2026-11-04
+
+### 🛡️ バグ修正・超重要: Google提供終了モデル（1.5/2.0系）完全排除 ＆ 実在現行モデル（3.8/3.7/3.5/flash-latest）への全面移行
+- **Google公式モデル刷新（1.5/2.0系の完全提供終了対応）**:
+  - Google Gemini API（v1beta）において、`gemini-1.5-flash`、`gemini-2.0-flash` 等の旧世代モデルが Google 側で完全提供終了（HTTP 404: `is no longer available`）となり、指定時にリトライループに陥っていた問題を根本解決。
+  - Google ListModels API との直接通信検証を実施し、2026年現行で確実に 200 OK が返る公式現行モデル（`gemini-3.8-flash`、`gemini-3.7-flash`、`gemini-3.5-flash`、`gemini-flash-latest`、`gemini-3.1-flash-lite`）に全面刷新。
+  - バックアップモデル候補（`getFallbackModels`）を現行安定モデル `gemini-3.7-flash` ➔ `gemini-3.5-flash` ➔ `gemini-flash-latest` に再構築。
+- **廃止モデル指定の自動サニタイズ（1.5/2.0系対応）**:
+  - 設定ファイル（`settings.json`）やリクエスト引数に `gemini-1.5-flash` や `gemini-2.0-flash` が指定されていた場合でも、起動時・実行時に自動検知して `gemini-3.8-flash` へ安全に自動修復するマイグレーションを実装。
+- **ネットワーク・API総合診断スクリプト（scripts/diagnose-network.js）の追加**:
+  - 他PC環境やトラブル発生時に、DNS名前解決・プロキシ環境変数・全現行モデルへの通信成否を一発で検証できるスタンドアローン診断ツールを同梱。
+
+---
+
 ## [v1.19.7] - 2026-11-04
 
 ### 🛡️ バグ修正・診断強化: Gemini API二重認証（URL & Header）＆ 設定テスト自動代替モデル診断
