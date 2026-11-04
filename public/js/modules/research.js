@@ -427,7 +427,9 @@ export function bindFormControls() {
       if (attachedFiles.some(f => f.name === file.name && f.size === file.size)) continue;
       try {
         let textContent = '';
+        let base64Data = null;
         const name = file.name.toLowerCase();
+
         if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
           if (window.XLSX) {
             const buffer = await file.arrayBuffer();
@@ -444,17 +446,31 @@ export function bindFormControls() {
             textContent = `[Excelファイル: ${file.name}]`;
           }
         } else if (name.endsWith('.pdf')) {
-          textContent = `[PDFファイル: ${file.name} - ${(file.size / 1024).toFixed(1)}KB]`;
+          // PDF: Gemini マルチモーダル解析用の Base64 読み込み
+          base64Data = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+              const res = reader.result;
+              const b64 = typeof res === 'string' ? res.split(',')[1] : '';
+              resolve(b64);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+          textContent = `[PDFレポート資料: ${file.name} - ${(file.size / 1024).toFixed(1)}KB (Geminiマルチモーダル直接解析)]`;
         } else {
-          // テキスト, CSV, Markdown, JSON
+          // テキスト, CSV, Markdown, JSON, HTML
           textContent = await file.text();
         }
 
         attachedFiles.push({
           name: file.name,
           size: file.size,
+          type: name.endsWith('.pdf') ? 'application/pdf' : (file.type || 'text/plain'),
           text: textContent.slice(0, 50000), // 上限50,000文字
+          base64: base64Data || undefined,
         });
+        toast(`📄 資料「${file.name}」を読み込み、リサーチ対象に統合しました`, 'success');
       } catch (err) {
         toast(`ファイル ${file.name} の読み込みに失敗しました: ${err.message}`, 'error');
       }

@@ -50,7 +50,10 @@ function isRetryableError(err, status) {
     msg.includes('fetch failed') ||
     msg.includes('connect timeout') ||
     msg.includes('timeout') ||
-    msg.includes('network')
+    msg.includes('network') ||
+    msg.includes('high demand') ||
+    msg.includes('overloaded') ||
+    msg.includes('temporarily unavailable')
   ) {
     return true;
   }
@@ -63,6 +66,9 @@ function humanizeError(err) {
   if (code === 'UND_ERR_CONNECT_TIMEOUT' || msg.includes('Connect Timeout Error') || msg.includes('fetch failed')) {
     return 'Google Gemini APIへの接続がタイムアウトしました。通信環境が不安定か、回線の一時的な遅延の可能性があります。再度お試しください。';
   }
+  if (msg.includes('503') || msg.includes('high demand') || msg.includes('overloaded')) {
+    return 'Google Gemini APIが現在混雑（503: High Demand）しています。バックアップモデルへの切り替えまたは数秒後の再試行を実施してください。';
+  }
   if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED')) {
     return 'Gemini APIの利用制限（レートリミット: 429）に達しました。1分ほど待ってから再実行してください。';
   }
@@ -70,6 +76,18 @@ function humanizeError(err) {
     return 'Gemini APIキーが無効または認証に失敗しました。ヘッダーの「API設定」でキーを確認してください。';
   }
   return msg;
+}
+
+/** 503過負荷・レート制限時の自動フェイルオーバー先候補モデルリスト */
+function getFallbackModels(currentModel) {
+  const norm = String(currentModel || '').toLowerCase().trim();
+  const candidates = [
+    'gemini-2.5-flash',
+    'gemini-2.0-flash',
+    'gemini-1.5-flash',
+    'gemini-3.8-flash',
+  ];
+  return candidates.filter((m) => m !== norm);
 }
 
 /**
@@ -494,13 +512,16 @@ async function generate({
   signal,
   temperature = 0.4,
   json = true,
-  maxRetries = 3,
+  maxRetries = 4,
   timeoutMs = 180000,
   onRetry = null,
 }) {
   if (!apiKey) throw new Error('Gemini APIキーが設定されていません');
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
   
+  let currentModel = model;
+  const fallbackModels = getFallbackModels(model);
+  let fallbackIdx = 0;
+
   const contentParts = [{ text: prompt }];
   if (Array.isArray(parts) && parts.length > 0) {
     contentParts.push(...parts);
@@ -519,6 +540,8 @@ async function generate({
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     if (signal && signal.aborted) throw new Error('キャンセルされました');
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(currentModel)}:generateContent`;
 
     try {
       // 1回あたりのタイムアウト（デフォルト180秒 = 3分）
@@ -546,10 +569,27 @@ async function generate({
 
         if (attempt < maxRetries && isRetryableError(err, status)) {
           lastError = err;
-          const waitMs = attempt === 1 ? 1500 : 3500;
+          let isFallback = false;
+          let prevModel = currentModel;
+
+          // 503過負荷（High Demand）または 2回目以降の再試行時、バックアップモデルに自動フェイルオーバー
+          if ((status === 503 || msg.toLowerCase().includes('high demand') || attempt >= 2) && fallbackIdx < fallbackModels.length) {
+            currentModel = fallbackModels[fallbackIdx++];
+            isFallback = true;
+          }
+
+          const waitMs = attempt === 1 ? 2000 : attempt === 2 ? 4000 : 7000;
           if (typeof onRetry === 'function') {
             try {
-              onRetry({ attempt, maxRetries, waitMs, error: err });
+              onRetry({
+                attempt,
+                maxRetries,
+                waitMs,
+                error: err,
+                prevModel,
+                currentModel,
+                isFallback,
+              });
             } catch (_) {}
           }
           await delay(waitMs, signal);
@@ -564,7 +604,7 @@ async function generate({
         try {
           const { recordGemini } = require('./usage');
           recordGemini({
-            model,
+            model: currentModel,
             promptTokens: meta.promptTokenCount || 0,
             candidatesTokens: meta.candidatesTokenCount || 0,
             totalTokens: meta.totalTokenCount || 0,
@@ -599,10 +639,25 @@ async function generate({
       lastError = err;
 
       if (attempt < maxRetries && isRetryableError(err, err.status)) {
-        const waitMs = attempt === 1 ? 1500 : 3500;
+        let isFallback = false;
+        let prevModel = currentModel;
+        if ((err.status === 503 || String(err.message).toLowerCase().includes('high demand') || attempt >= 2) && fallbackIdx < fallbackModels.length) {
+          currentModel = fallbackModels[fallbackIdx++];
+          isFallback = true;
+        }
+
+        const waitMs = attempt === 1 ? 2000 : attempt === 2 ? 4000 : 7000;
         if (typeof onRetry === 'function') {
           try {
-            onRetry({ attempt, maxRetries, waitMs, error: err });
+            onRetry({
+              attempt,
+              maxRetries,
+              waitMs,
+              error: err,
+              prevModel,
+              currentModel,
+              isFallback,
+            });
           } catch (_) {}
         }
         await delay(waitMs, signal);

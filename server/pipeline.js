@@ -104,11 +104,18 @@ async function runLive(p, s, ctx) {
       model: s.geminiModel,
       prompt,
       signal,
-      onRetry: ({ attempt, maxRetries, waitMs }) => {
-        ctx.log(
-          `Google API通信が不安定なため再試行しています (${attempt}/${maxRetries}回目, ${(waitMs / 1000).toFixed(1)}秒後)…`,
-          'warn'
-        );
+      onRetry: ({ attempt, maxRetries, waitMs, currentModel, isFallback, error }) => {
+        if (isFallback) {
+          ctx.log(
+            `⚠️ Google API混雑・高負荷（503/429）を検知したため、高可用性バックアップモデル「${currentModel}」へ自動切替して再試行中 (${attempt}/${maxRetries}回目, ${(waitMs / 1000).toFixed(1)}秒後)…`,
+            'warn'
+          );
+        } else {
+          ctx.log(
+            `Google API通信が不安定なため再試行しています (${attempt}/${maxRetries}回目, ${(waitMs / 1000).toFixed(1)}秒後)…`,
+            'warn'
+          );
+        }
       },
       ...opts,
     });
@@ -192,12 +199,40 @@ async function runLive(p, s, ctx) {
     ctx.log('🏛️ 一次情報・公的データ優先モードが有効: 官公庁(.go.jp)・学術(.ac.jp)・企業IR等の一次ソースを優先', 'plan');
   }
 
+  // 添付資料（BYOD）の内容・サマリーを計画段階から注入
+  let planAttachedContext = '';
+  const planParts = [];
+  if (Array.isArray(p.attachedFiles) && p.attachedFiles.length > 0) {
+    const fileSummaries = p.attachedFiles.map((f, i) => {
+      const txt = (f.text || '').trim();
+      const snippet = txt ? txt.slice(0, 1500) : '（PDF等のレポート資料）';
+      if (f.base64 && (f.type === 'application/pdf' || String(f.name).toLowerCase().endsWith('.pdf'))) {
+        planParts.push({
+          inlineData: {
+            mimeType: 'application/pdf',
+            data: f.base64,
+          },
+        });
+      }
+      return `・添付資料[${i + 1}]: ${f.name} (${Math.round((f.size || 0) / 1024)}KB)\n  内容抜粋: ${snippet}`;
+    }).join('\n');
+    planAttachedContext = `\n【最重要前提: ユーザー添付の手持ち独自資料・前提レポート情報】\n` +
+      `ユーザーから以下の手持ち独自資料・レポートが添付されています。この資料の内容や課題意識、言及されている前提（例: レンダラー追加、親和性、実現可能性など）を最優先で解釈し、それを踏まえた調査クエリと分析構造を立案してください：\n` +
+      `${fileSummaries}\n`;
+    ctx.log(`📎 添付資料 ${p.attachedFiles.length}件（${p.attachedFiles.map((f) => f.name).join(', ')}）の内容を確認し、調査計画に統合中…`, 'plan');
+  }
+
+  if (p.referenceContext && p.referenceContext.trim()) {
+    planAttachedContext += `\n【ユーザー指定の前提コンテキスト・メモ】\n${p.referenceContext.trim().slice(0, 1500)}\n`;
+  }
+
   ctx.log(`AI多角クエリ展開 ＆ 動的分析構造の設計中（フォーカス: ${FOCUS_LABELS[focus] || '自動最適化'} / 期間: ${dateParams.label}${isAuthoritative ? ' / 一次情報優先' : ''}）…`, 'plan');
   const nQ = deep ? 6 : 4;
   const nHeadings = deep ? '4〜5' : '3〜4';
   const plan = await ai(
     `あなたはトップティア戦略コンサルタントのシニアリサーチディレクターです。次のテーマについて、人間が手作業で何時間もかけて複数回検索する作業を完全に代替するため、多角的で質の高いWeb検索サブクエリを${nQ}個作成すると同時に、このテーマに最も適した動的分析構造（フレームワーク）を設計してください。\n` +
       `テーマ: ${p.theme}\n調査範囲: ${SCOPE_LABELS[p.scope]}\n` +
+      `${planAttachedContext}` +
       `${urlDirectInstruction ? urlDirectInstruction + '\n' : ''}` +
       `${purposeInstruction}\n` +
       `${focusInstruction}\n` +
@@ -219,7 +254,7 @@ async function runLive(p, s, ctx) {
       `    "tableComparisonAxis": "推奨される比較表の切り口（例: 機能 vs コスト vs 運用難易度）"\n` +
       `  }\n` +
       `}`,
-    { temperature: 0.4 }
+    { parts: planParts, temperature: 0.4 }
   );
   let queries = arr(plan.queries).map((q) => str(q)).filter(Boolean).slice(0, nQ);
   if (!queries.length) queries = [p.theme];
@@ -581,9 +616,24 @@ async function runLive(p, s, ctx) {
   }
   const stop = rampProgress(ctx, 81, 97, 'synthesize');
   let raw;
+  const geminiParts = [];
+  if (Array.isArray(p.attachedFiles)) {
+    for (const f of p.attachedFiles) {
+      if (f.base64 && (f.type === 'application/pdf' || String(f.name).toLowerCase().endsWith('.pdf'))) {
+        geminiParts.push({
+          inlineData: {
+            mimeType: 'application/pdf',
+            data: f.base64,
+          },
+        });
+      }
+    }
+  }
+
   try {
     try {
       raw = await ai(synthPrompt(p, sources, sites, deep, framework, multiHop), {
+        parts: geminiParts,
         temperature: deep ? 0.4 : 0.35,
         timeoutMs: deep ? 180000 : 90000,
       });
@@ -592,7 +642,7 @@ async function runLive(p, s, ctx) {
       ctx.log(`レポート構造化でエラーを検知しました。AI修復を試行中… (${err.message})`, 'warn');
       try {
         const repairPrompt = `あなたはJSON修復の専門家です。以下のリサーチレポートのテキストから、構文的に完全に正しいJSONオブジェクトのみを作成してください。マークダウンや解説は含めず、純粋なJSONのみを出力してください。\n\n${err.rawText || synthPrompt(p, sources, sites, deep, framework, multiHop)}`;
-        raw = await ai(repairPrompt, { temperature: 0.2, timeoutMs: deep ? 120000 : 60000 });
+        raw = await ai(repairPrompt, { parts: geminiParts, temperature: 0.2, timeoutMs: deep ? 120000 : 60000 });
       } catch (e2) {
         if (signal.aborted) throw e2;
         ctx.log('テキスト抽出フォールバックでレポート構造を自動復元しました', 'warn');
@@ -752,8 +802,14 @@ ${p.customPurpose || 'ユーザーの自由な指定に沿って構成してく�
 
   let attachedFilesInfo = '';
   if (Array.isArray(p.attachedFiles) && p.attachedFiles.length > 0) {
-    attachedFilesInfo = `\n【添付された手持ち独自ファイル (${p.attachedFiles.length}件)】:\n` +
-      p.attachedFiles.map((f, idx) => `・ファイル[${idx + 1}]: ${f.name} (${f.type || 'document'}, 約${Math.round((f.size || 0)/1024)}KB)`).join('\n');
+    attachedFilesInfo = `\n【添付されたユーザー手持ち独自資料・ファイル内容 (${p.attachedFiles.length}件)】:\n` +
+      p.attachedFiles.map((f, idx) => {
+        const textContent = (f.text || '').trim();
+        return `### 添付資料[${idx + 1}]: ${f.name} (${f.type || 'document'}, 約${Math.round((f.size || 0)/1024)}KB)\n` +
+          (textContent
+            ? `\`\`\`text\n${textContent.slice(0, 35000)}\n\`\`\``
+            : '（※PDF等のバイナリ資料はGeminiマルチモーダル直接解析で参照中）');
+      }).join('\n\n');
   }
 
   let refUrlsInfo = '';
@@ -766,12 +822,11 @@ ${p.customPurpose || 'ユーザーの自由な指定に沿って構成してく�
   const userContextBlock = (p.referenceContext && p.referenceContext.trim()) || attachedFilesInfo || refUrlsInfo
     ? `
 # 【ユーザー手持ち独自資料・社内データ ＆ 指定参考URL（BYOD: Bring Your Own Data）】
-以下の内容はユーザーから提供された社内資料・独自データ・前提メモです。Web検索情報と突き合わせ、ハイブリッドで総合分析してください：
+以下の内容はユーザーから提供された社内資料・手持ちレポート・独自データ・前提メモです。
+Web検索で収集した一般情報と突き合わせ、添付資料に記載された固有の要件・現状・課題（例: レンダラー追加、親和性、実現可能性等）を最優先で満たすハイブリッド総合分析レポートを作成してください：
 ${attachedFilesInfo}
 ${refUrlsInfo}
-"""
-${(p.referenceContext || '').trim().slice(0, 15000)}
-"""
+${p.referenceContext && p.referenceContext.trim() ? `\n【追加前提メモ】:\n"""\n${p.referenceContext.trim().slice(0, 15000)}\n"""` : ''}
 ※ 外部Webの一般的な情報だけでなく、上記の手持ち資料に記載された固有の課題・数値・前提条件を必ず最優先でレポートの論理展開に織り込んでください。
 `
     : '';
