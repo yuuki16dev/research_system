@@ -1,7 +1,7 @@
 {
   "name": "research_system",
   "version": "1.19.3",
-  "description": "",
+  "description": "AI駆動型の自律リサーチ＆総合インテリジェンス自動生成システム",
   "main": "server/index.js",
   "bin": "server/index.js",
   "scripts": {
@@ -32,8 +32,22 @@
       "node18-win-x64"
     ]
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "research",
+    "intelligence",
+    "gemini",
+    "automation",
+    "reporting"
+  ],
+  "author": "yuuki16dev",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yuuki16dev/research_system.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yuuki16dev/research_system/issues"
+  },
+  "homepage": "https://github.com/yuuki16dev/research_system#readme",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
