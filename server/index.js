@@ -281,29 +281,71 @@ app.put('/api/settings', (req, res) => {
 app.post('/api/settings/test', async (req, res) => {
   const cur = settings.load();
   const body = req.body || {};
-  const geminiKey = body.geminiApiKey || cur.geminiApiKey;
-  const tavilyKey = body.tavilyApiKey || cur.tavilyApiKey;
-  const model = body.geminiModel || cur.geminiModel;
+  const geminiKey = String(body.geminiApiKey || cur.geminiApiKey || '').trim();
+  const tavilyKey = String(body.tavilyApiKey || cur.tavilyApiKey || '').trim();
+  const model = body.geminiModel || cur.geminiModel || 'gemini-3.8-flash';
   const out = {};
 
   if (geminiKey) {
     try {
       const t0 = Date.now();
-      await generate({ apiKey: geminiKey, model, prompt: 'Reply with the single word: OK', json: false, temperature: 0, signal: AbortSignal.timeout(20000) });
+      await generate({
+        apiKey: geminiKey,
+        model,
+        prompt: 'Reply with the single word: OK',
+        json: false,
+        temperature: 0,
+        maxRetries: 2,
+        signal: AbortSignal.timeout(15000),
+      });
       out.gemini = { ok: true, message: `接続OK（${model} / ${Date.now() - t0}ms）` };
     } catch (e) {
-      out.gemini = { ok: false, message: e.message };
+      // 最初のモデルで失敗した場合、Google公式の安定モデル（gemini-2.0-flash）で即座に代替診断
+      let altTested = null;
+      if (model !== 'gemini-2.0-flash') {
+        try {
+          const t1 = Date.now();
+          await generate({
+            apiKey: geminiKey,
+            model: 'gemini-2.0-flash',
+            prompt: 'Reply with the single word: OK',
+            json: false,
+            temperature: 0,
+            maxRetries: 1,
+            signal: AbortSignal.timeout(10000),
+          });
+          altTested = `gemini-2.0-flash（${Date.now() - t1}msで接続成功）`;
+        } catch {
+          // ignore
+        }
+      }
+
+      if (altTested) {
+        out.gemini = {
+          ok: false,
+          message: `${model} でエラー [${e.message}] ➔ 【解決策】${altTested} は正常に利用可能です！モデル欄に「gemini-2.0-flash」と入力して保存してください。`,
+        };
+      } else {
+        out.gemini = {
+          ok: false,
+          message: `接続失敗: ${e.message}`,
+        };
+      }
     }
-  } else out.gemini = { ok: false, message: 'APIキー未設定' };
+  } else {
+    out.gemini = { ok: false, message: 'APIキー未設定' };
+  }
 
   if (tavilyKey) {
     try {
-      const r = await tavilySearch({ apiKey: tavilyKey, query: 'Research Studio test', maxResults: 1, signal: AbortSignal.timeout(20000) });
+      const r = await tavilySearch({ apiKey: tavilyKey, query: 'Research Studio test', maxResults: 1, signal: AbortSignal.timeout(15000) });
       out.tavily = { ok: true, message: `接続OK（${r.length}件取得）` };
     } catch (e) {
       out.tavily = { ok: false, message: e.message };
     }
-  } else out.tavily = { ok: false, message: 'APIキー未設定（DuckDuckGoを使用）' };
+  } else {
+    out.tavily = { ok: false, message: 'APIキー未設定（DuckDuckGoを使用）' };
+  }
 
   res.json(out);
 });
