@@ -104,10 +104,20 @@ async function runLive(p, s, ctx) {
       model: s.geminiModel,
       prompt,
       signal,
-      onRetry: ({ attempt, maxRetries, waitMs, currentModel, isFallback, error }) => {
-        if (isFallback) {
+      onRetry: ({ attempt, maxRetries, waitMs, currentModel, isFallback, isKeyRotated, isCooldown, keyIndex, totalKeys, error }) => {
+        if (isKeyRotated) {
           ctx.log(
-            `🔄 Google無料枠サーバーの混雑（503/429）を検知。安定モデル「${currentModel}」へ自動迂回して調査を続行中 (${attempt}/${maxRetries}回目)…`,
+            `🔑 APIキー[${keyIndex - 1}]の無料枠一時制限を検知。予備キー[${keyIndex}/${totalKeys}]へ即座に自動切り替えました`,
+            'ai'
+          );
+        } else if (isFallback) {
+          ctx.log(
+            `🔄 Google無料枠サーバーの混雑（503/429）を検知。空いている安定モデル「${currentModel}」へ自動迂回して調査を続行中 (${attempt}/${maxRetries}回目)…`,
+            'warn'
+          );
+        } else if (isCooldown) {
+          ctx.log(
+            `⏳ Google無料枠の一時制限（全クォータ消費）を検知。制限解除まで自動待機中（約${Math.round(waitMs / 1000)}秒後に自動再開します）…`,
             'warn'
           );
         } else {
@@ -798,7 +808,7 @@ ${p.customPurpose || 'ユーザーの自由な指定に沿って構成してく�
         const textContent = (f.text || '').trim();
         return `### 添付資料[${idx + 1}]: ${f.name} (${f.type || 'document'}, 約${Math.round((f.size || 0)/1024)}KB)\n` +
           (textContent
-            ? `\`\`\`text\n${textContent.slice(0, 35000)}\n\`\`\``
+            ? `\`\`\`text\n${textContent.slice(0, 16000)}\n\`\`\``
             : '（※PDF等のバイナリ資料はGeminiマルチモーダル直接解析で参照中）');
       }).join('\n\n');
   }
@@ -817,14 +827,17 @@ ${p.customPurpose || 'ユーザーの自由な指定に沿って構成してく�
 Web検索で収集した一般情報と突き合わせ、添付資料に記載された固有の要件・現状・課題（例: レンダラー追加、親和性、実現可能性等）を最優先で満たすハイブリッド総合分析レポートを作成してください：
 ${attachedFilesInfo}
 ${refUrlsInfo}
-${p.referenceContext && p.referenceContext.trim() ? `\n【追加前提メモ】:\n"""\n${p.referenceContext.trim().slice(0, 15000)}\n"""` : ''}
+${p.referenceContext && p.referenceContext.trim() ? `\n【追加前提メモ】:\n"""\n${p.referenceContext.trim().slice(0, 8000)}\n"""` : ''}
 ※ 外部Webの一般的な情報だけでなく、上記の手持ち資料に記載された固有の課題・数値・前提条件を必ず最優先でレポートの論理展開に織り込んでください。
 `
     : '';
 
   const block = sources.length
     ? sources
-        .map((s, i) => `[${i + 1}] ${s.title}${s.hop === 2 ? ' 【第2次ホップ追加深層ソース】' : ''}\nURL: ${s.url}${s.publishedDate ? `\n公開日: ${s.publishedDate}` : ''}\n抜粋: ${s.snippet || '-'}${s.content ? `\n本文: ${s.content}` : ''}`)
+        .map((s, i) => {
+          const bodySnippet = s.content ? String(s.content).trim().slice(0, 1500) : '';
+          return `[${i + 1}] ${s.title}${s.hop === 2 ? ' 【第2次ホップ追加深層ソース】' : ''}\nURL: ${s.url}${s.publishedDate ? `\n公開日: ${s.publishedDate}` : ''}\n抜粋: ${s.snippet || '-'}${bodySnippet ? `\n本文抜粋: ${bodySnippet}` : ''}`;
+        })
         .join('\n\n---\n\n')
     : '（収集ソースは0件です。一般的な知識に基づいて作成し、その旨をサマリー冒頭に明記してください。sourceAssessments は空配列にしてください）';
 

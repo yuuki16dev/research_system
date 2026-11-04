@@ -670,12 +670,23 @@
             <div class="agq-desc">Googleアカウントでログインし、青い「<strong>Create API key</strong>」を押してコピーしたキーを下に貼り付けてください（1日1,500回まで完全無料）。</div>
           </div>
 
-          <label class="field-label sm" for="gemini-key">APIキー</label>
+          <!-- クレジットカード登録（従量課金設定）の推奨案内バナー -->
+          <div class="api-guide-quick-card" style="margin-top: 8px; border-left: 3px solid #3b82f6; background: rgba(59, 130, 246, 0.08);">
+            <div class="agq-head">
+              <span class="agq-badge" style="background: rgba(59, 130, 246, 0.2); color: #60a5fa;">🚀 制限を完全撤廃したい方へ（商用最優先サーバー）</span>
+            </div>
+            <div class="agq-desc" style="font-size: 11px; line-height: 1.5; opacity: 0.85;">
+              Google AI Studio で<strong>クレジットカードを登録（Billing有効化）</strong>すると、商用最優先サーバーへ自動昇格し、混雑エラー（503）や回数制限が完全撤廃されます（月間数十万トークンまでは実質無料枠内です）。
+            </div>
+          </div>
+
+          <label class="field-label sm" for="gemini-key">APIキー（複数キーのカンマ/改行区切り対応）</label>
           <div class="input-group">
-            <input class="input" type="password" id="gemini-key" placeholder="AIza…（変更する場合のみ入力）" spellcheck="false" />
+            <input class="input" type="password" id="gemini-key" placeholder="AIza…（複数キーはカンマまたは改行区切りで入力）" spellcheck="false" />
             <button class="btn btn-ghost btn-icon" type="button" data-toggle-visibility="gemini-key" aria-label="表示切替"><span data-icon="eye"></span></button>
             <button class="btn btn-ghost btn-sm" type="button" data-clear-key="geminiApiKey">削除</button>
           </div>
+          <p class="field-hint" style="font-size: 11px; opacity: 0.75; margin-top: 4px; line-height: 1.4;">🔑 <strong>無料枠複数キー自動ローテーション:</strong> Google AI Studio でプロジェクトを分けた複数キーをカンマ区切りで入力すると、制限検知時に自動で予備キーへ瞬時切替します。</p>
           <label class="field-label sm" for="gemini-model">モデル</label>
           <input class="input" id="gemini-model" list="gemini-models" placeholder="gemini-3.8-flash" spellcheck="false" />
           <datalist id="gemini-models">
@@ -1090,7 +1101,15 @@
           <div class="qa-grid">
             <div class="qa-item">
               <strong>Q. お金が勝手に請求される心配はありませんか？</strong>
-              <p>クレジットカード登録画面自体がないため、勝手に請求されることは100%ありません。無料枠上限に達した場合は一時停止するだけです。</p>
+              <p>初期状態ではクレジットカード登録不要の完全無料枠で動作するため、勝手に請求されることは100%ありません。無料枠上限に達した場合は一時停止するだけです。</p>
+            </div>
+            <div class="qa-item">
+              <strong>Q. クレジットカードを登録（従量課金設定）するメリットは何ですか？</strong>
+              <p>Google AI Studio でクレジットカードを登録（Billing有効化）すると、Google の商用最優先専用サーバー（Paid Tier）に自動昇格し、<strong>混雑エラー（503）や回数制限（15 RPM）が完全撤廃</strong>されます。月間数十万トークンまでは無料枠が適用されるため、個人・小規模利用であれば実質0円のまま極めて快適・無制限に動作します。</p>
+            </div>
+            <div class="qa-item">
+              <strong>Q. クレジットカード未登録（完全無料）のまま快適に使うコツは？</strong>
+              <p>①設定の「モデル」を混雑の少ない <code>gemini-3.7-flash</code> や <code>gemini-flash-latest</code> に指定する、②Google AI Studio でプロジェクトを分けた複数キーを発行し、設定でカンマ区切りで入力して自動ローテーションを活用する、の2点で無料のまま快適にご利用いただけます。</p>
             </div>
             <div class="qa-item">
               <strong>Q. 「APIキーが無効です」とエラーが出ます</strong>

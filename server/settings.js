@@ -148,10 +148,32 @@ function save(patch = {}) {
   return load();
 }
 
-function mask(k) {
+function parseGeminiApiKeys(raw) {
+  if (!raw) return [];
+  if (Array.isArray(raw)) {
+    return raw.map((k) => String(k || '').trim()).filter(Boolean);
+  }
+  return String(raw)
+    .split(/[\r\n,;]+/)
+    .map((k) => k.trim())
+    .filter(Boolean);
+}
+
+function getGeminiApiKeys(s = load()) {
+  return parseGeminiApiKeys(s.geminiApiKey);
+}
+
+function maskSingle(k) {
   if (!k) return '';
   if (k.length <= 10) return '••••' + k.slice(-2);
   return k.slice(0, 4) + '••••••' + k.slice(-4);
+}
+
+function mask(k) {
+  if (!k) return '';
+  const keys = parseGeminiApiKeys(k);
+  if (keys.length <= 1) return maskSingle(keys[0] || k);
+  return keys.map((key, i) => `キー[${i + 1}]: ${maskSingle(key)}`).join(' / ');
 }
 
 function effectiveMode(s = load()) {
@@ -185,4 +207,4 @@ function publicView(s = load()) {
   };
 }
 
-module.exports = { load, save, publicView, effectiveMode, effectiveSearch, DATA_DIR, BASE_DIR };
+module.exports = { load, save, publicView, effectiveMode, effectiveSearch, parseGeminiApiKeys, getGeminiApiKeys, DATA_DIR, BASE_DIR };

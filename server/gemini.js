@@ -534,13 +534,21 @@ async function generate({
   signal,
   temperature = 0.4,
   json = true,
-  maxRetries = 4,
+  maxRetries = 6,
   timeoutMs = 180000,
   onRetry = null,
 }) {
-  const cleanKey = String(apiKey || '').trim();
-  if (!cleanKey) throw new Error('Gemini APIキーが設定されていません');
+  // 複数キー（カンマ・改行・セミコロン区切りまたは配列）を自動解析
+  const keys = Array.isArray(apiKey)
+    ? apiKey.map((k) => String(k || '').trim()).filter(Boolean)
+    : String(apiKey || '')
+        .split(/[\r\n,;]+/)
+        .map((k) => k.trim())
+        .filter(Boolean);
+
+  if (keys.length === 0) throw new Error('Gemini APIキーが設定されていません');
   
+  let currentKeyIdx = 0;
   let currentModel = normalizeModel(model);
   const fallbackModels = getFallbackModels(currentModel);
   let fallbackIdx = 0;
@@ -564,8 +572,9 @@ async function generate({
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     if (signal && signal.aborted) throw new Error('キャンセルされました');
 
+    const activeKey = keys[currentKeyIdx];
     // クエリパラメータ ?key= とヘッダー x-goog-api-key の両方を送信し、プロキシや企業FWでのヘッダ脱落を完全防止
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(currentModel)}:generateContent?key=${encodeURIComponent(cleanKey)}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(currentModel)}:generateContent?key=${encodeURIComponent(activeKey)}`;
 
     try {
       // 1回あたりのタイムアウト（デフォルト180秒 = 3分）
@@ -576,7 +585,7 @@ async function generate({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-goog-api-key': cleanKey,
+          'x-goog-api-key': activeKey,
         },
         body: JSON.stringify(body),
         signal: combinedSignal,
@@ -597,19 +606,40 @@ async function generate({
         if (attempt < maxRetries && isRetryableError(err, status)) {
           lastError = err;
           let isFallback = false;
+          let isKeyRotated = false;
+          let isCooldown = false;
           let prevModel = currentModel;
+          let prevKeyIdx = currentKeyIdx;
 
           const isModelUnavailable = status === 404 || msg.toLowerCase().includes('no longer available');
           const isOverloadOrQuota = status === 503 || msg.toLowerCase().includes('high demand') || status === 429 || msg.toLowerCase().includes('resource_exhausted');
 
-          // 無料枠（クレジットカード未登録）のユーザーでも止まらないよう、初回混雑・上限検知から即座に別モデルへ迂回
-          if ((isModelUnavailable || isOverloadOrQuota) && fallbackIdx < fallbackModels.length) {
+          // 【プランA: 複数キー自動ローテーション】429/503検知時、予備キーがあれば即座に次キーへ切り替え
+          if (isOverloadOrQuota && keys.length > 1 && currentKeyIdx + 1 < keys.length) {
+            currentKeyIdx++;
+            isKeyRotated = true;
+          } else if ((isModelUnavailable || isOverloadOrQuota) && fallbackIdx < fallbackModels.length) {
+            // 【多層モデル迂回】キーを一周したか単一キーの場合、空いている別モデル（3.7 / 3.5 / latest）へスイッチ
             currentModel = fallbackModels[fallbackIdx++];
             isFallback = true;
+            // モデル切替時はキーインデックスも先頭に戻してリフレッシュ
+            currentKeyIdx = 0;
           }
 
-          // モデル迂回時は別枠の新品クォータを叩くため即時リカバリ（1.2秒待機）
-          const waitMs = isFallback ? 1200 : (attempt === 1 ? 3000 : attempt === 2 ? 5000 : 8000);
+          // 待機時間の計算: キー切替時は500ms、モデル切替時は1200ms、全枯渇時は冷却カウントダウン待機
+          let waitMs = 1200;
+          if (isKeyRotated) {
+            waitMs = 600;
+          } else if (isFallback) {
+            waitMs = 1200;
+          } else if (attempt >= 3 && isOverloadOrQuota) {
+            // 【プランB: 自動冷却待機】全キー・全モデルで制限持続時は20秒待機してGoogleバケットの自動回復を待つ
+            waitMs = attempt === 3 ? 18000 : 25000;
+            isCooldown = true;
+          } else {
+            waitMs = attempt === 1 ? 2500 : 5000;
+          }
+
           if (typeof onRetry === 'function') {
             try {
               onRetry({
@@ -620,6 +650,10 @@ async function generate({
                 prevModel,
                 currentModel,
                 isFallback,
+                isKeyRotated,
+                isCooldown,
+                keyIndex: currentKeyIdx + 1,
+                totalKeys: keys.length,
               });
             } catch (_) {}
           }

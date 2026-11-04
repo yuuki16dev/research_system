@@ -100,3 +100,60 @@ test('gemini & settings: auto-sanitizes obsolete model names to gemini-3.8-flash
   assert.equal(loaded.geminiModel, 'gemini-3.8-flash');
 });
 
+test('gemini: auto-rotates to backup API key when 429 quota limit is encountered', async () => {
+  const originalFetch = globalThis.fetch;
+  let callCount = 0;
+  const usedKeys = [];
+
+  globalThis.fetch = async (url, opts) => {
+    callCount++;
+    const key = new URL(url).searchParams.get('key');
+    usedKeys.push(key);
+
+    if (callCount === 1) {
+      // 1st key fails with 429 Resource Exhausted
+      return {
+        ok: false,
+        status: 429,
+        json: async () => ({
+          error: {
+            message: 'Resource has been exhausted (e.g. check quota).',
+            status: 'RESOURCE_EXHAUSTED',
+          },
+        }),
+      };
+    }
+
+    // 2nd key succeeds
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        candidates: [
+          {
+            content: { parts: [{ text: JSON.stringify({ ok: true, rotated: true }) }] },
+            finishReason: 'STOP',
+          },
+        ],
+        usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 15, totalTokenCount: 25 },
+      }),
+    };
+  };
+
+  try {
+    const res = await generate({
+      apiKey: 'key-primary-111, key-backup-222',
+      model: 'gemini-3.8-flash',
+      prompt: 'test prompt',
+    });
+
+    assert.equal(callCount, 2);
+    assert.equal(res.ok, true);
+    assert.equal(res.rotated, true);
+    assert.equal(usedKeys[0], 'key-primary-111');
+    assert.equal(usedKeys[1], 'key-backup-222');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
