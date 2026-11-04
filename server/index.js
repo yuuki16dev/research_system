@@ -311,7 +311,8 @@ app.post('/api/settings/test', async (req, res) => {
 /* ------------------------------------------------------------- usage */
 app.get('/api/usage', async (req, res) => {
   try {
-    const data = await getFullUsageSummary(settings.load());
+    const force = req.query.refresh === '1' || req.query.force === 'true' || req.query.force === '1';
+    const data = await getFullUsageSummary(settings.load(), { forceRefresh: force });
     res.json(data);
   } catch (e) {
     res.status(500).json({ error: e.message });

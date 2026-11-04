@@ -5,6 +5,7 @@
 import { $, $$, icon, hydrateIcons, openModal, closeModal, toast, esc } from '../ui.js';
 import { api } from '../api.js';
 import { refreshAppInfo } from './theme.js';
+import { loadSettingsIntoForm } from './modals.js';
 
 export function bindUsageModal() {
   const btn = $('#btn-usage');
@@ -38,20 +39,22 @@ export function bindUsageModal() {
     btnFromUsage.addEventListener('click', () => {
       closeModal('modal-usage');
       openModal('modal-settings');
-      loadSettingsIntoForm();
+      if (typeof loadSettingsIntoForm === 'function') {
+        loadSettingsIntoForm();
+      }
     });
   }
 
   const btnRefresh = $('#btn-refresh-usage');
   if (btnRefresh) {
-    btnRefresh.addEventListener('click', () => {
-      refreshUsageModalContent();
+    btnRefresh.addEventListener('click', async () => {
+      await refreshUsageModalContent(true);
       toast('利用状況を最新に更新しました', 'info', 1500);
     });
   }
 }
 
-export async function refreshUsageModalContent() {
+export async function refreshUsageModalContent(force = false) {
   const body = $('#usage-body');
   if (!body) return;
   body.innerHTML = `
@@ -62,7 +65,7 @@ export async function refreshUsageModalContent() {
   `;
 
   try {
-    const data = await api.usage();
+    const data = await api.usage({ refresh: force });
     renderUsageDashboard(data, body);
   } catch (err) {
     body.innerHTML = `
@@ -189,22 +192,29 @@ function renderUsageDashboard(data, container) {
         </div>
       </div>
 
-      <!-- 2. Tavily 残量メーターカード -->
+      <!-- 2. Tavily 残量メーターカード (3分岐: 正常取得 / 設定済み接続確認 / 未設定) -->
       <div class="capacity-hero-card">
         <div class="capacity-top">
           <div class="cap-title">
             <span class="cap-service-icon">🔍</span>
             <div>
               <h4>Tavily Search API (今月の残り検索枠)</h4>
-              <small style="color: var(--text-3);">${esc(tavily.plan || 'Researcher')} プラン</small>
+              <small style="color: var(--text-3);">${esc(tavily.plan || 'Researcher')} プラン ${tavily.fromCache ? '(直近取得キャッシュ)' : ''}</small>
             </div>
           </div>
-          <span class="cap-status-badge ${tavily.ok ? 'ok' : 'off'}">
-            ${tavily.ok ? `🟢 残り ${tavilyRemainPct}%` : '⚪ 未設定 (DuckDuckGo使用中)'}
+          <span class="cap-status-badge ${tavily.ok ? 'ok' : (tavily.configured ? 'warning' : 'off')}">
+            ${tavily.ok ? `🟢 残り ${tavilyRemainPct}%` : (tavily.configured ? '🟡 設定済み（要確認）' : '⚪ 未設定 (DuckDuckGo使用中)')}
           </span>
         </div>
 
         ${tavily.ok ? `
+          ${tavily.isRateLimited || tavily.rateLimitNotice ? `
+            <div style="background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 8px; padding: 8px 12px; margin: 10px 0; font-size: 12px; color: #f59e0b; display: flex; align-items: center; gap: 8px;">
+              <span data-icon="alert"></span>
+              <span>${esc(tavily.rateLimitNotice || 'Tavily利用状況APIがレート制限（10分10回）中のため、直近取得したクォータ情報を表示しています。')}</span>
+            </div>
+          ` : ''}
+
           <div class="capacity-main-stat">
             <div class="stat-highlight">
               <span class="stat-label">今月あと使える検索枠</span>
@@ -233,11 +243,56 @@ function renderUsageDashboard(data, container) {
             </div>
           </div>
 
+          <!-- 利用内訳とアプリ内検索回数 -->
+          <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; font-size: 12px;">
+            <span style="padding: 4px 8px; background: var(--surface-card, rgba(255,255,255,0.05)); border-radius: 6px; border: 1px solid var(--border);">
+              Web検索: <strong>${(tavily.details?.search ?? tavilyUsed).toLocaleString()} 件</strong>
+            </span>
+            ${tavily.details?.extract ? `
+              <span style="padding: 4px 8px; background: var(--surface-card, rgba(255,255,255,0.05)); border-radius: 6px; border: 1px solid var(--border);">
+                抽出: <strong>${tavily.details.extract.toLocaleString()} 件</strong>
+              </span>
+            ` : ''}
+            ${tavily.details?.crawl ? `
+              <span style="padding: 4px 8px; background: var(--surface-card, rgba(255,255,255,0.05)); border-radius: 6px; border: 1px solid var(--border);">
+                クロール: <strong>${tavily.details.crawl.toLocaleString()} 件</strong>
+              </span>
+            ` : ''}
+            <span style="padding: 4px 8px; background: var(--surface-card, rgba(255,255,255,0.05)); border-radius: 6px; border: 1px solid var(--border);">
+              このアプリでの検索回数: <strong>${(tavily.localTotalSearches || 0).toLocaleString()} 回</strong>
+            </span>
+          </div>
+
           <div class="capacity-reset-pill">
             <span data-icon="clock"></span>
             <span>更新タイミング: <strong>${esc(tavily.renewalNotice || '毎月のアカウント更新日（月次リセット）')}</strong></span>
           </div>
+        ` : (tavily.configured ? `
+          <!-- 設定済みだがAPI問い合わせエラー（401無効、429制限、ネットワーク遅延等） -->
+          <div class="notice" style="margin: 12px 0; border-left: 4px solid #f59e0b;">
+            <span data-icon="alert"></span>
+            <div>
+              <strong>Tavily APIキーは設定されています（${esc(tavily.maskedKey || '設定済み')}）</strong>
+              <p style="margin-top: 4px; font-size: 13px; color: var(--text-2);">
+                リアルタイムクォータの取得ステータス: <code style="color: #f59e0b; background: rgba(245,158,11,0.1); padding: 2px 6px; border-radius: 4px;">${esc(tavily.error || '通信エラー')}</code>
+              </p>
+              <ul style="margin: 8px 0 0 18px; font-size: 12px; color: var(--text-3); line-height: 1.6;">
+                <li>キーが無効（401）の場合は、設定画面で最新のAPIキーをご確認ください。</li>
+                <li>Tavily利用状況APIは「10分間に10リクエスト」の制限があります。頻繁に開いた場合は少し待ってから再取得してください。</li>
+                <li>本アプリ内での累計検索数: <strong>${(tavily.localTotalSearches || 0).toLocaleString()} 回</strong></li>
+              </ul>
+            </div>
+          </div>
+          <div style="display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap;">
+            <button type="button" class="btn btn-sm btn-ghost btn-open-settings-inline" style="border: 1px solid var(--border-strong);">
+              <span data-icon="key"></span>設定画面でキーを確認
+            </button>
+            <button type="button" class="btn btn-sm btn-ghost btn-retry-tavily" style="border: 1px solid var(--border-strong);">
+              <span data-icon="refresh"></span>利用枠を再取得
+            </button>
+          </div>
         ` : `
+          <!-- 完全未設定 -->
           <div class="notice" style="margin: 12px 0;">
             <span data-icon="info"></span>
             <div>
@@ -245,9 +300,14 @@ function renderUsageDashboard(data, container) {
               <p style="margin-top: 4px; font-size: 13px;">現在は完全無料の DuckDuckGo で検索を実行しています。月1,000回まで無料の Tavily API キーを設定すると、ディープ推論の安定性と検索精度がさらに向上します。</p>
             </div>
           </div>
-        `}
+          <div style="display: flex; gap: 8px; margin-top: 8px;">
+            <button type="button" class="btn btn-sm btn-primary btn-open-settings-inline">
+              <span data-icon="key"></span>Tavily APIキーを設定する
+            </button>
+          </div>
+        `)}
 
-        <div class="usage-actions-row" style="margin-top: 6px;">
+        <div class="usage-actions-row" style="margin-top: 10px;">
           <a class="btn btn-sm btn-ghost" href="${esc(tavily.dashboardUrl || 'https://app.tavily.com/home')}" target="_blank" rel="noopener" style="border: 1px solid var(--border-strong);">
             <span data-icon="external"></span>Tavily公式ダッシュボードで残高を確認 ↗
           </a>
@@ -376,13 +436,13 @@ function renderUsageDashboard(data, container) {
         ` : ''}
 
         <div class="usage-actions-row">
-          <a class="btn btn-sm btn-ghost" href="${esc(gemini.officialUrls.dashboard)}" target="_blank" rel="noopener" style="border: 1px solid var(--border-strong);">
+          <a class="btn btn-sm btn-ghost" href="${esc(gemini.officialUrls?.dashboard || 'https://aistudio.google.com/app/plan_information')}" target="_blank" rel="noopener" style="border: 1px solid var(--border-strong);">
             <span data-icon="external"></span>AI Studio プラン・利用状況 ↗
           </a>
-          <a class="btn btn-sm btn-ghost" href="${esc(gemini.officialUrls.quotas)}" target="_blank" rel="noopener" style="border: 1px solid var(--border-strong);">
+          <a class="btn btn-sm btn-ghost" href="${esc(gemini.officialUrls?.quotas || 'https://console.cloud.google.com/apis/api/generativelanguage.googleapis.com/quotas')}" target="_blank" rel="noopener" style="border: 1px solid var(--border-strong);">
             <span data-icon="external"></span>GCP クォータ制限 ↗
           </a>
-          <a class="btn btn-sm btn-ghost" href="${esc(gemini.officialUrls.billing)}" target="_blank" rel="noopener" style="border: 1px solid var(--border-strong);">
+          <a class="btn btn-sm btn-ghost" href="${esc(gemini.officialUrls?.billing || 'https://console.cloud.google.com/billing')}" target="_blank" rel="noopener" style="border: 1px solid var(--border-strong);">
             <span data-icon="external"></span>GCP 請求ダッシュボード ↗
           </a>
         </div>
@@ -395,10 +455,12 @@ function renderUsageDashboard(data, container) {
             <span style="font-size: 20px;">🔍</span>
             <div>
               <h3>Tavily Search API 仕様・利用内訳</h3>
-              <small style="color: var(--text-3);">${esc(tavily.plan || 'Researcher')}</small>
+              <small style="color: var(--text-3);">${esc(tavily.plan || 'Researcher')} ${tavily.fromCache ? '(直近キャッシュ)' : ''}</small>
             </div>
           </div>
-          <span class="chip-status ${tavily.ok ? 'set' : ''}">${tavily.ok ? '接続中' : '未設定'}</span>
+          <span class="chip-status ${tavily.ok ? 'set' : (tavily.configured ? 'warning' : '')}">
+            ${tavily.ok ? '接続中' : (tavily.configured ? '設定済(要確認)' : '未設定')}
+          </span>
         </div>
 
         <div class="usage-stats-grid">
@@ -420,6 +482,24 @@ function renderUsageDashboard(data, container) {
           </div>
         </div>
 
+        ${tavily.configured && !tavily.ok ? `
+          <div style="margin-top: 10px; padding: 10px; background: rgba(245,158,11,0.08); border-radius: 6px; font-size: 12px; color: var(--text-2);">
+            <strong style="color: #f59e0b;">接続ステータス:</strong> ${esc(tavily.error || '利用状況の取得待機中')}
+          </div>
+        ` : ''}
+
+        ${tavily.details ? `
+          <div style="margin-top: 12px; padding: 10px; background: var(--surface-card, rgba(255,255,255,0.03)); border-radius: 6px; font-size: 12px; border: 1px solid var(--border);">
+            <div style="font-weight: 700; margin-bottom: 6px; color: var(--text-2);">利用内訳詳細:</div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px;">
+              <div>Web検索: <strong>${(tavily.details.search || 0).toLocaleString()}</strong> 件</div>
+              <div>抽出 (extract): <strong>${(tavily.details.extract || 0).toLocaleString()}</strong> 件</div>
+              <div>クロール (crawl): <strong>${(tavily.details.crawl || 0).toLocaleString()}</strong> 件</div>
+              <div>マップ (map): <strong>${(tavily.details.map || 0).toLocaleString()}</strong> 件</div>
+            </div>
+          </div>
+        ` : ''}
+
         <div class="usage-actions-row">
           <a class="btn btn-sm btn-ghost" href="${esc(tavily.dashboardUrl || 'https://app.tavily.com/home')}" target="_blank" rel="noopener" style="border: 1px solid var(--border-strong);">
             <span data-icon="external"></span>Tavily公式ダッシュボードで残高を確認 ↗
@@ -437,6 +517,25 @@ function renderUsageDashboard(data, container) {
     tab.addEventListener('click', () => {
       currentUsageViewMode = tab.dataset.view;
       renderUsageDashboard(data, container);
+    });
+  });
+
+  // 設定画面を開くインラインボタンのイベントバインド
+  $$('.btn-open-settings-inline', container).forEach(btn => {
+    btn.addEventListener('click', () => {
+      closeModal('modal-usage');
+      openModal('modal-settings');
+      if (typeof loadSettingsIntoForm === 'function') {
+        loadSettingsIntoForm();
+      }
+    });
+  });
+
+  // Tavily再試行ボタンのイベントバインド
+  $$('.btn-retry-tavily', container).forEach(btn => {
+    btn.addEventListener('click', async () => {
+      await refreshUsageModalContent(true);
+      toast('Tavily利用枠を再取得しました', 'info', 1500);
     });
   });
 

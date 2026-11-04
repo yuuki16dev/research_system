@@ -121,28 +121,111 @@ function getNextQuotaReset() {
   };
 }
 
-/** Tavily 公式 API /usage エンドポイントをリアルタイム問い合わせ */
-async function fetchLiveTavilyUsage(apiKey) {
-  if (!apiKey) {
+/** Tavily キャッシュ・直近成功データ管理 */
+let tavilyCache = {
+  key: '',
+  data: null,
+  cachedAt: 0,
+};
+let lastSuccessfulTavilyUsage = null;
+
+const TAVILY_CACHE_TTL_MS = 120000; // 2分間キャッシュ（10分10回制限回避のため）
+
+/** テスト用キャッシュクリア関数 */
+function resetTavilyCacheForTest() {
+  tavilyCache = { key: '', data: null, cachedAt: 0 };
+  lastSuccessfulTavilyUsage = null;
+}
+
+/** キーの安全なマスク表示作成 */
+function maskApiKey(key) {
+  const k = String(key || '').trim();
+  if (!k) return '';
+  if (k.length <= 8) return '••••' + k.slice(-2);
+  return k.slice(0, 5) + '••••••' + k.slice(-4);
+}
+
+/** Tavily 公式 API /usage エンドポイントを問い合わせ（キャッシュ・429レート制限フォールバック対応） */
+async function fetchLiveTavilyUsage(apiKey, { forceRefresh = false, fetchFn = globalThis.fetch } = {}) {
+  const key = String(apiKey || '').trim();
+  if (!key) {
     return {
       configured: false,
+      ok: false,
+      maskedKey: '',
       message: 'APIキー未設定',
       dashboardUrl: 'https://app.tavily.com/home',
     };
   }
+
+  const now = Date.now();
+  // キャッシュが有効かつ強制更新でない場合はキャッシュを即返却
+  if (!forceRefresh && tavilyCache.key === key && tavilyCache.data && (now - tavilyCache.cachedAt < TAVILY_CACHE_TTL_MS)) {
+    return {
+      ...tavilyCache.data,
+      fromCache: true,
+      cachedAt: new Date(tavilyCache.cachedAt).toISOString(),
+    };
+  }
+
   try {
-    const res = await fetch('https://api.tavily.com/usage', {
-      headers: { Authorization: `Bearer ${apiKey}` },
+    const res = await fetchFn('https://api.tavily.com/usage', {
+      headers: {
+        Authorization: `Bearer ${key}`,
+        'Content-Type': 'application/json',
+      },
       signal: AbortSignal.timeout(8000),
     });
+
     if (!res.ok) {
+      let detailMsg = '';
+      try {
+        const j = await res.json();
+        detailMsg = (j.detail && (j.detail.error || j.detail)) || j.error || j.message || '';
+      } catch {
+        /* ignore json parse failure */
+      }
+
+      // 429 Too Many Requests（Tavily /usage は 10分10回の厳格制限）
+      if (res.status === 429) {
+        if (lastSuccessfulTavilyUsage && lastSuccessfulTavilyUsage.key === key) {
+          return {
+            ...lastSuccessfulTavilyUsage.data,
+            isRateLimited: true,
+            fromCache: true,
+            rateLimitNotice: 'Tavily利用状況APIがレート制限（10分10回）中のため、直近取得したクォータ情報を表示しています。',
+          };
+        }
+        return {
+          configured: true,
+          ok: false,
+          maskedKey: maskApiKey(key),
+          isRateLimited: true,
+          error: 'Tavily利用状況APIのレート制限（10分間に10リクエスト）にかかっています。少し時間をおいて再度お試しください。',
+          dashboardUrl: 'https://app.tavily.com/home',
+        };
+      }
+
+      // 401 / 403 認証エラー
+      if (res.status === 401 || res.status === 403) {
+        return {
+          configured: true,
+          ok: false,
+          maskedKey: maskApiKey(key),
+          error: `APIキーが無効または認証に失敗しました (${res.status})${detailMsg ? ': ' + detailMsg : ''}`,
+          dashboardUrl: 'https://app.tavily.com/home',
+        };
+      }
+
       return {
         configured: true,
         ok: false,
-        error: `ステータス ${res.status}`,
+        maskedKey: maskApiKey(key),
+        error: `Tavily API エラー (${res.status})${detailMsg ? ': ' + detailMsg : ''}`,
         dashboardUrl: 'https://app.tavily.com/home',
       };
     }
+
     const d = await res.json();
     const acct = d.account || {};
     const keyInfo = d.key || {};
@@ -151,9 +234,10 @@ async function fetchLiveTavilyUsage(apiKey) {
     const remaining = Math.max(0, planLimit - planUsage);
     const pct = planLimit > 0 ? Math.min(100, Math.round((planUsage / planLimit) * 100)) : 0;
 
-    return {
+    const result = {
       configured: true,
       ok: true,
+      maskedKey: maskApiKey(key),
       plan: acct.current_plan || 'Researcher',
       planUsage,
       planLimit,
@@ -163,25 +247,52 @@ async function fetchLiveTavilyUsage(apiKey) {
         search: acct.search_usage ?? keyInfo.search_usage ?? planUsage,
         crawl: acct.crawl_usage ?? keyInfo.crawl_usage ?? 0,
         extract: acct.extract_usage ?? keyInfo.extract_usage ?? 0,
+        map: acct.map_usage ?? keyInfo.map_usage ?? 0,
+        research: acct.research_usage ?? keyInfo.research_usage ?? 0,
       },
-      renewalNotice: '月次更新（毎月のアカウント登録日または1日）',
+      renewalNotice: '毎月のアカウント更新日（月次リセット）',
       dashboardUrl: 'https://app.tavily.com/home',
+      lastFetchedAt: new Date().toISOString(),
+      isRateLimited: false,
     };
+
+    // キャッシュ保存
+    tavilyCache = {
+      key,
+      data: result,
+      cachedAt: now,
+    };
+    lastSuccessfulTavilyUsage = {
+      key,
+      data: result,
+    };
+
+    return result;
   } catch (e) {
+    // ネットワークエラー・タイムアウト時、既存キャッシュがあればフォールバック
+    if (lastSuccessfulTavilyUsage && lastSuccessfulTavilyUsage.key === key) {
+      return {
+        ...lastSuccessfulTavilyUsage.data,
+        fromCache: true,
+        connectionNotice: `一時的な通信エラー (${e.message}) のため、直近取得したクォータ情報を表示しています。`,
+      };
+    }
+
     return {
       configured: true,
       ok: false,
-      error: e.message,
+      maskedKey: maskApiKey(key),
+      error: `通信エラー: ${e.message}`,
       dashboardUrl: 'https://app.tavily.com/home',
     };
   }
 }
 
 /** 全体の利用状況サマリーを取得 */
-async function getFullUsageSummary(settingsObj) {
+async function getFullUsageSummary(settingsObj = {}, options = {}) {
   const local = loadUsage();
   const tavilyKey = settingsObj.tavilyApiKey;
-  const tavilyData = await fetchLiveTavilyUsage(tavilyKey);
+  const tavilyData = await fetchLiveTavilyUsage(tavilyKey, options);
   const resetInfo = getNextQuotaReset();
 
   return {
@@ -244,4 +355,5 @@ module.exports = {
   fetchLiveTavilyUsage,
   getNextQuotaReset,
   getFullUsageSummary,
+  resetTavilyCacheForTest,
 };

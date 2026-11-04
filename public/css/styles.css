@@ -4262,6 +4262,22 @@ table.matrix {
   color: #047857;
 }
 
+.cap-status-badge.warning {
+  background: var(--warning-subtle, rgba(245, 158, 11, 0.15));
+  color: var(--warning-light, #f59e0b);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+[data-theme='light'] .cap-status-badge.warning {
+  color: #b45309;
+}
+
+.cap-status-badge.off {
+  background: var(--surface-card, rgba(255, 255, 255, 0.05));
+  color: var(--text-3);
+  border: 1px solid var(--border);
+}
+
 .capacity-main-stat {
   display: grid;
   grid-template-columns: 1.3fr 1fr;
@@ -4520,6 +4536,15 @@ table.matrix {
 
 [data-theme='light'] .chip-status.set {
   color: #047857;
+}
+
+.chip-status.warning {
+  background: var(--warning-subtle, rgba(245, 158, 11, 0.15));
+  color: var(--warning-light, #f59e0b);
+}
+
+[data-theme='light'] .chip-status.warning {
+  color: #b45309;
 }
 
 .ext-link {

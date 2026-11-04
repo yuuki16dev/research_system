@@ -36,7 +36,7 @@ export const api = {
   checkVersion: () => request('GET', '/api/version/check'),
   changelog: () => request('GET', '/api/changelog'),
   deepDive: (body) => request('POST', '/api/research/deep-dive', body),
-  usage: () => request('GET', '/api/usage'),
+  usage: (options = {}) => request('GET', options.refresh ? '/api/usage?refresh=1' : '/api/usage'),
   getLogs: () => request('GET', '/api/logs'),
   shutdown: () => request('POST', '/api/shutdown'),
   qrUrl: (text) => `/api/qr?text=${encodeURIComponent(text)}`,

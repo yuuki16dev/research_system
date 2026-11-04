@@ -36,3 +36,4 @@ test('v1.19.2: research.js properly handles progress completion & hides cancel b
   assert.ok(code.includes("progressTitle.textContent = 'リサーチ完了！'"), 'Must update progressTitle to done in finishSuccess');
   assert.ok(code.includes("progressFill.style.width = '100%'"), 'Must set progressFill to 100% in finishSuccess');
 });
+
