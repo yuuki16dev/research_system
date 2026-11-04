@@ -84,7 +84,13 @@ export async function refreshUsageModalContent(force = false) {
 let currentUsageViewMode = 'gauge';
 
 function renderUsageDashboard(data, container) {
-  const { gemini, tavily, duckduckgo, tips } = data;
+  const { gemini, groq = {}, tavily, duckduckgo, tips } = data;
+
+  const groqConfigured = !!groq.configured;
+  const groqPromptTok = groq.totalPromptTokens || 0;
+  const groqCandTok = groq.totalCandidatesTokens || 0;
+  const groqTotalTok = groq.totalTokens || 0;
+  const groqUsed = groq.todayRequests || 0;
 
   // Geminiの残量計算
   const geminiLimit = 1500; // 日次無料枠 (RPD)
@@ -190,6 +196,44 @@ function renderUsageDashboard(data, container) {
             <span data-icon="external"></span>GCP クォータ制限 ↗
           </a>
         </div>
+      </div>
+
+      <!-- 1.5 Groq 補欠バックアップカード -->
+      <div class="capacity-hero-card" style="border-left: 3px solid ${groqConfigured ? '#f97316' : 'var(--border)'};">
+        <div class="capacity-top">
+          <div class="cap-title">
+            <span class="cap-service-icon">⚡</span>
+            <div>
+              <h4>Groq API (補欠・セーフティネット推論)</h4>
+              <small style="color: var(--text-3);">${esc(groq.model || 'llama-3.3-70b-versatile')} ・ Google混雑時の自動リレー</small>
+            </div>
+          </div>
+          <span class="cap-status-badge ${groqConfigured ? 'ok' : 'off'}">
+            ${groqConfigured ? '🟢 待機中（補欠スタンバイ）' : '⚪ 未設定（任意）'}
+          </span>
+        </div>
+        ${groqConfigured ? `
+          <div class="capacity-main-stat">
+            <div class="stat-highlight">
+              <span class="stat-label">本日のリレー稼働回数</span>
+              <div class="stat-big-num">
+                <strong class="remain-num success">${groqUsed.toLocaleString()}</strong>
+                <span class="denom">回 (本日呼出)</span>
+              </div>
+            </div>
+            <div class="stat-conversion">
+              <span class="conv-tag" style="background: rgba(249, 115, 22, 0.15); color: #fb923c;">⚡ 累計消費トークン</span>
+              <div class="conv-val">
+                <strong>${groqTotalTok.toLocaleString()}</strong> tok
+              </div>
+              <small>入力: ${groqPromptTok.toLocaleString()} / 出力: ${groqCandTok.toLocaleString()}</small>
+            </div>
+          </div>
+        ` : `
+          <div style="padding: 10px 0; color: var(--text-2); font-size: 13px;">
+            Groq APIキーを登録すると、Google無料枠が混雑（503/429）した際に自動リレーして超高速で調査を完走できます。
+          </div>
+        `}
       </div>
 
       <!-- 2. Tavily 残量メーターカード (3分岐: 正常取得 / 設定済み接続確認 / 未設定) -->
@@ -444,6 +488,99 @@ function renderUsageDashboard(data, container) {
           </a>
           <a class="btn btn-sm btn-ghost" href="${esc(gemini.officialUrls?.billing || 'https://console.cloud.google.com/billing')}" target="_blank" rel="noopener" style="border: 1px solid var(--border-strong);">
             <span data-icon="external"></span>GCP 請求ダッシュボード ↗
+          </a>
+        </div>
+      </div>
+
+      <!-- Groq トークン詳細 -->
+      <div class="usage-card">
+        <div class="usage-card-head">
+          <div class="uch-left">
+            <span style="font-size: 20px;">⚡</span>
+            <div>
+              <h3>Groq API トークン内訳（補欠LLM）</h3>
+              <small style="color: var(--text-3);">${esc(groq.model || 'llama-3.3-70b-versatile')}</small>
+            </div>
+          </div>
+          <span class="chip-status ${groqConfigured ? 'set' : ''}">${groqConfigured ? '接続中' : '未設定'}</span>
+        </div>
+
+        <div class="usage-stats-grid">
+          <div class="usage-stat-cell">
+            <small>累計消費トークン</small>
+            <strong style="color: #fb923c;">${groqTotalTok.toLocaleString()}</strong>
+          </div>
+          <div class="usage-stat-cell">
+            <small>入力 (Prompt)</small>
+            <strong>${groqPromptTok.toLocaleString()}</strong>
+          </div>
+          <div class="usage-stat-cell">
+            <small>出力 (Completion)</small>
+            <strong>${groqCandTok.toLocaleString()}</strong>
+          </div>
+          <div class="usage-stat-cell">
+            <small>本日のリクエスト</small>
+            <strong>${groqUsed.toLocaleString()} 回</strong>
+          </div>
+        </div>
+
+        <div class="usage-stats-grid" style="margin-top: 8px;">
+          <div class="usage-stat-cell">
+            <small>利用コスト</small>
+            <strong>完全無料枠: $0</strong>
+            <span style="font-size: 11px; color: var(--text-3);">超高速 LPU 推論エンジン</span>
+          </div>
+          <div class="usage-stat-cell">
+            <small>日次リクエスト枠</small>
+            <strong>14,400 回 / 日</strong>
+            <span style="font-size: 11px; color: var(--text-3);">無料枠 (RPD)</span>
+          </div>
+          <div class="usage-stat-cell">
+            <small>分間レート制限</small>
+            <strong>30 RPM / 6,000〜100,000 TPM</strong>
+            <span style="font-size: 11px; color: var(--text-3);">モデル制限に準拠</span>
+          </div>
+        </div>
+
+        ${groq.recentCalls && groq.recentCalls.length ? `
+          <div style="margin-top: 14px;">
+            <small style="font-size: 12px; font-weight: 700; color: var(--text-2);">直近のGroqリクエスト履歴 (最新${groq.recentCalls.length}件):</small>
+            <div class="usage-history-wrap">
+              <table class="usage-history-table">
+                <thead>
+                  <tr>
+                    <th>時刻</th>
+                    <th>モデル</th>
+                    <th>入力</th>
+                    <th>出力</th>
+                    <th>合計トークン</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${groq.recentCalls.map(c => `
+                    <tr>
+                      <td>${new Date(c.timestamp).toLocaleTimeString('ja-JP')}</td>
+                      <td>${esc(c.model)}</td>
+                      <td>${c.promptTokens.toLocaleString()}</td>
+                      <td>${c.candidatesTokens.toLocaleString()}</td>
+                      <td><strong>${c.totalTokens.toLocaleString()}</strong></td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ` : ''}
+
+        <div class="usage-actions-row">
+          <a class="btn btn-sm btn-ghost" href="${esc(groq.officialUrls?.dashboard || 'https://console.groq.com/')}" target="_blank" rel="noopener" style="border: 1px solid var(--border-strong);">
+            <span data-icon="external"></span>Groq Console ↗
+          </a>
+          <a class="btn btn-sm btn-ghost" href="${esc(groq.officialUrls?.apiKey || 'https://console.groq.com/keys')}" target="_blank" rel="noopener" style="border: 1px solid var(--border-strong);">
+            <span data-icon="external"></span>APIキー管理 ↗
+          </a>
+          <a class="btn btn-sm btn-ghost" href="${esc(groq.officialUrls?.limits || 'https://console.groq.com/settings/limits')}" target="_blank" rel="noopener" style="border: 1px solid var(--border-strong);">
+            <span data-icon="external"></span>レート制限確認 ↗
           </a>
         </div>
       </div>

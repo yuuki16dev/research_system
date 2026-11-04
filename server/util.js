@@ -316,6 +316,16 @@ function normalizeResult(raw = {}, meta = {}) {
           secondHopSourcesCount: Number((raw.multiHop && raw.multiHop.secondHopSourcesCount) || (meta.multiHop && meta.multiHop.secondHopSourcesCount)) || 0,
         }
       : null,
+    tokenUsage: (raw.tokenUsage || meta.tokenUsage)
+      ? {
+          promptTokens: Number((raw.tokenUsage || meta.tokenUsage).promptTokens) || 0,
+          candidatesTokens: Number((raw.tokenUsage || meta.tokenUsage).candidatesTokens) || 0,
+          totalTokens: Number((raw.tokenUsage || meta.tokenUsage).totalTokens) || 0,
+          calls: Number((raw.tokenUsage || meta.tokenUsage).calls) || 0,
+          provider: str((raw.tokenUsage || meta.tokenUsage).provider) || 'gemini',
+          model: str((raw.tokenUsage || meta.tokenUsage).model) || '',
+        }
+      : null,
     sources,
   };
 }

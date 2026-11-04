@@ -17,7 +17,20 @@ const USD_JPY_RATE = 150; // 参考レート
 function loadUsage() {
   try {
     if (fs.existsSync(FILE)) {
-      return JSON.parse(fs.readFileSync(FILE, 'utf8'));
+      const data = JSON.parse(fs.readFileSync(FILE, 'utf8'));
+      if (data && !data.groq) {
+        data.groq = {
+          totalRequests: 0,
+          todayRequests: 0,
+          lastDate: new Date().toISOString().slice(0, 10),
+          totalPromptTokens: 0,
+          totalCandidatesTokens: 0,
+          totalTokens: 0,
+          lastUsed: null,
+          history: [],
+        };
+      }
+      return data;
     }
   } catch (e) {
     console.error('[usage] load error:', e.message);
@@ -32,6 +45,16 @@ function loadUsage() {
       totalTokens: 0,
       estimatedCostUsd: 0,
       estimatedCostJpy: 0,
+      lastUsed: null,
+      history: [],
+    },
+    groq: {
+      totalRequests: 0,
+      todayRequests: 0,
+      lastDate: new Date().toISOString().slice(0, 10),
+      totalPromptTokens: 0,
+      totalCandidatesTokens: 0,
+      totalTokens: 0,
       lastUsed: null,
       history: [],
     },
@@ -82,6 +105,47 @@ function recordGemini({ model, promptTokens = 0, candidatesTokens = 0, totalToke
     totalTokens: totalTokens || (promptTokens + candidatesTokens),
   });
   if (data.gemini.history.length > 30) data.gemini.history = data.gemini.history.slice(0, 30);
+
+  saveUsage(data);
+  return data;
+}
+
+function recordGroq({ model, promptTokens = 0, candidatesTokens = 0, totalTokens = 0 }) {
+  const data = loadUsage();
+  if (!data.groq) {
+    data.groq = {
+      totalRequests: 0,
+      todayRequests: 0,
+      lastDate: new Date().toISOString().slice(0, 10),
+      totalPromptTokens: 0,
+      totalCandidatesTokens: 0,
+      totalTokens: 0,
+      lastUsed: null,
+      history: [],
+    };
+  }
+  const today = new Date().toISOString().slice(0, 10);
+  if (data.groq.lastDate !== today) {
+    data.groq.todayRequests = 0;
+    data.groq.lastDate = today;
+  }
+  data.groq.totalRequests += 1;
+  data.groq.todayRequests += 1;
+  data.groq.totalPromptTokens += promptTokens;
+  data.groq.totalCandidatesTokens += candidatesTokens;
+  data.groq.totalTokens += (totalTokens || (promptTokens + candidatesTokens));
+  data.groq.lastUsed = new Date().toISOString();
+
+  // 履歴ログ (直近30件)
+  if (!Array.isArray(data.groq.history)) data.groq.history = [];
+  data.groq.history.unshift({
+    timestamp: new Date().toISOString(),
+    model: model || 'llama-3.3-70b-versatile',
+    promptTokens,
+    candidatesTokens,
+    totalTokens: totalTokens || (promptTokens + candidatesTokens),
+  });
+  if (data.groq.history.length > 30) data.groq.history = data.groq.history.slice(0, 30);
 
   saveUsage(data);
   return data;
@@ -321,6 +385,28 @@ async function getFullUsageSummary(settingsObj = {}, options = {}) {
         billing: 'https://console.cloud.google.com/billing',
       },
     },
+    groq: {
+      configured: !!settingsObj.groqApiKey,
+      model: settingsObj.groqModel || 'llama-3.3-70b-versatile',
+      totalRequests: (local.groq && local.groq.totalRequests) || 0,
+      todayRequests: (local.groq && local.groq.todayRequests) || 0,
+      totalPromptTokens: (local.groq && local.groq.totalPromptTokens) || 0,
+      totalCandidatesTokens: (local.groq && local.groq.totalCandidatesTokens) || 0,
+      totalTokens: (local.groq && local.groq.totalTokens) || 0,
+      lastUsed: (local.groq && local.groq.lastUsed) || null,
+      recentCalls: ((local.groq && local.groq.history) || []).slice(0, 10),
+      quotas: {
+        tpm: '6,000〜100,000 トークン / 分（モデル別）',
+        rpm: '30 回 / 分',
+        rpd: '14,400 回 / 日',
+        pricing: '完全無料枠あり（超高速推論エンジン・補欠バックアップ）',
+      },
+      officialUrls: {
+        dashboard: 'https://console.groq.com/',
+        apiKey: 'https://console.groq.com/keys',
+        limits: 'https://console.groq.com/settings/limits',
+      },
+    },
     tavily: {
       ...tavilyData,
       localTotalSearches: local.searches.tavilyTotal,
@@ -350,6 +436,7 @@ async function getFullUsageSummary(settingsObj = {}, options = {}) {
 module.exports = {
   loadUsage,
   recordGemini,
+  recordGroq,
   recordSearch,
   fetchLiveTavilyUsage,
   getNextQuotaReset,

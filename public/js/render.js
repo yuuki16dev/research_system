@@ -84,6 +84,11 @@ export function renderReport(data, container) {
       ${data.referenceUrls && data.referenceUrls.length ? `<span class="tag" style="background: rgba(14, 165, 233, 0.15); color: #7dd3fc; border-color: rgba(14, 165, 233, 0.4);"><span data-icon="link"></span>先行参考URL: ${data.referenceUrls.length}件</span>` : ''}
       ${data.multiHop && data.multiHop.enabled ? `<span class="tag tag-multihop" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border-color: rgba(16, 185, 129, 0.4); font-weight: 600;"><span data-icon="git-merge"></span>自律2段階深層探索済</span>` : ''}
       ${data.framework ? `<span class="tag tag-framework" style="background: rgba(37,99,235,0.12); color: var(--primary-light); border-color: rgba(37,99,235,0.35); font-weight: 600;"><span data-icon="sparkles"></span>${esc(data.framework.focusLabel || 'AI動的構造化')}</span>` : ''}
+      ${data.tokenUsage && data.tokenUsage.totalTokens ? `
+        <span class="tag tag-token-usage" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border-color: rgba(16, 185, 129, 0.4); font-weight: 600;" title="入力: ${Number(data.tokenUsage.promptTokens || 0).toLocaleString()} tok / 出力: ${Number(data.tokenUsage.candidatesTokens || 0).toLocaleString()} tok (${esc(data.tokenUsage.provider || 'gemini')})">
+          <span data-icon="cpu"></span>消費トークン: ${Number(data.tokenUsage.totalTokens).toLocaleString()} tok
+        </span>
+      ` : ''}
       <span class="tag"><span data-icon="clock"></span>${esc(createdStr)} (${durationSec}秒)</span>
     </div>
     <h2>${esc(data.title)}</h2>

@@ -537,6 +537,7 @@ async function generate({
   maxRetries = 6,
   timeoutMs = 180000,
   onRetry = null,
+  onUsage = null,
   isFreeTier = false,
 }) {
   // 複数キー（カンマ・改行・セミコロン区切りまたは配列）を自動解析
@@ -680,6 +681,18 @@ async function generate({
           });
         } catch {
           /* ignore */
+        }
+        if (typeof onUsage === 'function') {
+          try {
+            onUsage({
+              model: currentModel,
+              promptTokens: meta.promptTokenCount || 0,
+              candidatesTokens: meta.candidatesTokenCount || 0,
+              totalTokens: meta.totalTokenCount || 0,
+            });
+          } catch {
+            /* ignore */
+          }
         }
       }
 

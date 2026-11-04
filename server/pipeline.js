@@ -222,6 +222,29 @@ async function runLive(p, s, ctx) {
   const { signal } = ctx;
   const notices = [];
   const isFreeTier = s.geminiAccountTier === 'free' || (s.geminiAccountTier !== 'tier1');
+
+  const jobTokenUsage = {
+    promptTokens: 0,
+    candidatesTokens: 0,
+    totalTokens: 0,
+    calls: 0,
+    provider: 'gemini',
+    model: s.geminiModel || 'gemini-3.8-flash',
+  };
+
+  const recordJobUsage = (usageInfo) => {
+    if (!usageInfo) return;
+    const pt = Number(usageInfo.promptTokens) || 0;
+    const ct = Number(usageInfo.candidatesTokens) || 0;
+    const tt = Number(usageInfo.totalTokens) || (pt + ct);
+    jobTokenUsage.promptTokens += pt;
+    jobTokenUsage.candidatesTokens += ct;
+    jobTokenUsage.totalTokens += tt;
+    jobTokenUsage.calls += 1;
+    if (usageInfo.provider) jobTokenUsage.provider = usageInfo.provider;
+    if (usageInfo.model) jobTokenUsage.model = usageInfo.model;
+  };
+
   const ai = (prompt, opts = {}) =>
     generateJSON({
       apiKey: s.geminiApiKey,
@@ -229,6 +252,7 @@ async function runLive(p, s, ctx) {
       prompt,
       signal,
       isFreeTier,
+      onUsage: (u) => recordJobUsage({ ...u, provider: 'gemini' }),
       onRetry: ({ attempt, maxRetries, waitMs, currentModel, isFallback, isKeyRotated, isCooldown, keyIndex, totalKeys, error }) => {
         if (isKeyRotated) {
           ctx.log(
@@ -395,6 +419,7 @@ async function runLive(p, s, ctx) {
           prompt: `あなたはトップティア戦略コンサルタントのリサーチディレクターです。以下のテーマについて検索サブクエリ${nQ}個と動的分析構造をJSONで作成してください：\nテーマ: ${p.theme}\n出力JSON:\n{"queries": ["クエリ1", "クエリ2"], "angles": ["観点1"], "framework": {"focus": "${focus}", "focusLabel": "${FOCUS_LABELS[focus]}", "dynamicHeadings": [{"heading": "見出し", "keyQuestion": "問い"}], "tableComparisonAxis": "軸"}}`,
           signal,
           timeoutMs: 15000,
+          onUsage: (u) => recordJobUsage({ ...u, provider: 'groq' }),
         });
         notices.push(`💡 Google無料枠混雑のため、補欠の Groq (${s.groqModel || 'Llama 3.3 70B'}) により高速クエリ展開を実行しました`);
       } catch (_) {
@@ -808,6 +833,7 @@ async function runLive(p, s, ctx) {
               signal,
               temperature: 0.3,
               timeoutMs: 45000,
+              onUsage: (u) => recordJobUsage({ ...u, provider: 'groq' }),
             });
             if (raw && (raw.summary || raw.keyPoints)) {
               groqSuccess = true;
@@ -844,6 +870,7 @@ async function runLive(p, s, ctx) {
   if (multiHop) {
     raw.multiHop = raw.multiHop || multiHop;
   }
+  raw.tokenUsage = jobTokenUsage;
 
   return {
     raw,
@@ -1438,12 +1465,28 @@ async function runCrossSynthesis(job, settings) {
   }
 
   if (live) {
+    const crossTokenUsage = {
+      promptTokens: 0,
+      candidatesTokens: 0,
+      totalTokens: 0,
+      calls: 0,
+      provider: 'gemini',
+      model: settings.geminiModel || 'gemini-3.8-flash',
+    };
     const ai = (prompt, opts = {}) =>
       generateJSON({
         apiKey: settings.geminiApiKey,
         model: settings.geminiModel,
         prompt,
         signal: ctx.signal,
+        onUsage: (u) => {
+          if (u) {
+            crossTokenUsage.promptTokens += (u.promptTokens || 0);
+            crossTokenUsage.candidatesTokens += (u.candidatesTokens || 0);
+            crossTokenUsage.totalTokens += (u.totalTokens || 0);
+            crossTokenUsage.calls += 1;
+          }
+        },
         ...opts,
       });
 
@@ -1510,6 +1553,9 @@ ${reportsDigest}
   raw.isCrossSynthesis = true;
   raw.synthesizedReportIds = reports.map((r) => r.id);
   raw.synthesizedThemes = themes;
+  if (live) {
+    raw.tokenUsage = crossTokenUsage;
+  }
 
   const result = normalizeResult(raw, {
     id: job.id,
@@ -1583,12 +1629,28 @@ async function runDeltaTracking(job, settings) {
   const currentYear = new Date().getFullYear();
 
   if (live) {
+    const crossTokenUsage = {
+      promptTokens: 0,
+      candidatesTokens: 0,
+      totalTokens: 0,
+      calls: 0,
+      provider: 'gemini',
+      model: settings.geminiModel || 'gemini-3.8-flash',
+    };
     const ai = (prompt, opts = {}) =>
       generateJSON({
         apiKey: settings.geminiApiKey,
         model: settings.geminiModel,
         prompt,
         signal: ctx.signal,
+        onUsage: (u) => {
+          if (u) {
+            crossTokenUsage.promptTokens += (u.promptTokens || 0);
+            crossTokenUsage.candidatesTokens += (u.candidatesTokens || 0);
+            crossTokenUsage.totalTokens += (u.totalTokens || 0);
+            crossTokenUsage.calls += 1;
+          }
+        },
         ...opts,
       });
 
@@ -1777,6 +1839,9 @@ ${sourcesContext}
   raw.baseReportId = baseReport.id || '';
   raw.baseReportDate = baseDate;
   raw.baseReportTitle = baseReport.title || theme;
+  if (live) {
+    raw.tokenUsage = crossTokenUsage;
+  }
 
   const result = normalizeResult(raw, {
     id: job.id,

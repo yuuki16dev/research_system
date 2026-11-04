@@ -24,6 +24,7 @@ async function generateGroq({
   temperature = 0.3,
   json = true,
   timeoutMs = 60000,
+  onUsage = null,
 }) {
   const key = String(apiKey || '').trim();
   if (!key) throw new Error('Groq APIキーが設定されていません');
@@ -68,6 +69,28 @@ async function generateGroq({
   }
 
   const data = await res.json();
+  const usage = data.usage;
+  if (usage) {
+    const promptTokens = usage.prompt_tokens || 0;
+    const candidatesTokens = usage.completion_tokens || 0;
+    const totalTokens = usage.total_tokens || (promptTokens + candidatesTokens);
+    try {
+      const { recordGroq } = require('./usage');
+      if (typeof recordGroq === 'function') {
+        recordGroq({ model: targetModel, promptTokens, candidatesTokens, totalTokens });
+      }
+    } catch {
+      /* ignore */
+    }
+    if (typeof onUsage === 'function') {
+      try {
+        onUsage({ model: targetModel, promptTokens, candidatesTokens, totalTokens });
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
   const content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
   if (!content) throw new Error('Groqからの応答が空でした');
 

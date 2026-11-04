@@ -565,7 +565,11 @@ export function buildMarkdown(data) {
   md += `- **調査対象期間**: ${data.periodLabel || '直近1年（最新推奨）'}\n`;
   md += `- **調査範囲**: ${data.scopeLabel} (${data.depthLabel})\n`;
   md += `- **作成日時**: ${fmtDate(data.createdAt)}\n`;
-  md += `- **収集ソース**: ${data.sources ? data.sources.length : 0} 件\n\n`;
+  md += `- **収集ソース**: ${data.sources ? data.sources.length : 0} 件\n`;
+  if (data.tokenUsage && data.tokenUsage.totalTokens) {
+    md += `- **消費トークン**: ${Number(data.tokenUsage.totalTokens).toLocaleString()} tok (入力: ${Number(data.tokenUsage.promptTokens || 0).toLocaleString()} / 出力: ${Number(data.tokenUsage.candidatesTokens || 0).toLocaleString()})\n`;
+  }
+  md += `\n`;
   md += `---\n\n`;
 
   md += `## エグゼクティブサマリー\n\n${data.summary}\n\n`;
@@ -721,7 +725,11 @@ export function buildPlainText(data) {
   txt += `・調査対象期間: ${data.periodLabel || '直近1年（最新推奨）'}\n`;
   txt += `・調査範囲: ${data.scopeLabel} (${data.depthLabel})\n`;
   txt += `・作成日時: ${fmtDate(data.createdAt)}\n`;
-  txt += `・収集ソース件数: ${data.sources ? data.sources.length : 0} 件\n\n`;
+  txt += `・収集ソース件数: ${data.sources ? data.sources.length : 0} 件\n`;
+  if (data.tokenUsage && data.tokenUsage.totalTokens) {
+    txt += `・消費トークン: ${Number(data.tokenUsage.totalTokens).toLocaleString()} tok (入力: ${Number(data.tokenUsage.promptTokens || 0).toLocaleString()} / 出力: ${Number(data.tokenUsage.candidatesTokens || 0).toLocaleString()})\n`;
+  }
+  txt += `\n`;
 
   txt += `${subDivider}\n■ エグゼクティブサマリー\n${subDivider}\n${data.summary}\n\n`;
 
