@@ -537,6 +537,7 @@ async function generate({
   maxRetries = 6,
   timeoutMs = 180000,
   onRetry = null,
+  isFreeTier = false,
 }) {
   // 複数キー（カンマ・改行・セミコロン区切りまたは配列）を自動解析
   const keys = Array.isArray(apiKey)
@@ -626,18 +627,21 @@ async function generate({
             currentKeyIdx = 0;
           }
 
-          // 待機時間の計算: キー切替時は500ms、モデル切替時は1200ms、全枯渇時は冷却カウントダウン待機
+          // 待機時間の計算: キー切替時は600ms、モデル切替時は1200ms〜3500ms、全枯渇時は冷却カウントダウン待機
           let waitMs = 1200;
           if (isKeyRotated) {
-            waitMs = 600;
+            waitMs = isFreeTier ? 1200 : 600;
           } else if (isFallback) {
-            waitMs = 1200;
-          } else if (attempt >= 3 && isOverloadOrQuota) {
-            // 【プランB: 自動冷却待機】全キー・全モデルで制限持続時は20秒待機してGoogleバケットの自動回復を待つ
-            waitMs = attempt === 3 ? 18000 : 25000;
+            // 無料枠の別モデル迂回時は、共通の無料枠クラスタの混雑が引くようジッター付きで待機
+            waitMs = isFreeTier ? (2500 + Math.floor(Math.random() * 1500)) : 1200;
+          } else if (attempt >= 2 && isOverloadOrQuota) {
+            // 【プランB/C: 自動冷却知的待機】全キー・全モデルで制限持続時はGoogle過負荷が抜けるのを待つ
+            waitMs = isFreeTier
+              ? Math.min(22000, (attempt * 5000) + Math.floor(Math.random() * 2000))
+              : (attempt === 3 ? 18000 : 25000);
             isCooldown = true;
           } else {
-            waitMs = attempt === 1 ? 2500 : 5000;
+            waitMs = isFreeTier ? (3000 + Math.floor(Math.random() * 1500)) : (attempt === 1 ? 2500 : 5000);
           }
 
           if (typeof onRetry === 'function') {

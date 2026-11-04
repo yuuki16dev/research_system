@@ -28,6 +28,7 @@ const DEFAULTS = {
   geminiApiKey: '',
   tavilyApiKey: '',
   geminiModel: 'gemini-3.8-flash',
+  geminiAccountTier: 'auto', // auto | free (完全無料枠・トークン圧縮&過負荷回避) | tier1 (クレカ登録済・フルパワー)
   searchProvider: 'auto', // auto | tavily | duckduckgo
   mode: 'auto', // auto（キーがあればLIVE） | mock（常にデモ）
   publisher: 'Research Studio',
@@ -42,6 +43,7 @@ const DEFAULTS = {
 
 const ALLOWED = Object.keys(DEFAULTS);
 const ENUMS = {
+  geminiAccountTier: ['auto', 'free', 'tier1'],
   searchProvider: ['auto', 'tavily', 'duckduckgo'],
   mode: ['auto', 'mock'],
   confidentiality: ['CONFIDENTIAL', 'INTERNAL', 'PUBLIC', 'NONE'],

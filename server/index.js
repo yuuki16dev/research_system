@@ -299,7 +299,9 @@ app.post('/api/settings/test', async (req, res) => {
         maxRetries: 2,
         signal: AbortSignal.timeout(15000),
       });
-      out.gemini = { ok: true, message: `接続OK（${model} / ${Date.now() - t0}ms）` };
+      const tierMode = body.geminiAccountTier || cur.geminiAccountTier || 'auto';
+      const tierLabel = tierMode === 'tier1' ? '有料枠 (Tier 1モード)' : '無料枠 (トークン圧縮＆混雑回避ON)';
+      out.gemini = { ok: true, message: `接続OK（${model} / ${Date.now() - t0}ms / ${tierLabel}）` };
     } catch (e) {
       // 最初のモデルで失敗した場合、Google公式の安定モデル（gemini-3.7-flash）で即座に代替診断
       let altTested = null;

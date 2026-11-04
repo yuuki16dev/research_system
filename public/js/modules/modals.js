@@ -375,6 +375,7 @@ export function bindSettingsModal() {
       geminiApiKey: $('#gemini-key').value.trim() || undefined,
       tavilyApiKey: $('#tavily-key').value.trim() || undefined,
       geminiModel: $('#gemini-model').value.trim() || undefined,
+      geminiAccountTier: $('#gemini-tier') ? $('#gemini-tier').value : undefined,
     };
 
     try {
@@ -405,6 +406,7 @@ export function bindSettingsModal() {
     e.preventDefault();
     const patch = {
       geminiModel: $('#gemini-model').value.trim(),
+      geminiAccountTier: $('#gemini-tier') ? $('#gemini-tier').value : 'auto',
       searchProvider: $('#search-provider').value,
       mode: $('#mode-mock').checked ? 'mock' : 'auto',
       publisher: $('#publisher').value.trim() || 'Research Studio',
@@ -493,6 +495,7 @@ export async function loadSettingsIntoForm() {
   $('#gemini-key').value = '';
   $('#tavily-key').value = '';
   $('#gemini-model').value = s.geminiModel || 'gemini-3.8-flash';
+  if ($('#gemini-tier')) $('#gemini-tier').value = s.geminiAccountTier || 'auto';
   $('#search-provider').value = s.searchProvider || 'auto';
   $('#mode-mock').checked = s.mode === 'mock';
   $('#publisher').value = s.publisher || 'Research Studio';

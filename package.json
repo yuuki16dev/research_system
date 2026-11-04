@@ -1,6 +1,6 @@
 {
   "name": "research_system",
-  "version": "1.21.0",
+  "version": "1.22.0",
   "description": "AI駆動型の自律リサーチ＆総合インテリジェンス自動生成システム",
   "main": "server/index.js",
   "bin": "server/index.js",
