@@ -40,6 +40,10 @@ function isRetryableError(err, status) {
     return true;
   }
   const msg = String((err && err.message) || '').toLowerCase();
+  // 404 でモデル提供終了（no longer available）が出た場合も、別モデルへのフェイルオーバー対象としてリトライ可能
+  if (status === 404 && (msg.includes('no longer available') || msg.includes('not found') || msg.includes('not supported'))) {
+    return true;
+  }
   const code = String((err && err.code) || (err && err.cause && err.cause.code) || '').toUpperCase();
   if (
     code === 'UND_ERR_CONNECT_TIMEOUT' ||
@@ -67,7 +71,7 @@ function humanizeError(err) {
     return 'Google Gemini APIへの接続がタイムアウトしました。通信環境が不安定か、回線の一時的な遅延の可能性があります。再度お試しください。';
   }
   if (msg.includes('503') || msg.includes('high demand') || msg.includes('overloaded')) {
-    return 'Google Gemini APIが現在混雑（503: High Demand）しています。バックアップモデルへの切り替えまたは数秒後の再試行を実施してください。';
+    return 'Google Gemini APIが一時的に混雑（503: High Demand）しています。数秒待機後に自動再試行されます。';
   }
   if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED')) {
     return 'Gemini APIの利用制限（レートリミット: 429）に達しました。1分ほど待ってから再実行してください。';
@@ -78,11 +82,10 @@ function humanizeError(err) {
   return msg;
 }
 
-/** 503過負荷・レート制限時の自動フェイルオーバー先候補モデルリスト */
+/** Google公式現行の安定モデルリスト（廃止・未提供モデルは排除） */
 function getFallbackModels(currentModel) {
   const norm = String(currentModel || '').toLowerCase().trim();
   const candidates = [
-    'gemini-2.5-flash',
     'gemini-2.0-flash',
     'gemini-1.5-flash',
     'gemini-3.8-flash',
@@ -572,13 +575,15 @@ async function generate({
           let isFallback = false;
           let prevModel = currentModel;
 
-          // 503過負荷（High Demand）または 2回目以降の再試行時、バックアップモデルに自動フェイルオーバー
-          if ((status === 503 || msg.toLowerCase().includes('high demand') || attempt >= 2) && fallbackIdx < fallbackModels.length) {
+          const isModelUnavailable = status === 404 || msg.toLowerCase().includes('no longer available');
+          const isPersistentOverload = attempt >= 2 && (status === 503 || msg.toLowerCase().includes('high demand') || status === 429);
+
+          if ((isModelUnavailable || isPersistentOverload) && fallbackIdx < fallbackModels.length) {
             currentModel = fallbackModels[fallbackIdx++];
             isFallback = true;
           }
 
-          const waitMs = attempt === 1 ? 2000 : attempt === 2 ? 4000 : 7000;
+          const waitMs = attempt === 1 ? 3500 : attempt === 2 ? 6000 : 10000;
           if (typeof onRetry === 'function') {
             try {
               onRetry({
@@ -641,12 +646,16 @@ async function generate({
       if (attempt < maxRetries && isRetryableError(err, err.status)) {
         let isFallback = false;
         let prevModel = currentModel;
-        if ((err.status === 503 || String(err.message).toLowerCase().includes('high demand') || attempt >= 2) && fallbackIdx < fallbackModels.length) {
+        const msg = String(err.message || '').toLowerCase();
+        const isModelUnavailable = err.status === 404 || msg.includes('no longer available');
+        const isPersistentOverload = attempt >= 2 && (err.status === 503 || msg.includes('high demand') || err.status === 429);
+
+        if ((isModelUnavailable || isPersistentOverload) && fallbackIdx < fallbackModels.length) {
           currentModel = fallbackModels[fallbackIdx++];
           isFallback = true;
         }
 
-        const waitMs = attempt === 1 ? 2000 : attempt === 2 ? 4000 : 7000;
+        const waitMs = attempt === 1 ? 3500 : attempt === 2 ? 6000 : 10000;
         if (typeof onRetry === 'function') {
           try {
             onRetry({

@@ -199,21 +199,12 @@ async function runLive(p, s, ctx) {
     ctx.log('🏛️ 一次情報・公的データ優先モードが有効: 官公庁(.go.jp)・学術(.ac.jp)・企業IR等の一次ソースを優先', 'plan');
   }
 
-  // 添付資料（BYOD）の内容・サマリーを計画段階から注入
+  // 添付資料（BYOD）の内容・サマリーを計画段階から注入（トークン過大化・503過負荷を防ぐためテキスト抜粋を軽量注入）
   let planAttachedContext = '';
-  const planParts = [];
   if (Array.isArray(p.attachedFiles) && p.attachedFiles.length > 0) {
     const fileSummaries = p.attachedFiles.map((f, i) => {
       const txt = (f.text || '').trim();
-      const snippet = txt ? txt.slice(0, 1500) : '（PDF等のレポート資料）';
-      if (f.base64 && (f.type === 'application/pdf' || String(f.name).toLowerCase().endsWith('.pdf'))) {
-        planParts.push({
-          inlineData: {
-            mimeType: 'application/pdf',
-            data: f.base64,
-          },
-        });
-      }
+      const snippet = txt ? txt.slice(0, 1200) : '（手持ちレポート・独自資料）';
       return `・添付資料[${i + 1}]: ${f.name} (${Math.round((f.size || 0) / 1024)}KB)\n  内容抜粋: ${snippet}`;
     }).join('\n');
     planAttachedContext = `\n【最重要前提: ユーザー添付の手持ち独自資料・前提レポート情報】\n` +
@@ -254,7 +245,7 @@ async function runLive(p, s, ctx) {
       `    "tableComparisonAxis": "推奨される比較表の切り口（例: 機能 vs コスト vs 運用難易度）"\n` +
       `  }\n` +
       `}`,
-    { parts: planParts, temperature: 0.4 }
+    { temperature: 0.4 }
   );
   let queries = arr(plan.queries).map((q) => str(q)).filter(Boolean).slice(0, nQ);
   if (!queries.length) queries = [p.theme];
