@@ -6,6 +6,7 @@ import { $, toast, copyText, downloadBlob, safeFilename, openModal, closeModal }
 import {
   buildClaudePrompt,
   buildMarkdown,
+  buildPlainText,
   exportExcel,
   exportPDF,
   buildPdfHtml,
@@ -83,6 +84,34 @@ export function bindExportActions(onOpenHistory) {
     });
   }
 
+  // ハブ内 5. Markdown (.md)
+  const btnEhMd = $('#btn-eh-md');
+  if (btnEhMd) {
+    btnEhMd.addEventListener('click', async () => {
+      if (!appState.currentResult) return;
+      closeModal('modal-export-hub');
+      const md = buildMarkdown(appState.currentResult);
+      await copyText(md);
+      const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+      downloadBlob(blob, `${safeFilename(appState.currentResult.title || appState.currentResult.theme)}.md`);
+      toast('Markdown (.md) を出力・コピーしました', 'success');
+    });
+  }
+
+  // ハブ内 6. プレーンテキスト (.txt)
+  const btnEhTxt = $('#btn-eh-txt');
+  if (btnEhTxt) {
+    btnEhTxt.addEventListener('click', async () => {
+      if (!appState.currentResult) return;
+      closeModal('modal-export-hub');
+      const txt = buildPlainText(appState.currentResult);
+      await copyText(txt);
+      const blob = new Blob([txt], { type: 'text/plain;charset=utf-8' });
+      downloadBlob(blob, `${safeFilename(appState.currentResult.title || appState.currentResult.theme)}.txt`);
+      toast('プレーンテキスト (.txt) を出力・コピーしました', 'success');
+    });
+  }
+
   // Claude用プロンプトのコピー
   const btnPrompt = $('#btn-copy-prompt');
   if (btnPrompt) {
@@ -143,6 +172,21 @@ export function bindExportActions(onOpenHistory) {
       }
       const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
       downloadBlob(blob, `${safeFilename(appState.currentResult.title || appState.currentResult.theme)}.md`);
+    });
+  }
+
+  // プレーンテキスト出力
+  const btnTxt = $('#btn-txt');
+  if (btnTxt) {
+    btnTxt.addEventListener('click', async () => {
+      if (!appState.currentResult) return;
+      const txt = buildPlainText(appState.currentResult);
+      const ok = await copyText(txt);
+      if (ok) {
+        toast('テキストをクリップボードにコピーしました', 'success');
+      }
+      const blob = new Blob([txt], { type: 'text/plain;charset=utf-8' });
+      downloadBlob(blob, `${safeFilename(appState.currentResult.title || appState.currentResult.theme)}.txt`);
     });
   }
 

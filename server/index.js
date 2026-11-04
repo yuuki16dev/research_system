@@ -43,6 +43,7 @@ const pdf = require('./pdf');
 const excel = require('./excel');
 const presentation = require('./presentation');
 const { getFullUsageSummary } = require('./usage');
+const { buildMarkdown, buildPlainText } = require('./util');
 
 
 const PORT = Number(process.env.PORT) || 3939;
@@ -554,6 +555,40 @@ app.post('/api/export/excel', async (req, res) => {
   } catch (err) {
     console.error('Excel export error:', err);
     res.status(500).json({ error: err.message || 'Excelの生成に失敗しました' });
+  }
+});
+
+/* -------------------------------------------------------- Markdown export */
+app.post('/api/export/markdown', (req, res) => {
+  const { data, filename } = req.body || {};
+  if (!data) return res.status(400).json({ error: 'data は必須です' });
+
+  try {
+    const md = buildMarkdown(data);
+    const safeName = encodeURIComponent((filename || `${data.title || data.theme || 'Research_Report'}.md`).replace(/[\\/:*?"<>|\r\n]+/g, '_'));
+    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${safeName}"; filename*=UTF-8''${safeName}`);
+    res.send(md);
+  } catch (err) {
+    console.error('Markdown export error:', err);
+    res.status(500).json({ error: err.message || 'Markdownの生成に失敗しました' });
+  }
+});
+
+/* ------------------------------------------------------ Plain text export */
+app.post('/api/export/text', (req, res) => {
+  const { data, filename } = req.body || {};
+  if (!data) return res.status(400).json({ error: 'data は必須です' });
+
+  try {
+    const txt = buildPlainText(data);
+    const safeName = encodeURIComponent((filename || `${data.title || data.theme || 'Research_Report'}.txt`).replace(/[\\/:*?"<>|\r\n]+/g, '_'));
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${safeName}"; filename*=UTF-8''${safeName}`);
+    res.send(txt);
+  } catch (err) {
+    console.error('Plain text export error:', err);
+    res.status(500).json({ error: err.message || 'プレーンテキストの生成に失敗しました' });
   }
 });
 

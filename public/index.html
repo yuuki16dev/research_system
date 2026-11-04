@@ -502,7 +502,7 @@
           </div>
           <div class="export-actions-grouped">
             <div class="export-primary-group">
-              <button type="button" class="btn btn-primary btn-sm btn-export-highlight" id="btn-export-hub" title="目的別の形式（A4縦・横PDF、PowerPoint、Excel）を選んで書き出し">
+              <button type="button" class="btn btn-primary btn-sm btn-export-highlight" id="btn-export-hub" title="目的別の形式（PDF縦横・PowerPoint・Excel・Markdown・テキスト）を選んで書き出し">
                 <span data-icon="download"></span><span>書き出し</span>
               </button>
               <button type="button" class="btn btn-secondary btn-sm" id="btn-pdf" title="デザイン済み商用レポートPDFをプレビュー・出力">
@@ -510,6 +510,12 @@
               </button>
               <button type="button" class="btn btn-secondary btn-sm" id="btn-xlsx" title="Excel (.xlsx) 出力">
                 <span data-icon="sheet"></span><span>Excel</span>
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-md" title="Markdown (.md) ファイルを保存＆コピー">
+                <span data-icon="hash"></span><span>MD</span>
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-txt" title="プレーンテキスト (.txt) ファイルを保存＆コピー">
+                <span data-icon="file-text"></span><span>テキスト</span>
               </button>
               <button type="button" class="btn btn-outline btn-sm btn-edit-toggle" id="btn-toggle-edit" title="レポートの文章やタイトルを直接画面上で推敲・編集">
                 <span data-icon="edit"></span><span id="btn-toggle-edit-label">直接編集</span>
@@ -560,9 +566,6 @@
                   <span data-icon="sparkles"></span>
                 </button>
               </div>
-              <button type="button" class="btn btn-ghost btn-sm" id="btn-md" title="Markdownをコピー＆保存">
-                <span data-icon="hash"></span><span>MD</span>
-              </button>
               <button type="button" class="btn btn-ghost btn-sm" id="btn-compare" title="別のレポートと並べて比較">
                 <span data-icon="chart"></span><span>比較</span>
               </button>
@@ -635,7 +638,7 @@
     </main>
 
     <footer class="footer">
-      <span id="footer-version">Research Studio v1.20.0</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span><span class="sep">·</span><a href="https://github.com/yuuki16dev/research_system/issues" target="_blank" rel="noopener" class="footer-link"><span data-icon="github"></span>GitHubでお問い合わせ</a>
+      <span id="footer-version">Research Studio v1.21.0</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span><span class="sep">·</span><a href="https://github.com/yuuki16dev/research_system/issues" target="_blank" rel="noopener" class="footer-link"><span data-icon="github"></span>GitHubでお問い合わせ</a>
     </footer>
   </div>
 
@@ -644,7 +647,7 @@
     <div class="modal-backdrop" data-close></div>
     <div class="modal-card glass">
       <header class="modal-head">
-        <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v1.20.0</small></h2>
+        <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v1.21.0</small></h2>
         <div style="display: flex; gap: 8px; align-items: center; margin-left: auto;">
           <button class="btn btn-ghost btn-sm" type="button" id="btn-settings-changelog" title="アップデート履歴 &amp; リリースノート"><span data-icon="book-open"></span><span class="label">更新履歴</span></button>
           <button class="btn btn-ghost btn-sm" type="button" id="btn-open-guide-from-settings" title="APIキー取得ガイド &amp; GitHubお問い合わせ"><span data-icon="help-circle"></span><span class="label">ガイド・問い合わせ</span></button>
@@ -1370,6 +1373,30 @@
             <div class="eh-card-meta"><span>.xlsx</span><span>ExcelJS商用品質</span><span>比較表つき</span></div>
             <button type="button" class="btn btn-secondary btn-block" id="btn-eh-xlsx">
               <span data-icon="sheet"></span>Excelで保存
+            </button>
+          </div>
+
+          <!-- 5. Markdown (.md) -->
+          <div class="export-hub-card" id="eh-card-md">
+            <div class="eh-card-badge">Notion / Obsidian</div>
+            <div class="eh-card-icon">📝</div>
+            <h3>Markdown ドキュメント (.md)</h3>
+            <p>見出し、箇条書き、比較表、深掘り知見を整形した標準マークダウン。コピー＆保存対応。</p>
+            <div class="eh-card-meta"><span>.md</span><span>UTF-8</span><span>ナレッジベース連携</span></div>
+            <button type="button" class="btn btn-secondary btn-block" id="btn-eh-md">
+              <span data-icon="hash"></span>Markdownで保存
+            </button>
+          </div>
+
+          <!-- 6. プレーンテキスト (.txt) -->
+          <div class="export-hub-card" id="eh-card-txt">
+            <div class="eh-card-badge">メモ帳・メール共有</div>
+            <div class="eh-card-icon">📋</div>
+            <h3>プレーンテキスト (.txt)</h3>
+            <p>特殊記号を整理し、Windowsメモ帳や社内メール・チャットにそのまま貼れるビジネステキスト。</p>
+            <div class="eh-card-meta"><span>.txt</span><span>UTF-8</span><span>高密度フォーマット</span></div>
+            <button type="button" class="btn btn-secondary btn-block" id="btn-eh-txt">
+              <span data-icon="file-text"></span>テキストで保存
             </button>
           </div>
         </div>

@@ -328,6 +328,253 @@ const FOCUS_LABELS = {
   problem: '課題解決・根本原因・リスク分析',
 };
 
+function fmtDate(iso) {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  } catch {
+    return String(iso);
+  }
+}
+
+/** Markdown形式 (.md) の生成 */
+function buildMarkdown(data) {
+  if (!data) return '';
+
+  let md = `# ${data.title || data.theme}\n\n`;
+  if (data.subtitle) md += `> **${data.subtitle}**\n\n`;
+
+  md += `| 項目 | 内容 |\n|---|---|\n`;
+  md += `| **リサーチテーマ** | ${data.theme || ''} |\n`;
+  md += `| **調査対象期間** | ${data.periodLabel || '直近1年（最新推奨）'} |\n`;
+  md += `| **調査範囲** | ${data.scopeLabel || ''} (${data.depthLabel || ''}) |\n`;
+  md += `| **作成日時** | ${fmtDate(data.createdAt)} |\n`;
+  md += `| **収集ソース件数** | ${data.sources ? data.sources.length : 0} 件 |\n\n`;
+
+  md += `## エグゼクティブサマリー\n\n${data.summary || ''}\n\n`;
+
+  if (data.metrics && data.metrics.length) {
+    md += `## 主要指標 (KPI)\n\n`;
+    data.metrics.forEach((m) => {
+      md += `- **${m.label}**: ${m.value}${m.note ? ` (${m.note})` : ''}\n`;
+    });
+    md += '\n';
+  }
+
+  if (data.keyPoints && data.keyPoints.length) {
+    md += `## キーハイライト\n\n`;
+    data.keyPoints.forEach((kp) => {
+      md += `- ${kp}\n`;
+    });
+    md += '\n';
+  }
+
+  if (data.table && data.table.columns && data.table.rows) {
+    md += `## ${data.table.caption || '構造化比較マトリクス'}\n\n`;
+    md += `| ${data.table.columns.join(' | ')} |\n`;
+    md += `| ${data.table.columns.map(() => '---').join(' | ')} |\n`;
+    data.table.rows.forEach((r) => {
+      md += `| ${r.join(' | ')} |\n`;
+    });
+    md += '\n';
+  }
+
+  if (data.deepThinking && data.deepThinking.tradeoffs && data.deepThinking.tradeoffs.length) {
+    md += `## 多角トレードオフ・対立軸マトリクス\n\n`;
+    data.deepThinking.tradeoffs.forEach((t) => {
+      md += `### 対立軸: ${t.axis}\n\n`;
+      md += `- **推進派の論拠・メリット**: ${t.proSide}\n`;
+      md += `- **慎重派の論拠・潜在リスク**: ${t.conSide}\n`;
+      if (t.synthesis) md += `- **アナリストの統合判断**: ${t.synthesis}\n`;
+      md += '\n';
+    });
+  }
+
+  if (data.sections && data.sections.length) {
+    md += `## 詳細解説・多角分析\n\n`;
+    data.sections.forEach((sec) => {
+      md += `### ${sec.heading}\n\n${sec.body}\n\n`;
+      if (sec.bullets && sec.bullets.length) {
+        sec.bullets.forEach((b) => (md += `- ${b}\n`));
+        md += '\n';
+      }
+    });
+  }
+
+  if (data.insights && data.insights.length) {
+    md += `## 示唆・提言\n\n`;
+    data.insights.forEach((ins) => {
+      md += `#### [優先度: ${ins.priority || '中'}] ${ins.title}\n${ins.body}\n\n`;
+    });
+  }
+
+  if (data.deepThinking) {
+    const sc = data.deepThinking.scenarios;
+    const rm = data.deepThinking.roadmap;
+    if (sc) {
+      md += `## 将来シナリオ予測（今後1〜3年）\n\n`;
+      md += `- **メイン予測 (確率60%)**: ${sc.mainScenario}\n`;
+      md += `- **加速シナリオ (上振れ25%)**: ${sc.upsideScenario}\n`;
+      md += `- **停滞シナリオ (下振れ15%)**: ${sc.downsideScenario}\n\n`;
+      if (sc.criticalTriggers && sc.criticalTriggers.length) {
+        md += `**シナリオ分岐トリガー**: ${sc.criticalTriggers.join(' / ')}\n\n`;
+      }
+    }
+    if (rm && rm.length) {
+      md += `## 実行戦略ロードマップ\n\n`;
+      rm.forEach((step) => {
+        md += `### ${step.phase}\n`;
+        if (step.focus) md += `_重点テーマ: ${step.focus}_\n\n`;
+        if (step.actions && step.actions.length) {
+          step.actions.forEach((act) => (act && (md += `- ${act}\n`)));
+          md += '\n';
+        }
+      });
+    }
+  }
+
+  if (data.deepDives && data.deepDives.length) {
+    md += `## 追加深掘り知見\n\n`;
+    data.deepDives.forEach((dd, idx) => {
+      md += `### ${idx + 1}. Q: ${dd.question}\n\n`;
+      if (dd.quote) md += `> 引用箇所: "${dd.quote}"\n\n`;
+      md += `${dd.answer}\n\n`;
+      if (dd.keyPoints && dd.keyPoints.length) {
+        dd.keyPoints.forEach((kp) => (md += `- ${kp}\n`));
+        md += '\n';
+      }
+    });
+  }
+
+  if (data.sources && data.sources.length) {
+    md += `## 収集ソース一覧\n\n`;
+    data.sources.forEach((s) => {
+      md += `${s.index}. [${s.title}](${s.url}) - **${s.domain}** (信頼度スコア: ${s.score}/100)\n`;
+      if (s.snippet) md += `   > ${s.snippet.replace(/\n/g, ' ')}\n`;
+    });
+    md += '\n';
+  }
+
+  return md;
+}
+
+/** プレーンテキスト形式 (.txt) の生成 */
+function buildPlainText(data) {
+  if (!data) return '';
+
+  const divider = '='.repeat(64);
+  const subDivider = '-'.repeat(64);
+  let txt = `${divider}\n`;
+  txt += `【リサーチレポート】 ${data.title || data.theme}\n`;
+  if (data.subtitle) txt += `サブタイトル: ${data.subtitle}\n`;
+  txt += `${divider}\n\n`;
+
+  txt += `■ 調査概要\n`;
+  txt += `・リサーチテーマ: ${data.theme}\n`;
+  txt += `・調査対象期間: ${data.periodLabel || '直近1年（最新推奨）'}\n`;
+  txt += `・調査範囲: ${data.scopeLabel} (${data.depthLabel})\n`;
+  txt += `・作成日時: ${fmtDate(data.createdAt)}\n`;
+  txt += `・収集ソース件数: ${data.sources ? data.sources.length : 0} 件\n\n`;
+
+  txt += `${subDivider}\n■ エグゼクティブサマリー\n${subDivider}\n${data.summary}\n\n`;
+
+  if (data.metrics && data.metrics.length) {
+    txt += `■ 主要指標 (KPI)\n`;
+    data.metrics.forEach((m) => {
+      txt += `・${m.label}: ${m.value}${m.note ? ` (${m.note})` : ''}\n`;
+    });
+    txt += '\n';
+  }
+
+  if (data.keyPoints && data.keyPoints.length) {
+    txt += `■ キーハイライト\n`;
+    data.keyPoints.forEach((kp, i) => {
+      txt += `${i + 1}. ${kp}\n`;
+    });
+    txt += '\n';
+  }
+
+  if (data.table && data.table.columns && data.table.rows) {
+    txt += `${subDivider}\n■ ${data.table.caption || '構造化比較マトリクス'}\n${subDivider}\n`;
+    txt += data.table.columns.join(' | ') + '\n';
+    txt += '-'.repeat(Math.min(80, data.table.columns.join(' | ').length * 2)) + '\n';
+    data.table.rows.forEach((r) => {
+      txt += r.join(' | ') + '\n';
+    });
+    txt += '\n';
+  }
+
+  if (data.sections && data.sections.length) {
+    txt += `${subDivider}\n■ 詳細解説・多角分析\n${subDivider}\n\n`;
+    data.sections.forEach((sec, idx) => {
+      txt += `【セクション ${idx + 1}】 ${sec.heading}\n`;
+      txt += `${sec.body}\n`;
+      if (sec.bullets && sec.bullets.length) {
+        sec.bullets.forEach((b) => (txt += `  ・${b}\n`));
+      }
+      txt += '\n';
+    });
+  }
+
+  if (data.insights && data.insights.length) {
+    txt += `${subDivider}\n■ 示唆・提言\n${subDivider}\n`;
+    data.insights.forEach((ins, idx) => {
+      txt += `${idx + 1}. [優先度: ${ins.priority || '中'}] ${ins.title}\n`;
+      txt += `   ${ins.body}\n\n`;
+    });
+  }
+
+  if (data.deepThinking) {
+    const sc = data.deepThinking.scenarios;
+    const rm = data.deepThinking.roadmap;
+    if (sc) {
+      txt += `${subDivider}\n■ 将来シナリオ予測（今後1〜3年）\n${subDivider}\n`;
+      txt += `・メイン予測 (確率60%): ${sc.mainScenario}\n`;
+      txt += `・加速シナリオ (上振れ25%): ${sc.upsideScenario}\n`;
+      txt += `・停滞シナリオ (下振れ15%): ${sc.downsideScenario}\n\n`;
+      if (sc.criticalTriggers && sc.criticalTriggers.length) {
+        txt += `分岐トリガー: ${sc.criticalTriggers.join(' / ')}\n\n`;
+      }
+    }
+    if (rm && rm.length) {
+      txt += `${subDivider}\n■ 実行戦略ロードマップ\n${subDivider}\n`;
+      rm.forEach((step) => {
+        txt += `【${step.phase}】${step.focus ? ` 重点: ${step.focus}` : ''}\n`;
+        if (step.actions && step.actions.length) {
+          step.actions.forEach((act) => (txt += `  ・${act}\n`));
+        }
+        txt += '\n';
+      });
+    }
+  }
+
+  if (data.deepDives && data.deepDives.length) {
+    txt += `${subDivider}\n■ 追加深掘り知見\n${subDivider}\n`;
+    data.deepDives.forEach((dd, idx) => {
+      txt += `[質問 ${idx + 1}] Q: ${dd.question}\n`;
+      if (dd.quote) txt += `  引用: "${dd.quote}"\n`;
+      txt += `  回答: ${dd.answer}\n`;
+      if (dd.keyPoints && dd.keyPoints.length) {
+        dd.keyPoints.forEach((kp) => (txt += `  ・${kp}\n`));
+      }
+      txt += '\n';
+    });
+  }
+
+  if (data.sources && data.sources.length) {
+    txt += `${subDivider}\n■ 収集ソース一覧\n${subDivider}\n`;
+    data.sources.forEach((s) => {
+      txt += `[${s.index}] ${s.title}\n    URL: ${s.url}\n    提供元: ${s.domain} (信頼度: ${s.score}/100)\n`;
+      if (s.snippet) txt += `    抜粋: ${s.snippet.replace(/\n/g, ' ')}\n`;
+    });
+    txt += '\n';
+  }
+
+  txt += `${divider}\nGenerated by Research Studio\n${divider}\n`;
+  return txt;
+}
+
 module.exports = {
   SCOPE_LABELS,
   DEPTH_LABELS,
@@ -340,6 +587,8 @@ module.exports = {
   parseSites,
   scoreDomain,
   normalizeResult,
+  buildMarkdown,
+  buildPlainText,
   clamp,
   str,
   arr,
