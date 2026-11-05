@@ -88,3 +88,4 @@ test('UI and exporters include token usage displays', () => {
   const exportersJs = fs.readFileSync(path.join(__dirname, '../public/js/exporters.js'), 'utf8');
   assert.ok(exportersJs.includes('消費トークン:'), 'exporters.js should export token usage in markdown and text');
 });
+

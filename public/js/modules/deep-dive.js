@@ -124,6 +124,7 @@ export function bindDeepDiveDrawer() {
       openModal('drawer-deepdive');
     }
 
+    if (drawerEl) hydrateIcons(drawerEl);
     if (input) setTimeout(() => input.focus(), 120);
   }
 
@@ -192,12 +193,22 @@ export function bindDeepDiveDrawer() {
     });
   }
 
-  // 閉じるボタンの拡張監視
+  // 閉じるボタンの拡張監視（ヘッダー・フッター・背景クリック・Escキー）
   if (drawerEl) {
-    drawerEl.querySelectorAll('[data-close]').forEach((btn) => {
-      btn.addEventListener('click', () => closeDeepDive());
+    drawerEl.querySelectorAll('[data-close], #btn-close-deepdive, #btn-close-deepdive-bottom').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        closeDeepDive();
+      });
     });
   }
+
+  // Escキーによる安全なクローズ
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && drawerEl && !drawerEl.hidden) {
+      closeDeepDive();
+    }
+  });
 
   if (btnOpen) {
     btnOpen.addEventListener('click', () => openDeepDive());

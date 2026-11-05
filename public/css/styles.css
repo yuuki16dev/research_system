@@ -4764,16 +4764,22 @@ table.matrix {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px;
+  padding: 14px 18px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   background: var(--bg-elev);
+  gap: 12px;
+  min-width: 0;
 }
 
 .drawer-head .dh-title {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  gap: 3px;
 }
 
 .drawer-head h2 {
@@ -7114,7 +7120,17 @@ body.dd-expanded {
 .dd-title-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.dd-title-row h2 {
+  font-size: 15.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
 }
 
 .dd-split-badge {
@@ -7129,6 +7145,7 @@ body.dd-expanded {
   color: var(--primary-light);
   border: 1px solid rgba(99, 102, 241, 0.35);
   letter-spacing: 0.02em;
+  flex-shrink: 0;
 }
 
 [data-theme='light'] .dd-split-badge {
@@ -7140,7 +7157,28 @@ body.dd-expanded {
 .drawer-head-actions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
+  flex-shrink: 0 !important; /* タイトル長に関わらず絶対に押し出されず表示維持 */
+}
+
+.btn-dd-close {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-2);
+  border: 1px solid var(--border-strong) !important;
+  background: var(--surface-card);
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.18s var(--ease);
+}
+.btn-dd-close:hover {
+  color: #f87171 !important;
+  background: rgba(239, 68, 68, 0.12) !important;
+  border-color: rgba(239, 68, 68, 0.45) !important;
 }
 
 .btn-dd-expand {
@@ -7150,6 +7188,41 @@ body.dd-expanded {
   .btn-dd-expand {
     display: none !important;
   }
+}
+
+.dd-footer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+}
+.dd-hint-text {
+  font-size: 11px;
+  color: var(--text-3);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.btn-dd-close-foot {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+  border: 1px solid var(--border-strong) !important;
+  background: var(--surface);
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.18s var(--ease);
+}
+.btn-dd-close-foot:hover {
+  color: #f87171 !important;
+  background: rgba(239, 68, 68, 0.12) !important;
+  border-color: rgba(239, 68, 68, 0.45) !important;
 }
 
 /* 引用プレビュー枠（入力フォームの上部） */
