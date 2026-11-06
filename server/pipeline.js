@@ -18,25 +18,41 @@ function sleep(ms, signal) {
   });
 }
 
-/** 長時間のAI待ちの間、プログレスを漸近的に進めつつ途中経過ログを定期送出 */
-function rampProgress(ctx, from, to, stage) {
+/** 長時間のAI待ちの間、プログレスを漸近的に進めつつ思考プロセスログを定期送出 */
+function rampProgress(ctx, from, to, stage, theme = '') {
   let v = from;
   let ticks = 0;
+  const kw = theme ? `「${theme.slice(0, 20)}」` : '';
   const timer = setInterval(() => {
     ticks++;
     v += (to - v) * 0.08;
     ctx.progress(Math.round(v * 10) / 10, stage);
 
-    // 待ち時間が長引いている場合、一定間隔で進行中アナウンスログを送信（初心者の不安・フリーズ誤認を防止）
-    if (ticks === 12) {
-      // 約8秒後
-      ctx.log('Gemini AI が収集情報を照合し、多角的な構造化レポートを執筆しています…', 'ai');
-    } else if (ticks === 25) {
-      // 約18秒後
-      ctx.log('エグゼクティブ要約・重要指標・比較表の生成を継続中（じっくり精査しています）…', 'ai');
+    // AI思考プロセス（Thinking Process）をリアルタイムに可視化
+    if (ticks === 6) {
+      ctx.log(
+        `💡 思考ストリーム: ${kw}の収集ソースを照合し、主要な論点と因果メカニズムを分析中…`,
+        'thinking',
+        '一次情報と現場知見を突き合わせ、事実の歪曲がないか検証'
+      );
+    } else if (ticks === 15) {
+      ctx.log(
+        `⚖️ 思考ストリーム: 選択肢ごとのメリット・隠れコスト・運用リスクを多角検証中…`,
+        'thinking',
+        '読者の意思決定に直結する比較軸と定量的KPIを構造化'
+      );
+    } else if (ticks === 28) {
+      ctx.log(
+        `📊 思考ストリーム: 構造化レポートの各セクション・比較マトリクスを論理的に執筆中…`,
+        'thinking',
+        '無理な型ハメを排し、収集データに基づいた客観的記述を徹底'
+      );
     } else if (ticks === 45) {
-      // 約32秒後
-      ctx.log('長文レポートのファクトチェック・出典番号の照合を実施中（まもなく完了します）…', 'ai');
+      ctx.log(
+        `🛡️ 思考ストリーム: 出典URL・ファクト整合性を最終チェック中（まもなく完成します）…`,
+        'thinking',
+        'エグゼクティブサマリーおよびネクストアクションの最終推敲'
+      );
     }
   }, 700);
   return () => clearInterval(timer);
@@ -438,6 +454,7 @@ async function runLive(p, s, ctx) {
   }
 
   ctx.log(`AI多角クエリ展開 ＆ 動的分析構造の設計中（フォーカス: ${FOCUS_LABELS[focus] || '自動最適化'} / 期間: ${dateParams.label}${isAuthoritative ? ' / 一次情報優先' : ''}）…`, 'plan');
+  ctx.log(`🧠 AI思考: テーマ「${p.theme}」の核心的問い・比較軸・調査計画を自律設計中…`, 'thinking', `フォーカス: ${FOCUS_LABELS[focus] || '自動最適化'} / 期間: ${dateParams.label}`);
   const nQ = deep ? 6 : 4;
   const nHeadings = deep ? '4〜5' : '3〜4';
   let plan;
@@ -706,7 +723,7 @@ async function runLive(p, s, ctx) {
 
   if (deep && rawSources.length > 0 && !signal.aborted) {
     ctx.progress(38, 'search');
-    ctx.log('🧠 自律ギャップ分析: 第1次収集データの不足ファクト・未解明論点を検知中…', 'ai');
+    ctx.log('🧠 AI思考: 第1次収集データの不足ファクト・未解明論点を自己ギャップ分析中…', 'thinking', '不足している生データや料金・リスクの追跡探索');
 
     const sampleSnippets = rawSources
       .slice(0, 8)
@@ -855,11 +872,11 @@ async function runLive(p, s, ctx) {
   /* ---- 5. 統合・構造化 */
   ctx.progress(81, 'synthesize');
   if (deep) {
-    ctx.log(`${s.geminiModel} で多角的な深層推論・トレードオフ・将来シナリオを分析・構造化しています（約1分以上）…`, 'ai');
+    ctx.log(`🧠 AI思考開始: ${s.geminiModel} が多角的な深層推論・トレードオフ・将来シナリオの思考構造化に着手…`, 'thinking', '一次情報と現場知見を統合して独自インサイトを導出');
   } else {
-    ctx.log(`${s.geminiModel} で要点サマリー・比較表を高速構造化しています…`, 'ai');
+    ctx.log(`🧠 AI思考開始: ${s.geminiModel} が収集データを照合し、要点サマリー・比較表を構造化中…`, 'thinking', '要点・KPI・比較マトリクスの高速推論');
   }
-  const stop = rampProgress(ctx, 81, 97, 'synthesize');
+  const stop = rampProgress(ctx, 81, 97, 'synthesize', p.theme);
   let raw;
   const geminiParts = [];
   if (Array.isArray(p.attachedFiles)) {

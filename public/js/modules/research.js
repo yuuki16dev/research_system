@@ -860,13 +860,48 @@ function subscribeJob(jobId, depth = 'quick') {
       if (evt.type === 'log') {
         logCounter++;
         if (logCount) logCount.textContent = String(logCounter);
+
+        // 🧠 リアルタイムAI思考プロセスの更新
+        if (evt.kind === 'thinking' || evt.kind === 'ai' || evt.kind === 'plan') {
+          const ltThought = $('#lt-current-thought');
+          const ltDetail = $('#lt-thought-detail');
+          const ltPhase = $('#lt-phase-label');
+          if (ltThought) {
+            ltThought.textContent = evt.message.replace(/^[🧠💡📊⚖️🛡️]\s*(AI思考|思考ストリーム)?[:\s]*/i, '');
+            ltThought.classList.remove('is-typing');
+            void ltThought.offsetWidth; // CSSリフロー
+            ltThought.classList.add('is-typing');
+          }
+          if (ltDetail && evt.detail) {
+            ltDetail.textContent = evt.detail;
+          }
+          if (ltPhase) {
+            if (evt.kind === 'thinking') ltPhase.textContent = '🧠 AI思考ストリーム';
+            else if (evt.stage === 'plan') ltPhase.textContent = '🧭 調査計画立案中';
+            else if (evt.stage === 'synthesize') ltPhase.textContent = '⚡ 深層推論・構造化中';
+          }
+        }
+
         if (logList) {
           const li = document.createElement('li');
           li.className = `k-${evt.kind || 'info'}`;
           const time = new Date(evt.ts).toTimeString().slice(0, 8);
+          const iconName = evt.kind === 'thinking' || evt.kind === 'ai'
+            ? 'sparkles'
+            : evt.kind === 'warn'
+            ? 'alert'
+            : evt.kind === 'error'
+            ? 'alert'
+            : evt.kind === 'done'
+            ? 'check'
+            : evt.kind === 'plan'
+            ? 'compass'
+            : evt.kind === 'page'
+            ? 'file-text'
+            : 'zap';
           li.innerHTML = `
             <span class="log-time">${time}</span>
-            <span class="log-icon">${icon(evt.kind === 'warn' ? 'alert' : evt.kind === 'error' ? 'alert' : evt.kind === 'done' ? 'check' : 'zap')}</span>
+            <span class="log-icon">${icon(iconName)}</span>
             <div class="log-msg">
               <div>${esc(evt.message)}</div>
               ${evt.detail ? `<span class="log-detail">${esc(evt.detail)}</span>` : ''}

@@ -60,3 +60,4 @@ test('research enhancement: Excel engine reflects purposeLabel in subtitle', () 
   assert.ok(formatted.meta.subtitle.includes('コスト・ROI・相見積もり'), 'Subtitle should contain purposeLabel');
   assert.strictEqual(formatted.meta.theme, 'クラウド移行');
 });
+
