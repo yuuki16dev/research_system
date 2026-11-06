@@ -23,3 +23,4 @@ services:
         sync: false # Renderダッシュボードの環境変数画面で入力
       - key: GROQ_API_KEY
         sync: false
+

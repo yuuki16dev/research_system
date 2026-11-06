@@ -44,3 +44,4 @@ test('cloud readiness: server/index.js registers /api/health endpoint', () => {
 
   assert.ok(indexJs.includes("app.get('/api/health'"), 'server/index.js must register /api/health');
 });
+
