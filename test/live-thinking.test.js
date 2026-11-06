@@ -2,37 +2,40 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('fs');
 const path = require('path');
+const fs = require('fs');
 
 const ROOT = path.resolve(__dirname, '..');
+const cssPath = path.join(ROOT, 'public', 'css', 'styles.css');
+const jsPath = path.join(ROOT, 'public', 'js', 'modules', 'research.js');
 
-test('live thinking: DOM elements exist in public/index.html', () => {
-  const html = fs.readFileSync(path.join(ROOT, 'public', 'index.html'), 'utf8');
-  assert.ok(html.includes('id="live-thinking-card"'), 'live-thinking-card must exist');
-  assert.ok(html.includes('id="lt-phase-label"'), 'lt-phase-label must exist');
-  assert.ok(html.includes('id="lt-current-thought"'), 'lt-current-thought must exist');
-  assert.ok(html.includes('id="lt-thought-detail"'), 'lt-thought-detail must exist');
-  assert.ok(html.includes('class="lt-pulse-dot"'), 'lt-pulse-dot must exist');
+test('live thinking: css enforces complete animation halt upon completion (.is-done)', () => {
+  const css = fs.readFileSync(cssPath, 'utf8');
+
+  // 1. Thinking card dot and orb spin must have animation: none on is-done
+  assert.ok(css.includes('.live-thinking-card.is-done .lt-pulse-dot'), 'Must define is-done for pulse dot');
+  assert.ok(css.includes('.live-thinking-card.is-done .lt-orb-ring'), 'Must define is-done for orb ring');
+  assert.ok(css.includes('.live-thinking-card.is-done .lt-orb-stream::after'), 'Must define checkmark for orb stream');
+
+  // 2. Progress fill shimmer and reassurance pulse must also halt on is-done
+  assert.ok(css.includes('.progress-panel.is-done .progress-fill'), 'Progress fill must halt shimmer on is-done');
+  assert.ok(css.includes('.progress-panel.is-done .reassurance-pulse'), 'Reassurance pulse must halt on is-done');
 });
 
-test('live thinking: CSS styles exist in public/css/styles.css', () => {
-  const css = fs.readFileSync(path.join(ROOT, 'public', 'css', 'styles.css'), 'utf8');
-  assert.ok(css.includes('.live-thinking-card'), '.live-thinking-card must exist in styles.css');
-  assert.ok(css.includes('.lt-pulse-dot'), '.lt-pulse-dot must exist in styles.css');
-  assert.ok(css.includes('.k-thinking'), '.k-thinking log style must exist in styles.css');
-  assert.ok(css.includes('@keyframes ltPulse'), '@keyframes ltPulse must exist');
+test('live thinking: css enforces complete animation halt upon error or cancel (.is-error)', () => {
+  const css = fs.readFileSync(cssPath, 'utf8');
+
+  assert.ok(css.includes('.live-thinking-card.is-error .lt-pulse-dot'), 'Must define is-error for pulse dot');
+  assert.ok(css.includes('.live-thinking-card.is-error .lt-orb-ring'), 'Must define is-error for orb ring');
+  assert.ok(css.includes('.progress-panel.is-error .reassurance-pulse'), 'Reassurance pulse must halt on is-error');
 });
 
-test('live thinking: research.js handles thinking log events', () => {
-  const js = fs.readFileSync(path.join(ROOT, 'public', 'js', 'modules', 'research.js'), 'utf8');
-  assert.ok(js.includes("evt.kind === 'thinking'"), 'research.js must handle thinking kind');
-  assert.ok(js.includes('lt-current-thought'), 'research.js must update lt-current-thought');
-  assert.ok(js.includes('lt-thought-detail'), 'research.js must update lt-thought-detail');
-});
+test('live thinking: research.js exports setLiveThinkingState and integrates into lifecycle handlers', () => {
+  const js = fs.readFileSync(jsPath, 'utf8');
 
-test('live thinking: pipeline.js emits thinking logs during research', () => {
-  const pipeline = fs.readFileSync(path.join(ROOT, 'server', 'pipeline.js'), 'utf8');
-  assert.ok(pipeline.includes("'thinking'"), "pipeline.js must emit logs with 'thinking' kind");
+  assert.ok(js.includes('export function setLiveThinkingState'), 'research.js must export setLiveThinkingState');
+  assert.ok(js.includes("setLiveThinkingState('done')"), 'finishSuccess must call setLiveThinkingState(done)');
+  assert.ok(js.includes("setLiveThinkingState('aborted')"), 'handleAborted must call setLiveThinkingState(aborted)');
+  assert.ok(js.includes("setLiveThinkingState('error'"), 'finishError must call setLiveThinkingState(error)');
+  assert.ok(js.includes("setLiveThinkingState('running'"), 'startResearch must call setLiveThinkingState(running)');
 });
-

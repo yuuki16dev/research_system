@@ -721,6 +721,7 @@ export function handleAborted() {
   const progressSection = $('#progress-section');
   progressSection.classList.remove('is-done');
   progressSection.classList.add('is-error');
+  setLiveThinkingState('aborted');
 
   const errorBanner = $('#progress-error-banner');
   if (errorBanner) errorBanner.style.display = 'none';
@@ -810,6 +811,7 @@ export async function startResearch(params) {
   activeProgressVal = 0;
   activeLastProgressTime = Date.now();
   updateReassuranceGuidance(0, 'plan', params.depth);
+  setLiveThinkingState('running', '調査テーマを分析し、最適な調査計画と思考フレームワークを自律設計しています…', '一次ソース・公的機関・現場知見を網羅探索');
 
   // タイマー開始
   clearInterval(appState.timerInterval);
@@ -1021,6 +1023,55 @@ function updateReassuranceGuidance(sec, stage, depth) {
   hydrateIcons(card);
 }
 
+export function setLiveThinkingState(state, thoughtText, detailText) {
+  const card = $('#live-thinking-card');
+  const ltPhase = $('#lt-phase-label');
+  const ltModelBadge = $('#lt-model-badge');
+  const ltThought = $('#lt-current-thought');
+  const ltDetail = $('#lt-thought-detail');
+  if (!card) return;
+
+  if (state === 'running') {
+    card.classList.remove('is-done', 'is-error');
+    if (ltPhase) ltPhase.textContent = '🧠 AI思考ストリーム';
+    if (ltModelBadge) {
+      ltModelBadge.innerHTML = '<span data-icon="sparkles"></span><span>自律推論エンジン稼働中</span>';
+      hydrateIcons(ltModelBadge);
+    }
+    if (thoughtText && ltThought) ltThought.textContent = thoughtText;
+    if (detailText && ltDetail) ltDetail.textContent = detailText;
+  } else if (state === 'done') {
+    card.classList.remove('is-error');
+    card.classList.add('is-done');
+    if (ltPhase) ltPhase.textContent = '✨ AI推論・構造化完了';
+    if (ltModelBadge) {
+      ltModelBadge.innerHTML = '<span data-icon="check"></span><span>自律推論完了</span>';
+      hydrateIcons(ltModelBadge);
+    }
+    if (ltThought) {
+      ltThought.textContent = thoughtText || '全調査ステップの深層推論・ファクト照合・構造化が完了しました。';
+      ltThought.classList.remove('is-typing');
+    }
+    if (ltDetail) {
+      ltDetail.textContent = detailText || '完成したレポートを下記に出力しました。';
+    }
+  } else if (state === 'aborted' || state === 'error') {
+    card.classList.remove('is-done');
+    card.classList.add('is-error');
+    if (ltPhase) ltPhase.textContent = state === 'aborted' ? '⏹️ 思考ストリーム停止' : '⚠️ 思考ストリーム中断';
+    if (ltModelBadge) {
+      ltModelBadge.innerHTML = state === 'aborted' ? '<span>中止</span>' : '<span>中断</span>';
+    }
+    if (ltThought) {
+      ltThought.textContent = thoughtText || (state === 'aborted' ? 'ユーザー操作により調査を中止しました。' : 'エラーにより調査を中断しました。');
+      ltThought.classList.remove('is-typing');
+    }
+    if (ltDetail) {
+      ltDetail.textContent = detailText || '処理は安全に停止しています。';
+    }
+  }
+}
+
 function updateStepper(stage) {
   const order = ['plan', 'search', 'analyze', 'synthesize', 'done'];
   const curIdx = order.indexOf(stage);
@@ -1068,6 +1119,7 @@ export function finishSuccess(resultData) {
 
   if (progressSection) progressSection.classList.add('is-done');
   updateStepper('done');
+  setLiveThinkingState('done');
 
   // 編集モードを初期化して結果描画
   resetEditMode();
@@ -1139,6 +1191,7 @@ export function finishError(msg) {
   const progressSection = $('#progress-section');
   progressSection.classList.remove('is-done');
   progressSection.classList.add('is-error');
+  setLiveThinkingState('error', 'エラーが発生したため推論処理を中断しました。', esc(msg));
 
   const abortedBanner = $('#progress-aborted-banner');
   if (abortedBanner) abortedBanner.style.display = 'none';

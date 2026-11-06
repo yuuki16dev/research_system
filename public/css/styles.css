@@ -1867,12 +1867,29 @@ select.input option {
   background: var(--success);
 }
 
+.progress-panel.is-done .progress-fill {
+  animation: none;
+  background: var(--success);
+}
+
+.progress-panel.is-done .reassurance-pulse {
+  animation: none;
+  box-shadow: none;
+}
+
 .progress-panel.is-error .pulse-orb {
   animation: none;
   background: var(--danger);
 }
 
 .progress-panel.is-error .progress-fill {
+  animation: none;
+  background: var(--danger);
+}
+
+.progress-panel.is-error .reassurance-pulse {
+  animation: none;
+  box-shadow: none;
   background: var(--danger);
 }
 
@@ -2228,6 +2245,106 @@ select.input option {
   font-size: 12px;
   color: var(--text-3, #94a3b8);
   line-height: 1.4;
+}
+
+/* 🧠 リアルタイム思考プロセス: 完了状態（すべての動作・アニメーションを完全に停止） */
+.progress-panel.is-done .live-thinking-card,
+.live-thinking-card.is-done {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(6, 182, 212, 0.04));
+  border-color: rgba(16, 185, 129, 0.35);
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.progress-panel.is-done .lt-pulse-dot,
+.live-thinking-card.is-done .lt-pulse-dot {
+  animation: none !important;
+  background: #10b981;
+  box-shadow: none !important;
+}
+
+.progress-panel.is-done .lt-badge,
+.live-thinking-card.is-done .lt-badge {
+  color: #6ee7b7;
+}
+
+.progress-panel.is-done .lt-model-badge,
+.live-thinking-card.is-done .lt-model-badge {
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.progress-panel.is-done .lt-orb-ring,
+.live-thinking-card.is-done .lt-orb-ring {
+  animation: none !important;
+  border: 2px solid #10b981 !important;
+  background: rgba(16, 185, 129, 0.18);
+  transform: none !important;
+}
+
+.progress-panel.is-done .lt-orb-stream::after,
+.live-thinking-card.is-done .lt-orb-stream::after {
+  content: "✓";
+  position: absolute;
+  font-size: 13px;
+  font-weight: 800;
+  color: #10b981;
+  line-height: 1;
+}
+
+.progress-panel.is-done .lt-current-thought.is-typing,
+.live-thinking-card.is-done .lt-current-thought.is-typing {
+  animation: none !important;
+}
+
+/* 🧠 リアルタイム思考プロセス: 中断・エラー状態（すべてのアニメーションを完全停止） */
+.progress-panel.is-error .live-thinking-card,
+.live-thinking-card.is-error {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.08), rgba(245, 158, 11, 0.04));
+  border-color: rgba(239, 68, 68, 0.3);
+  box-shadow: none;
+}
+
+.progress-panel.is-error .lt-pulse-dot,
+.live-thinking-card.is-error .lt-pulse-dot {
+  animation: none !important;
+  background: var(--danger);
+  box-shadow: none !important;
+}
+
+.progress-panel.is-error .lt-badge,
+.live-thinking-card.is-error .lt-badge {
+  color: #fca5a5;
+}
+
+.progress-panel.is-error .lt-model-badge,
+.live-thinking-card.is-error .lt-model-badge {
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.25);
+}
+
+.progress-panel.is-error .lt-orb-ring,
+.live-thinking-card.is-error .lt-orb-ring {
+  animation: none !important;
+  border: 2px solid var(--danger) !important;
+  background: rgba(239, 68, 68, 0.15);
+  transform: none !important;
+}
+
+.progress-panel.is-error .lt-orb-stream::after,
+.live-thinking-card.is-error .lt-orb-stream::after {
+  content: "✕";
+  position: absolute;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--danger);
+  line-height: 1;
+}
+
+.progress-panel.is-error .lt-current-thought.is-typing,
+.live-thinking-card.is-error .lt-current-thought.is-typing {
+  animation: none !important;
 }
 
 .log-wrap {
