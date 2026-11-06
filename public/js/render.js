@@ -7,6 +7,7 @@ import { tableToTSV } from './exporters.js';
 import { renderSvgChart } from './modules/charts.js';
 import { startDeltaTracking } from './modules/research.js';
 import { applyReportTheme } from './modules/theme-designer.js';
+import { setEvidenceSources } from './modules/evidence-inspector.js';
 
 let currentReportSources = [];
 let currentSourcesMap = new Map();
@@ -15,10 +16,11 @@ let currentSourcesMap = new Map();
 export function linkifyCitations(text) {
   if (!text) return '';
   const escaped = esc(text);
-  return escaped.replace(/\[(\d+)\]/g, (match, n) => {
-    const src = currentSourcesMap.get(Number(n));
+  return escaped.replace(/\[([Ss]?\d+)\]/g, (match, n) => {
+    const numOnly = n.replace(/\D/g, '');
+    const src = currentSourcesMap.get(Number(numOnly)) || currentSourcesMap.get(n);
     const titleAttr = src ? esc(src.title) : `ソース [${n}]`;
-    return `<a class="cite" href="#src-${n}" data-cite="${n}" title="${titleAttr}">[${n}]</a>`;
+    return `<a class="cite" href="#src-${numOnly}" data-cite="${n}" title="${titleAttr}">[${n}]</a>`;
   });
 }
 
@@ -40,6 +42,7 @@ export function renderReport(data, container) {
   currentSourcesMap = new Map();
   if (data.sources) {
     data.sources.forEach((s) => currentSourcesMap.set(Number(s.index), s));
+    setEvidenceSources(data.sources);
   }
 
   const createdStr = fmtDate(data.createdAt);

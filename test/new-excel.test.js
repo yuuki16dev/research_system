@@ -101,3 +101,4 @@ test('new commercial excel: generateExcelReport returns valid buffer using comme
   assert.ok(wb.worksheets.length >= 4, 'Must contain 4 commercial sheets');
   assert.ok(wb.getWorksheet('01_Executive_Summary'), 'Must contain 01_Executive_Summary');
 });
+

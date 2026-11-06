@@ -672,7 +672,7 @@
     </main>
 
     <footer class="footer">
-      <span id="footer-version">Research Studio v2.5.0</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span><span class="sep">·</span><a href="https://github.com/yuuki16dev/research_system/issues" target="_blank" rel="noopener" class="footer-link"><span data-icon="github"></span>GitHubでお問い合わせ</a>
+      <span id="footer-version">Research Studio v2.6.0</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span><span class="sep">·</span><a href="/terms.html" target="_blank" rel="noopener" class="footer-link">利用規約</a><span class="sep">·</span><a href="/tokushoho.html" target="_blank" rel="noopener" class="footer-link">特定商取引法</a><span class="sep">·</span><a href="https://github.com/yuuki16dev/research_system/issues" target="_blank" rel="noopener" class="footer-link"><span data-icon="github"></span>GitHubでお問い合わせ</a>
     </footer>
   </div>
 
@@ -681,7 +681,7 @@
     <div class="modal-backdrop" data-close></div>
     <div class="modal-card glass">
       <header class="modal-head">
-        <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v2.5.0</small></h2>
+        <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v2.6.0</small></h2>
         <div style="display: flex; gap: 8px; align-items: center; margin-left: auto;">
           <button class="btn btn-ghost btn-sm" type="button" id="btn-settings-changelog" title="アップデート履歴 &amp; リリースノート"><span data-icon="book-open"></span><span class="label">更新履歴</span></button>
           <button class="btn btn-ghost btn-sm" type="button" id="btn-open-guide-from-settings" title="APIキー取得ガイド &amp; GitHubお問い合わせ"><span data-icon="help-circle"></span><span class="label">ガイド・問い合わせ</span></button>
@@ -1008,6 +1008,62 @@
           </button>
         </div>
       </footer>
+    </aside>
+  </div>
+
+  <!-- =================================================== EVIDENCE INSPECTOR DRAWER -->
+  <div class="drawer" id="drawer-evidence" role="dialog" aria-modal="false" aria-labelledby="evidence-title" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <aside class="drawer-panel glass drawer-evidence-panel" id="evidence-panel">
+      <header class="drawer-head">
+        <div class="dh-title">
+          <div class="evi-title-row">
+            <h2 id="evidence-title"><span data-icon="shield"></span>一次情報エビデンス照合</h2>
+            <span class="evi-source-badge" id="evi-badge-id">[1]</span>
+          </div>
+          <small class="evi-domain-sub" id="evi-domain-text">—</small>
+        </div>
+        <div class="drawer-head-actions">
+          <button class="btn btn-ghost btn-sm" id="btn-close-evidence" type="button" data-close aria-label="閉じる" title="エビデンス照合を閉じる（Esc）">
+            <span data-icon="x"></span><span>閉じる</span>
+          </button>
+        </div>
+      </header>
+      <div class="evidence-body" id="evidence-body">
+        <!-- 信頼性スコア ＆ ドメイン種別 -->
+        <div class="evi-score-card">
+          <div class="evi-score-main">
+            <div class="evi-score-val" id="evi-score-val">95</div>
+            <div class="evi-score-info">
+              <span class="evi-score-label">客観的ソース信頼度</span>
+              <div class="evi-score-status" id="evi-score-status">高信頼・一次情報ソース</div>
+            </div>
+          </div>
+          <div class="evi-score-bar-wrap">
+            <div class="evi-score-bar-fill" id="evi-score-bar-fill" style="width: 95%;"></div>
+          </div>
+        </div>
+
+        <!-- 一次情報ソース詳細 -->
+        <div class="evi-section">
+          <div class="evi-sec-label"><span data-icon="file-text"></span>参照タイトル &amp; 発信元</div>
+          <div class="evi-source-title" id="evi-source-title">—</div>
+          <div class="evi-meta-tags" id="evi-meta-tags"></div>
+        </div>
+
+        <!-- 根拠となった抜粋テキスト（Snippet / Quote） -->
+        <div class="evi-section">
+          <div class="evi-sec-label"><span data-icon="check-circle"></span>AIが根拠とした一次情報抜粋（ファクト）</div>
+          <blockquote class="evi-snippet" id="evi-snippet-text">—</blockquote>
+        </div>
+
+        <!-- 直リンクボタン -->
+        <div class="evi-action-row">
+          <a class="btn btn-primary-gradient btn-block" id="evi-open-url" href="#" target="_blank" rel="noopener noreferrer">
+            <span data-icon="external-link"></span><span>発信元の一次情報Webサイトを開く ↗</span>
+          </a>
+        </div>
+      </div>
     </aside>
   </div>
 
