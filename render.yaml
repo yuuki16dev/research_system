@@ -23,4 +23,10 @@ services:
         sync: false # Renderダッシュボードの環境変数画面で入力
       - key: GROQ_API_KEY
         sync: false
+      - key: SUPABASE_URL
+        sync: false # Supabase プロジェクトURL (https://xxxx.supabase.co)
+      - key: SUPABASE_ANON_KEY
+        sync: false # Supabase anon public APIキー
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false # Supabase service_role キー（クォータ更新・RLSバイパス用）
 

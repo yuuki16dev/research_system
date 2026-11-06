@@ -46,6 +46,8 @@ const templateEngine = require('./template-engine');
 const presentation = require('./presentation');
 const { getFullUsageSummary } = require('./usage');
 const { buildMarkdown, buildPlainText } = require('./util');
+const auth = require('./auth');
+const quota = require('./quota');
 
 
 const PORT = Number(process.env.PORT) || 3939;
@@ -129,6 +131,26 @@ function lanAddresses(port = currentPort) {
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', app: 'Research Studio', version: pkgVer, uptime: Math.floor(process.uptime()) });
+});
+
+app.get('/api/auth/me', auth.optionalAuth, async (req, res) => {
+  const user = req.user;
+  if (!user) {
+    return res.json({ authenticated: false, isCloud: auth.isCloudAuthEnabled() });
+  }
+  const userPlan = user.plan || (user.user_metadata && user.user_metadata.plan) || 'free';
+  const q = await quota.getMonthlyQuota(user.id, userPlan);
+  res.json({
+    authenticated: true,
+    isCloud: auth.isCloudAuthEnabled(),
+    user: {
+      id: user.id,
+      email: user.email,
+      plan: userPlan,
+      isLocal: !!user.isLocal,
+    },
+    quota: q,
+  });
 });
 
 app.get('/api/info', (req, res) => {
@@ -391,7 +413,7 @@ app.get('/api/usage', async (req, res) => {
 });
 
 /* ----------------------------------------------------------- research */
-app.post('/api/research', (req, res) => {
+app.post('/api/research', auth.requireAuth, quota.requireQuota, (req, res) => {
   const b = req.body || {};
   const theme = String(b.theme || '').trim().slice(0, 300);
   const scope = ['web', 'sns', 'sites'].includes(b.scope) ? b.scope : 'web';
@@ -409,11 +431,16 @@ app.post('/api/research', (req, res) => {
   const authoritative = !!b.authoritative;
   if (theme.length < 2) return res.status(400).json({ error: 'テーマを2文字以上で入力してください' });
 
-  console.log(`[リサーチ受付] テーマ: "${theme}" (スコープ: ${scope}, 深度: ${depth}, スタイル: ${purpose}, 参考URL: ${referenceUrls.length}件, 添付: ${attachedFiles.length}件)`);
-  const params = { theme, scope, depth, sites, period, customPeriod, purpose, customPurpose, referenceContext, referenceUrls, attachedFiles, focus, authoritative, forceMock: !!b.forceMock };
+  const userId = req.user ? req.user.id : 'local-user';
+  const userPlan = req.user ? (req.user.plan || 'free') : 'admin';
+  console.log(`[リサーチ受付] テーマ: "${theme}" (スコープ: ${scope}, 深度: ${depth}, スタイル: ${purpose}, ユーザー: ${userId}, プラン: ${userPlan})`);
+  const params = { theme, scope, depth, sites, period, customPeriod, purpose, customPurpose, referenceContext, referenceUrls, attachedFiles, focus, authoritative, forceMock: !!b.forceMock, userId };
   const job = createJob(params, (j) => runResearch(j, settings.load()), {
     onResult: (result) => {
       history.save(result);
+      if (userId) {
+        quota.recordUsage(userId, userPlan).catch((err) => console.warn('[quota] record error:', err.message));
+      }
       try {
         memory.learnFromResearch(result);
       } catch (err) {
