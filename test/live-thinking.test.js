@@ -39,3 +39,13 @@ test('live thinking: research.js exports setLiveThinkingState and integrates int
   assert.ok(js.includes("setLiveThinkingState('error'"), 'finishError must call setLiveThinkingState(error)');
   assert.ok(js.includes("setLiveThinkingState('running'"), 'startResearch must call setLiveThinkingState(running)');
 });
+
+test('live thinking: prevents race condition where late SSE logs revert completed card', () => {
+  const js = fs.readFileSync(jsPath, 'utf8');
+
+  // Verify that onEvent(log) guards against isFinishing or is-done card state
+  assert.ok(js.includes('if (appState.isFinishing) return;'), 'log event handler must ignore incoming logs when isFinishing');
+  assert.ok(js.includes("card.classList.contains('is-done')"), 'thinking log must not mutate card if already marked is-done');
+  assert.ok(js.includes("if (appState.isFinishing || card.classList.contains('is-done')) return;"), 'setLiveThinkingState(running) must reject execution after finish');
+});
+

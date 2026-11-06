@@ -860,11 +860,15 @@ function subscribeJob(jobId, depth = 'quick') {
   appState.activeUnsub = api.subscribe(jobId, {
     onEvent: (evt) => {
       if (evt.type === 'log') {
+        if (appState.isFinishing) return;
         logCounter++;
         if (logCount) logCount.textContent = String(logCounter);
 
-        // 🧠 リアルタイムAI思考プロセスの更新
-        if (evt.kind === 'thinking' || evt.kind === 'ai' || evt.kind === 'plan') {
+        // 🧠 リアルタイムAI思考プロセスの更新（完了・終了フェーズへの遷移後は一切上書きしない）
+        if (!appState.isFinishing && (evt.kind === 'thinking' || evt.kind === 'ai' || evt.kind === 'plan')) {
+          const card = $('#live-thinking-card');
+          if (card && card.classList.contains('is-done')) return;
+
           const ltThought = $('#lt-current-thought');
           const ltDetail = $('#lt-thought-detail');
           const ltPhase = $('#lt-phase-label');
@@ -1032,6 +1036,7 @@ export function setLiveThinkingState(state, thoughtText, detailText) {
   if (!card) return;
 
   if (state === 'running') {
+    if (appState.isFinishing || card.classList.contains('is-done')) return;
     card.classList.remove('is-done', 'is-error');
     if (ltPhase) ltPhase.textContent = '🧠 AI思考ストリーム';
     if (ltModelBadge) {

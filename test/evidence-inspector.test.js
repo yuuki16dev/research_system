@@ -46,3 +46,4 @@ test('evidence inspector: render.js linkifyCitations converts [1] and [S1] into 
   assert.ok(render.includes('setEvidenceSources'), 'render.js must import and call setEvidenceSources');
   assert.ok(render.includes('data-cite='), 'linkifyCitations must embed data-cite attribute for click delegation');
 });
+
