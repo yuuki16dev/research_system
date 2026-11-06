@@ -61,7 +61,8 @@ async function generatePdfFromHtml(htmlContent, options = {}) {
     throw new Error('システム内に Microsoft Edge または Google Chrome が見つかりませんでした。');
   }
 
-  const isPortrait = options.orientation === 'portrait' || (htmlContent && htmlContent.includes('class="doc"'));
+  const isPortrait = options.orientation === 'portrait' || (htmlContent && (htmlContent.includes('class="doc"') || htmlContent.includes('A4 portrait') || htmlContent.includes('size: A4 portrait')));
+  const isCompleteDoc = /^\s*<!DOCTYPE\s+html/i.test(htmlContent) || /^\s*<html/i.test(htmlContent);
 
   const tmpDir = path.join(os.tmpdir(), 'research_studio_pdf');
   fs.mkdirSync(tmpDir, { recursive: true });
@@ -70,15 +71,17 @@ async function generatePdfFromHtml(htmlContent, options = {}) {
   const tmpHtml = path.join(tmpDir, `report_${id}.html`);
   const tmpPdf = path.join(tmpDir, `report_${id}.pdf`);
 
-  // print.css の内容を読み込んでインライン注入
-  let printCss = '';
-  const printCssPath = path.resolve(__dirname, '../public/css/print.css');
-  if (fs.existsSync(printCssPath)) {
-    printCss = fs.readFileSync(printCssPath, 'utf8');
-  }
+  let fileContent = htmlContent;
 
-  // 完全なHTMLドキュメントを構築
-  const fullDocument = `<!DOCTYPE html>
+  if (!isCompleteDoc) {
+    // 従来のHTMLフラグメントの場合は完全なHTMLドキュメントを構築
+    let printCss = '';
+    const printCssPath = path.resolve(__dirname, '../public/css/print.css');
+    if (fs.existsSync(printCssPath)) {
+      printCss = fs.readFileSync(printCssPath, 'utf8');
+    }
+
+    fileContent = `<!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
@@ -108,8 +111,9 @@ async function generatePdfFromHtml(htmlContent, options = {}) {
   </div>
 </body>
 </html>`;
+  }
 
-  fs.writeFileSync(tmpHtml, fullDocument, 'utf8');
+  fs.writeFileSync(tmpHtml, fileContent, 'utf8');
 
   return new Promise((resolve, reject) => {
     const args = [

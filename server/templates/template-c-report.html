@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Research Studio — C. Structured Research Report (A4 Portrait)</title>
+<!--
+  バリエーションC：構造化リサーチ・レポート型（A4縦・複数ページのフロー型ドキュメント）
+  ------------------------------------------------------------
+  ・表紙（裁ち落とし1ページ）→ エグゼクティブサマリー → 目次 → 本文各章 → 比較分析 → 提言 → 出典
+  ・本文は自然に流れ、長さに応じてページが増える。章見出しは次の段落と一体で改ページ
+  ・ヘッダー／フッター／Page X / Y は @page マージンボックス（表紙には出さない）
+  ・目次はPDF内リンク付き（Chromium は target-counter 非対応のため、ページ番号は載せない設計）
+  ・データは下部の report-data ブロック（JSON）を差し替え（または window.RS_DATA）。完了時 window.__RS_READY__ = true
+-->
+<style>
+/*@@CORE_CSS@@*/
+
+/* =====================================================================
+   C. Page setup（左右余白は本文 padding。表紙だけ上下左右とも裁ち落とし）
+   ===================================================================== */
+@page { size: A4 portrait; margin: 20mm 0 16mm; }
+@page :first { margin: 0; }
+
+html, body { background: #cbd5e1; }
+body { font-size: 9.6pt; line-height: 1.85; }
+.doc { width: 210mm; padding: 0 20mm; background: #fff; margin: 10mm auto; box-shadow: 0 1mm 4mm rgba(15,23,42,.14); }
+@media screen { .doc { padding-bottom: 20mm; } }
+@media print { html, body { background: #fff; } .doc { margin: 0; box-shadow: none; } }
+
+/* ---------- Cover ---------- */
+.cover {
+  margin: 0 -20mm; width: 210mm; height: 297mm; padding: 20mm 20mm 18mm;
+  background: var(--ink); color: #e2e8f0; position: relative; overflow: hidden;
+  display: flex; flex-direction: column;
+  break-after: page; page-break-after: always;
+}
+.cover::before { content: ""; position: absolute; inset: 0;
+  background:
+    radial-gradient(140mm 120mm at 100% 0%, rgba(37,99,235,.55), transparent 70%),
+    radial-gradient(110mm 90mm at 0% 100%, rgba(6,182,212,.22), transparent 70%),
+    radial-gradient(90mm 80mm at 100% 80%, rgba(79,70,229,.32), transparent 70%); }
+.cover::after { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1.4mm; background: var(--grad); }
+.cover-grid { position: absolute; right: 0; top: 0; width: 60%; height: 55%;
+  background-image: linear-gradient(rgba(148,163,184,.12) .2mm, transparent .2mm), linear-gradient(90deg, rgba(148,163,184,.12) .2mm, transparent .2mm);
+  background-size: 9mm 9mm; -webkit-mask-image: radial-gradient(closest-side at 70% 30%, #000, transparent); mask-image: radial-gradient(closest-side at 70% 30%, #000, transparent); }
+.cover > *:not(.cover-grid) { position: relative; }
+.cv-top { display: flex; justify-content: space-between; align-items: center; gap: 6mm; }
+.cv-brand { display: flex; align-items: center; gap: 2.4mm; font-size: 10.5pt; font-weight: 700; color: #fff; }
+.cv-class { font-size: 6.8pt; font-weight: 700; letter-spacing: .14em; color: #fecaca; border: .3mm solid rgba(254,202,202,.55); padding: 1.2mm 2.6mm; border-radius: .8mm; text-align: center; max-width: 55%; }
+.cv-main { margin-top: auto; margin-bottom: auto; padding: 10mm 0; }
+.cv-kicker { display: inline-flex; align-items: center; gap: 2.4mm; font-size: 7.4pt; font-weight: 700; letter-spacing: .26em; color: #67e8f9; }
+.cv-kicker::before { content: ""; width: 10mm; height: .5mm; background: var(--grad); }
+.cv-title { margin-top: 6mm; font-size: calc(27pt * var(--cf, 1)); line-height: 1.34; font-weight: 700; color: #fff; }
+.cv-sub { margin-top: 5mm; font-size: calc(11.5pt * var(--cf, 1)); line-height: 1.75; color: #cbd5e1; max-width: 150mm; }
+.cv-bottom { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8mm; align-items: end; padding-top: 6mm; border-top: .25mm solid rgba(148,163,184,.25); }
+.cv-meta { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 1.6mm 6mm; font-size: 8.2pt; }
+.cv-meta dt { font-size: 6pt; font-weight: 700; letter-spacing: .2em; color: var(--faint); text-transform: uppercase; padding-top: .6mm; }
+.cv-meta dd { color: #f1f5f9; font-weight: 600; }
+.cv-score { display: flex; align-items: center; gap: 3.4mm; background: rgba(15,23,42,.55); border: .25mm solid rgba(148,163,184,.3); border-radius: 2.6mm; padding: 3.2mm 5mm 3.2mm 3.2mm; }
+.cv-score .lbl { font-size: 6pt; font-weight: 700; letter-spacing: .16em; color: var(--faint); }
+.cv-score strong { display: block; margin-top: .6mm; font-size: 10pt; color: #fff; }
+
+/* ---------- 章・見出し ---------- */
+.part { padding-top: 2mm; }
+.part-head { display: flex; align-items: flex-end; gap: 4mm; padding-bottom: 2.6mm; margin-bottom: 5mm; border-bottom: .35mm solid var(--ink); }
+.part-head .no { flex: none; white-space: nowrap; font-size: 26pt; font-weight: 300; line-height: .95; color: var(--blue); font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.part-head .eyebrow { font-size: 6.6pt; font-weight: 700; letter-spacing: .22em; color: var(--blue); text-transform: uppercase; }
+.part-head h2 { margin-top: .8mm; font-size: 15pt; line-height: 1.4; color: var(--ink); font-weight: 700; }
+.chapter + .chapter { margin-top: 11mm; }
+.chapter p { text-align: justify; text-justify: inter-character; }
+.chapter p + p { margin-top: 3mm; }
+.chapter .lead-in { margin-top: 0; }
+
+.points { margin-top: 4.5mm; background: var(--paper); border: .25mm solid var(--line); border-left: 1mm solid var(--blue); border-radius: 0 1.8mm 1.8mm 0; padding: 3.4mm 4.6mm; }
+.points .lbl { font-size: 6.4pt; font-weight: 700; letter-spacing: .18em; color: var(--blue); margin-bottom: 1.4mm; }
+.points ul { list-style: none; display: grid; gap: 1.4mm; }
+.points li { display: grid; grid-template-columns: 4.4mm minmax(0, 1fr); font-size: 9pt; line-height: 1.65; color: var(--ink-2); }
+.points li::before { content: ""; width: 1.6mm; height: 1.6mm; margin-top: .62em; border-radius: .4mm; background: var(--blue); transform: rotate(45deg); }
+
+.fig { margin-top: 5mm; }
+.fig-cap { display: flex; align-items: baseline; gap: 2.4mm; margin-bottom: 2mm; font-size: 8pt; }
+.fig-cap b { font-size: 8.6pt; }
+.fig-cap .tag { font-weight: 700; color: var(--blue); letter-spacing: .06em; }
+.doc .rs-table { font-size: 8.3pt; }
+.doc .rs-table td { padding: 2.2mm 2.4mm; }
+.doc .rs-table th { padding: 1.6mm 2.4mm 1.3mm; }
+.legend { font-size: 7pt; }
+
+/* ---------- Executive summary ---------- */
+.lead { font-size: 11.4pt; line-height: 1.8; font-weight: 700; color: var(--ink); padding: 5mm 6mm; background: var(--blue-50); border-radius: 2mm; position: relative; }
+.lead::before { content: ""; position: absolute; left: 0; top: 5mm; bottom: 5mm; width: 1mm; background: var(--blue); border-radius: 0 .5mm .5mm 0; }
+.kpis { margin-top: 5mm; display: grid; grid-template-columns: repeat(var(--kc, 4), minmax(0, 1fr)); gap: 3mm; }
+.kpi { border: .25mm solid var(--line); border-top: .9mm solid var(--cyan); border-radius: 1.8mm; padding: 3mm 3.4mm; background: #fff; min-width: 0; }
+.kpi .lbl { font-size: 6.4pt; font-weight: 700; letter-spacing: .12em; color: var(--muted); }
+.kpi .v { margin-top: 1mm; font-size: 17pt; font-weight: 700; color: var(--ink); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.kpi .v.v-m { font-size: 14pt; } .kpi .v.v-l { font-size: 12pt; } .kpi .v.v-xl { font-size: 10.5pt; }
+.kpi .cap { margin-top: 1.2mm; font-size: 6.8pt; color: var(--muted); line-height: 1.45; }
+.findings { margin-top: 6mm; }
+.findings .lbl { font-size: 6.6pt; font-weight: 700; letter-spacing: .18em; color: var(--muted); margin-bottom: 2mm; }
+.findings ol { list-style: none; counter-reset: f; display: grid; gap: 0; border-top: .25mm solid var(--line); }
+.findings li { counter-increment: f; display: grid; grid-template-columns: 10mm minmax(0, 1fr); gap: 2mm; padding: 2.6mm 0; border-bottom: .25mm solid var(--line); font-size: 9.2pt; line-height: 1.7; color: var(--ink-2); }
+.findings li::before { content: counter(f, decimal-leading-zero); font-size: 12pt; font-weight: 300; color: var(--blue); line-height: 1.25; font-variant-numeric: tabular-nums; }
+
+/* ---------- TOC ---------- */
+.toc { margin-top: 12mm; }
+.toc ol { list-style: none; border-top: .25mm solid var(--line); }
+.toc li { border-bottom: .25mm solid var(--line); }
+.toc a { display: grid; grid-template-columns: 12mm minmax(0, 1fr) auto; gap: 3mm; align-items: baseline; padding: 2.6mm 0; color: inherit; }
+.toc .n { font-size: 11pt; font-weight: 300; color: var(--blue); font-variant-numeric: tabular-nums; }
+.toc .t { font-size: 9.6pt; font-weight: 700; color: var(--ink); line-height: 1.5; }
+.toc .t small { display: block; font-size: 7.4pt; font-weight: 400; color: var(--muted); line-height: 1.5; margin-top: .4mm; }
+.toc .k { font-size: 6.4pt; font-weight: 700; letter-spacing: .14em; color: var(--faint); white-space: nowrap; }
+
+/* ---------- Recommendations ---------- */
+.reco-list { display: grid; gap: 2.4mm; }
+.reco { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); border: .25mm solid var(--line); border-radius: 1.8mm; overflow: hidden; }
+.reco > div { padding: 2.8mm 3.6mm; font-size: 8.8pt; line-height: 1.6; }
+.reco .lbl { display: block; font-size: 6pt; font-weight: 700; letter-spacing: .16em; color: var(--muted); margin-bottom: .6mm; }
+.reco .ac { background: var(--blue-50); color: var(--ink); font-weight: 600; }
+.reco .ac .lbl { color: var(--blue); }
+
+.disclaimer { margin-top: 6mm; padding: 3.4mm 4mm; background: var(--paper); border-radius: 1.8mm; font-size: 7pt; line-height: 1.75; color: var(--muted); }
+.disclaimer b { color: var(--text); }
+.break-before { break-before: page; page-break-before: always; }
+</style>
+</head>
+<body>
+<main class="doc" id="doc"></main>
+
+<!-- ▼ データ差し替え箇所（JSON）。"</script>" を含む場合は "<\/script>" にエスケープしてください -->
+<script id="report-data" type="application/json">
+@@DATA@@
+</script>
+
+<script>
+/*@@CORE_JS@@*/
+</script>
+<script>
+(function () {
+  'use strict';
+  var d = RS.loadData(), m = d.meta || {}, E = RS.esc, A = RS.arr;
+  var html = '', figNo = 0;
+  var pad2 = function (n) { return (n < 10 ? '0' : '') + n; };
+  var partHead = function (no, eyebrow, title) {
+    return '<div class="part-head keep-next">' + (no ? '<span class="no">' + no + '</span>' : '') + '<div><div class="eyebrow">' + E(eyebrow) + '</div><h2>' + E(title) + '</h2></div></div>';
+  };
+  var figure = function (tbl, label) {
+    figNo += 1;
+    var t = RS.table(tbl, { widthChars: 104, cellHtml: tbl.cellHtml });
+    // 6行以下の小さな表だけ丸ごと次ページへ送る。大きな表は行単位で分割（見出し行は自動で繰り返し）
+    var small = A(tbl.rows).length <= 6;
+    return '<figure class="fig' + (small ? ' avoid' : '') + '"><div class="fig-cap keep-next"><span class="tag">' + (label || 'Table') + ' ' + figNo + '</span><b>' + E(tbl.caption || '') + '</b></div>' + t.html + (t.hasRating ? RS.ratingLegend() : '') + '</figure>';
+  };
+
+  /* ---- Cover ---- */
+  var score = m.confidenceScore, hasScore = score !== undefined && score !== null && score !== '';
+  html += '<section class="cover bleed"><div class="cover-grid"></div>' +
+    '<div class="cv-top"><div class="cv-brand"><span class="logo-mark"></span>' + E(m.publisher || 'Research Studio') + '</div>' + (m.classification ? '<div class="cv-class">' + E(m.classification) + '</div>' : '') + '</div>' +
+    '<div class="cv-main"><div class="cv-kicker">RESEARCH REPORT</div><h1 class="cv-title">' + E(m.title) + '</h1>' + (m.subtitle ? '<p class="cv-sub">' + E(m.subtitle) + '</p>' : '') + '</div>' +
+    '<div class="cv-bottom"><dl class="cv-meta">' + [['Theme', m.theme], ['Date', m.date], ['Publisher', m.publisher], ['Sources', A(d.sources).length ? A(d.sources).length + '件' : '']]
+      .filter(function (x) { return x[1]; }).map(function (x) { return '<dt>' + x[0] + '</dt><dd>' + E(x[1]) + '</dd>'; }).join('') + '</dl>' +
+      (hasScore ? '<div class="cv-score">' + RS.ring(score, { size: '17mm', font: '14pt' }) + '<div><div class="lbl">CONFIDENCE SCORE</div><strong>信頼度：' + RS.scoreLabel(score) + '</strong></div></div>' : '') +
+    '</div></section>';
+
+  /* ---- 章構成（目次と本文で共有） ---- */
+  var chapters = [];
+  A(d.sections).forEach(function (s, i) { chapters.push({ id: 'ch-' + (i + 1), kind: 'section', title: RS.stripNum(s.heading), s: s, desc: RS.str(s.body).split(/\n/)[0] }); });
+  if (d.table && A(d.table.rows).length) chapters.push({ id: 'ch-matrix', kind: 'matrix', title: d.table.caption || '比較分析', desc: '主要な選択肢を ' + (A(d.table.columns).length - 1) + ' 項目で比較' });
+  if (A(d.issues).length || A(d.actions).length || A(d.risks).length) chapters.push({ id: 'ch-reco', kind: 'reco', title: '戦略的示唆と提言', desc: '課題に対する打ち手、リスク、推奨アクション' });
+  chapters.forEach(function (c, i) { c.no = pad2(i + 1); });
+  var trim = function (s, n) { s = RS.str(s); return RS.textWidth(s) > n ? s.slice(0, Math.floor(n / 2)) + '…' : s; };
+
+  /* ---- Executive summary ＋ 目次 ---- */
+  var metrics = A(d.metrics), kp = A(d.keyPoints);
+  html += '<section class="part">' + partHead('', 'Executive Summary', 'エグゼクティブサマリー') +
+    (d.summary ? '<p class="lead avoid">' + E(d.summary) + '</p>' : '') +
+    (metrics.length ? '<div class="kpis" style="--kc:' + Math.min(metrics.length, metrics.length === 6 ? 3 : 4) + '">' + metrics.map(function (k) {
+      return '<div class="kpi"><div class="lbl">' + E(k.label) + '</div><div class="v ' + RS.valueSize(k.value) + '">' + E(k.value) + '</div>' + (k.note ? '<div class="cap">' + E(k.note) + '</div>' : '') + '</div>'; }).join('') + '</div>' : '') +
+    (kp.length ? '<div class="findings"><div class="lbl keep-next">KEY FINDINGS · 主要な発見</div><ol>' + kp.map(function (t) { return '<li>' + E(t) + '</li>'; }).join('') + '</ol></div>' : '') +
+    '</section>';
+  if (chapters.length) {
+    html += '<nav class="toc">' + partHead('', 'Contents', '目次') + '<ol>' + chapters.concat([{ id: 'ch-sources', no: '—', title: '参照ソース・出典一覧', desc: A(d.sources).length + '件の出典と信頼度評価' }]).map(function (c) {
+      return '<li class="avoid"><a href="#' + c.id + '"><span class="n">' + c.no + '</span><span class="t">' + E(c.title) + (c.desc ? '<small>' + E(trim(c.desc, 96)) + '</small>' : '') + '</span><span class="k">' +
+        (c.kind === 'matrix' ? 'TABLE' : c.kind === 'reco' ? 'RECOMMENDATION' : c.no === '—' ? 'APPENDIX' : 'CHAPTER') + '</span></a></li>';
+    }).join('') + '</ol></nav>';
+  }
+
+  /* ---- 本文 ---- */
+  chapters.forEach(function (c, i) {
+    var body = '';
+    if (c.kind === 'section') {
+      var s = c.s, ps = RS.str(s.body).split(/\n{2,}/).map(function (p) { return p.trim(); }).filter(Boolean);
+      var bl = A(s.bullets);
+      // 章見出し＋最初の段落を break-inside: avoid でひとまとめ → 見出しだけがページ末尾に残らない
+      body = '<div class="avoid">' + partHead(c.no, 'Chapter ' + c.no, c.title) + (ps[0] ? '<p class="lead-in">' + E(ps[0]).replace(/\n/g, '<br>') + '</p>' : '') + '</div>' +
+        ps.slice(1).map(function (p) { return '<p>' + E(p).replace(/\n/g, '<br>') + '</p>'; }).join('') +
+        (bl.length ? '<div class="points avoid"><div class="lbl">KEY POINTS</div><ul>' + bl.map(function (b) { return '<li><span>' + E(b) + '</span></li>'; }).join('') + '</ul></div>' : '') +
+        (s.table && A(s.table.rows).length ? figure(s.table) : '');
+    } else if (c.kind === 'matrix') {
+      body = partHead(c.no, 'Comparative Analysis', c.title) + figure(d.table);
+    } else {
+      var iss = A(d.issues), acts = A(d.actions), risks = A(d.risks);
+      body = partHead(c.no, 'Recommendations', c.title) +
+        (iss.length ? '<div class="reco-list">' + iss.map(function (x) { return '<div class="reco avoid"><div><span class="lbl">ISSUE · 課題</span>' + E(x.issue) + '</div><div class="ac"><span class="lbl">ACTION · 打ち手</span>' + E(x.action) + '</div></div>'; }).join('') + '</div>' : '') +
+        (risks.length ? figure({ caption: 'リスクと対策', columns: ['リスク', '影響度', '可能性', '対策', '担当'], columnWeights: [26, 10, 10, 38, 16],
+          rows: risks.map(function (r) { return [r.name, r.impact, r.likelihood, r.mitigation, r.owner]; }),
+          cellHtml: function (v, i) { return i === 1 || i === 2 ? RS.levelBadge(v) : null; } }) : '') +
+        (acts.length ? figure({ caption: '推奨アクション', columns: ['#', 'アクション', '責任者', '期限', '状態'], columnWeights: [6, 52, 17, 13, 12],
+          rows: acts.map(function (a, k) { return ['A' + (k + 1), a.task, a.owner, a.due, a.status]; }) }) : '');
+    }
+    html += '<section class="chapter' + (i === 0 ? ' break-before' : '') + '" id="' + c.id + '">' + body + '</section>';
+  });
+
+  /* ---- Sources ---- */
+  var src = A(d.sources);
+  html += '<section class="chapter break-before" id="ch-sources">' + partHead('', 'Appendix', '参照ソース・出典一覧') +
+    (src.length ? RS.table(RS.sourceTable(src), { cellHtml: RS.sourceCell, widthChars: 104 }).html : '<p>出典はありません。</p>') +
+    '<div class="disclaimer avoid"><b>信頼度スコア：</b>85以上＝高　70〜84＝中　70未満＝要確認（出典の種別・一次情報性・裏付け件数から算出）<br>' +
+    '<b>免責事項：</b>本レポートは公開情報をもとにAIが自動収集・分析した結果をまとめたものであり、内容の正確性・完全性を保証するものではありません。意思決定にあたっては出典の原文を確認し、必要に応じて専門家の助言を得てください。各出典の著作権はそれぞれの権利者に帰属します。</div></section>';
+
+  document.getElementById('doc').innerHTML = html;
+  RS.layoutTables(document);
+
+  /* ---- 表紙のタイトルが長い場合だけ縮小（1ページに収める） ---- */
+  var cover = document.querySelector('.cover'), cf = 1;
+  while (cover && cover.scrollHeight > cover.clientHeight + 1 && cf > 0.6) { cf -= 0.05; cover.style.setProperty('--cf', cf.toFixed(2)); }
+  var coverOk = !cover || cover.scrollHeight <= cover.clientHeight + 1;
+
+  /* ---- ランニングヘッダー／フッター（表紙には出さない） ---- */
+  var q = function (s) { return '"' + RS.str(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/[\r\n]+/g, ' ') + '"'; };
+  var box = 'font-family: ' + getComputedStyle(document.documentElement).getPropertyValue('--font').trim() + '; font-size: 6.4pt; color: #64748b;';
+  var css = '@page { ' +
+    '@top-left { content: ' + q(m.publisher || 'Research Studio') + '; ' + box + ' font-weight: 700; color: #0f172a; padding-left: 20mm; vertical-align: bottom; padding-bottom: 5mm; } ' +
+    '@top-center { content: ' + q(trim(m.title, 60)) + '; ' + box + ' vertical-align: bottom; padding-bottom: 5mm; } ' +
+    '@top-right { content: "RESEARCH REPORT"; ' + box + ' font-weight: 700; color: #2563eb; padding-right: 20mm; vertical-align: bottom; padding-bottom: 5mm; } ' +
+    '@bottom-left { content: ' + q(trim(m.classification, 40)) + '; ' + box + ' font-weight: 700; color: #b91c1c; padding-left: 20mm; vertical-align: top; padding-top: 4mm; } ' +
+    '@bottom-center { content: ' + q([m.date, '© ' + (m.publisher || 'Research Studio')].filter(Boolean).join(' · ')) + '; ' + box + ' vertical-align: top; padding-top: 4mm; } ' +
+    '@bottom-right { content: "Page " counter(page) " / " counter(pages); ' + box + ' padding-right: 20mm; vertical-align: top; padding-top: 4mm; } } ' +
+    '@page :first { @top-left { content: none; } @top-center { content: none; } @top-right { content: none; } @bottom-left { content: none; } @bottom-center { content: none; } @bottom-right { content: none; } }';
+  var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
+
+  var bad = RS.checkHorizontal(document.getElementById('doc'));
+  RS.ready({ template: 'C', ok: bad.length === 0 && coverOk, coverScale: cf, horizontalOverflow: bad.slice(0, 10), chapters: chapters.length });
+})();
+</script>
+</body>
+</html>

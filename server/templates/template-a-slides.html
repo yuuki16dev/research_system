@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Research Studio — A. Executive Slides (A4 Landscape)</title>
+<!--
+  バリエーションA：エグゼクティブ・スライド型（A4横）
+  ------------------------------------------------------------
+  ・データは下部の report-data ブロック（JSON）を差し替えるだけ
+    （または描画前に window.RS_DATA = {...} を代入）
+  ・描画後にオートフィット：
+      1) 収まる範囲で最大の文字倍率を二分探索（0.90〜1.45。スライドは本文13pt程度まで拡大してよい）
+      1b) それでも余白が大きい場合は、表の行間を広げる／カードを縦に伸ばして埋める（上限あり）
+      2) 0.90でも入らなければ、表の行／カードを「続き」スライドへ自動分割
+      3) 分割できない塊だけは最小倍率0.78まで縮小。それでも超えたら __RS_LAYOUT__.ok=false
+  ・完了時に window.__RS_READY__ = true（Puppeteer は waitForFunction で待機）
+-->
+<style>
+/*@@CORE_CSS@@*/
+
+/* =====================================================================
+   A. Slide layout
+   ===================================================================== */
+@page { size: A4 landscape; margin: 0; }
+
+html, body { background: #cbd5e1; }
+.deck { display: flex; flex-direction: column; align-items: center; gap: 10mm; padding: 10mm 0 16mm; }
+@media print {
+  html, body { background: #fff; }
+  .deck { display: block; padding: 0; }
+  .slide { box-shadow: none !important; }
+}
+
+/* スライドの外枠：1スライド＝1ページなので寸法は固定。
+   ただし overflow:hidden で切り捨てず、中身の側をオートフィットで収める */
+.slide {
+  width: 297mm; height: 210mm;
+  padding: 15mm 18mm 13mm;
+  position: relative; display: flex; flex-direction: column;
+  background: #fff;
+  break-after: page; page-break-after: always;
+  break-inside: avoid; page-break-inside: avoid;
+  box-shadow: 0 1mm 4mm rgba(15, 23, 42, .12), 0 0 0 .2mm rgba(15, 23, 42, .06);
+}
+.slide:last-child { break-after: auto; page-break-after: auto; }   /* 末尾の白紙ページを防ぐ */
+.slide::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 1mm; background: var(--grad); }
+
+@media screen {
+  .slide[data-overflow="true"] { outline: 1mm solid var(--crit); }
+  .slide[data-overflow="true"]::after {
+    content: "OVERFLOW — 最小倍率でも収まりません"; position: absolute; top: 2mm; left: 50%; transform: translateX(-50%);
+    background: var(--crit); color: #fff; font: 700 7pt var(--font); padding: .8mm 3mm; border-radius: 1mm; z-index: 9;
+  }
+}
+
+/* ランニングヘッダー／フッター（上下パディング内に配置。本文の高さを奪わない） */
+.rh, .rf {
+  position: absolute; left: 18mm; right: 18mm;
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr); align-items: center; gap: 4mm;
+  font-size: 6.6pt; letter-spacing: .05em; color: var(--muted); white-space: nowrap;
+}
+.rh > *, .rf > * { overflow: hidden; text-overflow: ellipsis; }
+.rh { top: 4.4mm; height: 6.4mm; border-bottom: .2mm solid var(--line); }
+.rf { bottom: 3.8mm; height: 5.6mm; border-top: .2mm solid var(--line); }
+.rh-brand { display: flex; align-items: center; gap: 1.6mm; font-weight: 700; color: var(--ink); font-size: 7pt; }
+.rh-title, .rf-center { text-align: center; }
+.rh-section { text-align: right; font-weight: 700; color: var(--blue); text-transform: uppercase; }
+.rf-right { text-align: right; font-variant-numeric: tabular-nums; }
+.rf-right b { color: var(--ink); }
+.rf-left { color: var(--crit); font-weight: 700; letter-spacing: .08em; }
+
+/* オートフィット対象：ここから下はすべて em 指定。--fit を変えると余白ごと相似に拡縮する */
+.slide-main {
+  flex: 1 1 auto; min-height: 0; min-width: 0;
+  font-size: calc(9pt * var(--fit, 1));
+  display: flex; flex-direction: column;
+}
+.fit { display: flex; flex-direction: column; gap: 1.15em; min-height: 0; }
+
+.slide-head { flex: none; }
+.eyebrow { display: flex; align-items: center; gap: .7em; font-size: .78em; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; color: var(--blue); }
+.eyebrow::before { content: ""; width: 2.6em; height: .2em; border-radius: .1em; background: var(--grad); }
+.eyebrow span { color: var(--ink); }
+.slide-title { margin-top: .35em; font-size: 2em; line-height: 1.38; font-weight: 700; color: var(--ink); letter-spacing: .01em; }
+.label { font-size: .74em; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
+
+/* ---------- Cover ---------- */
+.slide.cover { background: var(--ink); color: #e2e8f0; }
+.slide.cover::before { height: 1.2mm; }
+.cover-art { position: absolute; inset: 0 0 0 auto; width: 48%; pointer-events: none;
+  background:
+    radial-gradient(120mm 120mm at 100% 0%, rgba(37,99,235,.55), transparent 70%),
+    radial-gradient(90mm 90mm at 70% 100%, rgba(6,182,212,.26), transparent 70%),
+    radial-gradient(80mm 80mm at 100% 70%, rgba(79,70,229,.34), transparent 70%); }
+.cover-art::before { content: ""; position: absolute; inset: 0;
+  background-image: linear-gradient(rgba(148,163,184,.12) .2mm, transparent .2mm), linear-gradient(90deg, rgba(148,163,184,.12) .2mm, transparent .2mm);
+  background-size: 9mm 9mm;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 50%); mask-image: linear-gradient(90deg, transparent, #000 50%); }
+.cover .fit { height: 100%; justify-content: space-between; gap: 1.6em; position: relative; }
+.cover-top { display: flex; justify-content: space-between; align-items: center; gap: 2em; }
+.cover-brand { display: flex; align-items: center; gap: .6em; font-size: 1.15em; font-weight: 700; color: #fff; }
+.cover-class { font-size: .78em; font-weight: 700; letter-spacing: .16em; color: #fecaca; border: .08em solid rgba(254,202,202,.55); padding: .45em 1em; border-radius: .3em; max-width: 60%; text-align: center; }
+.cover-main { max-width: 64%; }
+.kicker { display: inline-flex; align-items: center; gap: .8em; font-size: .85em; font-weight: 700; letter-spacing: .26em; color: #67e8f9; text-transform: uppercase; }
+.kicker::before { content: ""; width: 3em; height: .2em; background: var(--grad); }
+.cover h1 { margin-top: .5em; font-size: 3.4em; line-height: 1.3; font-weight: 700; color: #fff; }
+.cover-sub { margin-top: .9em; font-size: 1.3em; line-height: 1.7; color: #cbd5e1; }
+.cover-bottom { display: flex; justify-content: space-between; align-items: flex-end; gap: 2em; }
+.cover-meta { display: flex; flex-wrap: wrap; gap: 1.2em 0; }
+.cover-meta div { padding-right: 2.4em; margin-right: 2.4em; border-right: .08em solid rgba(148,163,184,.28); }
+.cover-meta div:last-child { border-right: 0; margin-right: 0; padding-right: 0; }
+.cover-meta dt { font-size: .7em; font-weight: 700; letter-spacing: .2em; color: var(--faint); text-transform: uppercase; }
+.cover-meta dd { margin-top: .35em; font-size: 1.05em; color: #f1f5f9; font-weight: 600; }
+.score { display: flex; align-items: center; gap: 1.1em; flex: none; background: rgba(15,23,42,.55); border: .08em solid rgba(148,163,184,.3); border-radius: 1em; padding: 1em 1.6em 1em 1em; }
+.score .label { color: var(--faint); }
+.score strong { display: block; margin-top: .25em; font-size: 1.25em; color: #fff; }
+.cover .rf { border-top-color: rgba(148,163,184,.22); color: var(--faint); }
+.cover .rf-right b { color: #fff; }
+
+/* ---------- Executive summary ---------- */
+.exec-top { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 1.2em; }
+.exec-top.solo { grid-template-columns: minmax(0, 1fr); }
+.bottom-line { background: var(--ink); border-radius: .7em; padding: 1.6em 1.9em; position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: center; }
+.bottom-line::after { content: ""; position: absolute; right: -20%; bottom: -40%; width: 60%; aspect-ratio: 1; background: radial-gradient(closest-side, rgba(37,99,235,.45), transparent); }
+.bottom-line .label { color: #67e8f9; position: relative; }
+.bottom-line p { position: relative; margin-top: .55em; font-size: 1.42em; line-height: 1.68; font-weight: 700; color: #fff; }
+.kpis { display: grid; grid-template-columns: repeat(var(--kcols, 2), minmax(0, 1fr)); gap: .75em; align-content: start; }
+.kpi { background: var(--paper); border: .08em solid var(--line); border-top: .3em solid var(--cyan); border-radius: .6em; padding: .95em 1.05em; display: flex; flex-direction: column; min-width: 0; }
+.kpi .v { margin-top: .3em; white-space: nowrap; font-size: 2.5em; font-weight: 700; color: var(--ink); line-height: 1.1; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+.kpi .v.v-m { font-size: 2.05em; } .kpi .v.v-l { font-size: 1.7em; } .kpi .v.v-xl { font-size: 1.4em; }
+.kpi .note { margin-top: .5em; font-size: .8em; color: var(--muted); line-height: 1.45; }
+
+.block-label { display: flex; align-items: center; gap: .8em; margin-bottom: .7em; }
+.block-label::after { content: ""; flex: 1; height: .08em; background: var(--line); }
+.insights { display: grid; grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr)); gap: .8em; }
+.insight { border: .08em solid var(--line); border-radius: .6em; padding: 1em 1.15em 1.05em; position: relative; overflow: hidden; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .2em .9em; align-items: start; }
+.insight::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: .3em; background: var(--accent, var(--blue)); }
+.insight .no { font-size: 1.9em; font-weight: 300; color: var(--accent, var(--blue)); line-height: 1; font-variant-numeric: tabular-nums; }
+.insight p { font-size: 1.04em; line-height: 1.7; color: var(--ink-2); font-weight: 500; }
+
+/* ---------- Matrix ---------- */
+.matrix .rs-table { font-size: 1.05em; }
+
+/* ---------- Analysis cards ---------- */
+.sections { display: grid; grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr)); gap: 1em; align-items: start; }
+.sec { border: .08em solid var(--line); border-radius: .6em; padding: 1.2em 1.35em 1.3em; position: relative; overflow: hidden; }
+.sec::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: .3em; background: var(--accent, var(--blue)); }
+.sec-no { font-size: .8em; font-weight: 700; letter-spacing: .16em; color: var(--accent, var(--blue)); }
+.sec h3 { margin-top: .35em; font-size: 1.25em; line-height: 1.5; color: var(--ink); font-weight: 700; }
+.sec-content { margin-top: .6em; }
+.sec-content p { font-size: .98em; line-height: 1.75; }
+.sec-content p + p { margin-top: .6em; }
+.sec-content ul { margin-top: .75em; list-style: none; display: grid; gap: .45em; }
+.sec-content li { display: grid; grid-template-columns: 1.1em minmax(0, 1fr); font-size: .95em; line-height: 1.6; color: var(--ink-2); }
+.sec-content li::before { content: ""; width: .45em; height: .45em; margin-top: .55em; border-radius: .12em; background: var(--accent, var(--blue)); transform: rotate(45deg); }
+.sections[data-cols="1"] .sec-content { columns: 2; column-gap: 2.4em; }
+.sections[data-cols="1"] .sec-content ul { break-inside: avoid; }
+
+/* ---------- 余白の自動充填（少量データ時。JSが --row-extra / data-fill を設定） ---------- */
+.slide .rs-table td { padding-top: calc(.75em + var(--row-extra, 0px) / 2); padding-bottom: calc(.75em + var(--row-extra, 0px) / 2); }
+.slide[data-fill] .fit { height: 100%; }
+.slide[data-fill] [data-stretch] { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.slide[data-fill] [data-stretch] > [data-split] { flex: 1 1 auto; align-items: stretch; }
+.slide[data-fill] .fit > [data-repeat]:last-child, .slide[data-fill] .fit > [data-tail] { margin-top: auto; }
+/* 伸ばしたインサイトカードはタイル表示（番号を上、本文を下に寄せる） */
+.slide[data-fill] .insight { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; align-content: stretch; padding: 1.3em 1.4em; }
+.slide[data-fill] .insight .no { font-size: 2.6em; }
+.slide[data-fill] .insight p { align-self: end; font-size: 1.12em; }
+
+/* ---------- Sources ---------- */
+.disclaimer { font-size: .78em; color: var(--muted); line-height: 1.7; border-top: .08em solid var(--line); padding-top: .8em; }
+</style>
+</head>
+<body>
+<div class="deck" id="deck"></div>
+
+<!-- ▼ データ差し替え箇所（JSON）。"</script>" を含む場合は "<\/script>" にエスケープしてください -->
+<script id="report-data" type="application/json">
+@@DATA@@
+</script>
+
+<script>
+/*@@CORE_JS@@*/
+</script>
+<script>
+(function () {
+  'use strict';
+  var d = RS.loadData(), m = d.meta || {}, E = RS.esc, A = RS.arr;
+  var accents = ['var(--blue)', 'var(--cyan-700)', 'var(--indigo)', 'var(--blue)', 'var(--cyan-700)', 'var(--indigo)'];
+  var no = 0;
+  var nextNo = function () { no += 1; return (no < 10 ? '0' : '') + no; };
+
+  var chrome = function (section) {
+    return '<header class="rh"><div class="rh-brand"><span class="logo-mark"></span>' + E(m.publisher || 'Research Studio') + '</div>' +
+      '<div class="rh-title">' + E(m.title) + '</div><div class="rh-section">' + E(section) + '</div></header>';
+  };
+  var foot = '<footer class="rf"><div class="rf-left">' + E(m.classification) + '</div>' +
+    '<div class="rf-center">' + E(m.date) + ' · © ' + E(m.publisher || 'Research Studio') + '</div>' +
+    '<div class="rf-right">Page <b class="pg-num"></b> / <span class="pg-total"></span></div></footer>';
+  var slide = function (section, inner, o) {
+    o = o || {};
+    return '<section class="slide ' + (o.cls || '') + '" data-section="' + E(section) + '" data-max-fit="' + (o.maxFit || 1.45) + '">' +
+      (o.cover ? '<div class="cover-art"></div>' : chrome(section)) +
+      '<div class="slide-main"><div class="fit">' + inner + '</div></div>' + foot + '</section>';
+  };
+  var head = function (eyebrow, title) {
+    return '<div class="slide-head"><div class="eyebrow"><span>' + nextNo() + '</span>' + E(eyebrow) + '</div><h2 class="slide-title">' + E(title) + '</h2></div>';
+  };
+
+  var html = '';
+
+  /* ---- 01 Cover ---- */
+  no += 1;
+  var score = m.confidenceScore;
+  html += slide('Cover',
+    '<div class="cover-top"><div class="cover-brand"><span class="logo-mark"></span>' + E(m.publisher || 'Research Studio') + '</div>' +
+      (m.classification ? '<div class="cover-class">' + E(m.classification) + '</div>' : '') + '</div>' +
+    '<div class="cover-main"><div class="kicker">Executive Research Briefing</div><h1>' + E(m.title) + '</h1>' +
+      (m.subtitle ? '<p class="cover-sub">' + E(m.subtitle) + '</p>' : '') + '</div>' +
+    '<div class="cover-bottom"><dl class="cover-meta">' +
+      [['Theme', m.theme], ['Date', m.date], ['Publisher', m.publisher]].filter(function (x) { return x[1]; })
+        .map(function (x) { return '<div><dt>' + x[0] + '</dt><dd>' + E(x[1]) + '</dd></div>'; }).join('') + '</dl>' +
+      (score !== undefined && score !== null && score !== '' ?
+        '<div class="score">' + RS.ring(score, { size: '18mm', font: '15pt' }) + '<div><div class="label">Confidence Score</div><strong>信頼度：' + RS.scoreLabel(score) + '</strong></div></div>' : '') +
+    '</div>', { cls: 'cover', cover: true, maxFit: 1.1 });
+
+  /* ---- 02 Executive summary ---- */
+  var metrics = A(d.metrics), kp = A(d.keyPoints);
+  if (d.summary || metrics.length || kp.length) {
+    var top = '';
+    if (d.summary || metrics.length) {
+      top = '<div class="exec-top' + (!d.summary || !metrics.length ? ' solo' : '') + '">' +
+        (d.summary ? '<div class="bottom-line"><div class="label">Bottom Line · 結論</div><p>' + E(d.summary) + '</p></div>' : '') +
+        (metrics.length ? '<div class="kpis" style="--kcols:' + (metrics.length === 1 ? 1 : (!d.summary ? Math.min(metrics.length, 4) : 2)) + '">' + metrics.map(function (k) {
+          return '<div class="kpi"><div class="label">' + E(k.label) + '</div><div class="v ' + RS.valueSize(k.value) + '">' + E(k.value) + '</div>' +
+            (k.note ? '<div class="note">' + E(k.note) + '</div>' : '') + '</div>';
+        }).join('') + '</div>' : '') + '</div>';
+    }
+    var ins = kp.length ? '<div data-stretch><div class="block-label label">Key Insights · 主要示唆</div><div class="insights" data-split data-grid-auto data-max-cols="' + (kp.length === 4 ? 2 : 3) + '">' +
+      kp.map(function (t, i) {
+        return '<div class="insight" data-item style="--accent:' + accents[i % 3] + '"><span class="no">' + (i < 9 ? '0' : '') + (i + 1) + '</span><p>' + E(t) + '</p></div>';
+      }).join('') + '</div></div>' : '';
+    html += slide('Executive Summary', head('Executive Summary', m.keyMessage || 'エグゼクティブサマリー') + top + ins);
+  }
+
+  /* ---- 03 Comparison matrix ---- */
+  if (d.table && A(d.table.rows).length) {
+    var t = RS.table(d.table, { split: true, widthChars: 125 });
+    html += slide('Comparison Matrix', head('Comparison Matrix', d.table.caption || '比較マトリクス') +
+      '<div class="matrix">' + t.html + '</div>' + (t.hasRating ? '<div data-repeat>' + RS.ratingLegend() + '</div>' : ''));
+  }
+
+  /* ---- 04 Detailed analysis ---- */
+  var secs = A(d.sections);
+  if (secs.length) {
+    html += slide('Detailed Analysis', head('Detailed Analysis', '詳細分析・ファクト解説') +
+      '<div><div class="sections" data-split data-grid-auto data-max-cols="3">' + secs.map(function (s, i) {
+        var bl = A(s.bullets);
+        return '<article class="sec card" data-item style="--accent:' + accents[i % 3] + '"><div class="sec-no">SECTION ' + (i < 9 ? '0' : '') + (i + 1) + '</div>' +
+          '<h3>' + E(RS.stripNum(s.heading)) + '</h3><div class="sec-content">' + RS.paras(s.body) +
+          (bl.length ? '<ul>' + bl.map(function (b) { return '<li><span>' + E(b) + '</span></li>'; }).join('') + '</ul>' : '') + '</div></article>';
+      }).join('') + '</div></div>');
+  }
+
+  /* ---- 05 Next steps（actions がある場合のみ） ---- */
+  var acts = A(d.actions);
+  if (acts.length) {
+    var at = RS.table({ columns: ['#', 'アクション', '責任者', '期限', '状態'],
+      rows: acts.map(function (a, i) { return ['A' + (i + 1), a.task, a.owner, a.due, a.status]; }), columnWeights: [6, 52, 17, 13, 12] }, { split: true, widthChars: 125 });
+    html += slide('Next Steps', head('Recommendations & Next Steps', '推奨アクション') + '<div>' + at.html + '</div>');
+  }
+
+  /* ---- 06 Sources ---- */
+  var src = A(d.sources);
+  if (src.length) {
+    var st = RS.table(RS.sourceTable(src), { split: true, cellHtml: RS.sourceCell, widthChars: 125 });
+    html += slide('Sources', head('Sources & Appendix', '参照ソース・出典一覧') + '<div>' + st.html + '</div>' +
+      '<p class="disclaimer" data-tail>本レポートは公開情報をもとにAIが自動収集・分析した結果をまとめたものであり、内容の正確性・完全性を保証するものではありません。意思決定にあたっては出典の原文を確認してください。各出典の著作権はそれぞれの権利者に帰属します。</p>');
+  }
+
+  document.getElementById('deck').innerHTML = html;
+
+  /* =====================================================================
+     オートフィット ＋ 自動分割
+     ===================================================================== */
+  var MIN = 0.78, COMFORT = 0.9;
+  var overflowing = function (s) {
+    var main = s.querySelector('.slide-main'), fit = s.querySelector('.fit');
+    return main.scrollHeight > main.clientHeight + 1 || fit.scrollHeight > fit.clientHeight + 1 || main.scrollWidth > main.clientWidth + 1;
+  };
+  /* KPI値は1行固定。枠幅を超える値だけ、その要素の文字を段階的に縮める（最小65%）。それでも無理なら折り返し */
+  var fitValues = function (s) {
+    s.querySelectorAll('.kpi .v').forEach(function (el) {
+      el.style.fontSize = ''; el.style.whiteSpace = '';
+      var base = parseFloat(getComputedStyle(el).fontSize), f = 1;
+      while (el.scrollWidth > el.clientWidth + 1 && f > 0.66) { f -= 0.07; el.style.fontSize = (base * f).toFixed(2) + 'px'; }
+      if (el.scrollWidth > el.clientWidth + 1) el.style.whiteSpace = 'normal';
+    });
+  };
+  var setFit = function (s, v) { s.style.setProperty('--fit', v.toFixed(4)); RS.layoutTables(s); fitValues(s); };
+  var fitsAt = function (s, v) { setFit(s, v); return !overflowing(s); };
+  var best = function (s, lo, hi) {
+    if (fitsAt(s, hi)) return hi;
+    if (!fitsAt(s, lo)) return null;
+    for (var i = 0; i < 8; i++) { var mid = (lo + hi) / 2; if (fitsAt(s, mid)) lo = mid; else hi = mid; }
+    setFit(s, lo); return lo;
+  };
+  var grids = function (s) {
+    s.querySelectorAll('[data-grid-auto]').forEach(function (g) {
+      var n = g.querySelectorAll(':scope > [data-item]').length, mx = +g.dataset.maxCols || 3, c = Math.max(1, Math.min(n, mx));
+      g.style.setProperty('--cols', c); g.dataset.cols = c;
+    });
+  };
+  var split = function (s) {
+    var fit = s.querySelector('.fit'), kids = Array.prototype.slice.call(fit.children);
+    var idx = kids.findIndex(function (el) { return el.matches('[data-split]') || el.querySelector('[data-split]'); });
+    if (idx < 0) return null;
+    var cont = kids[idx].matches('[data-split]') ? kids[idx] : kids[idx].querySelector('[data-split]');
+    var items = Array.prototype.filter.call(cont.children, function (e) { return e.hasAttribute('data-item'); });
+    if (items.length < 2) return null;
+
+    var clone = s.cloneNode(true), cfit = clone.querySelector('.fit');
+    Array.prototype.slice.call(cfit.children).forEach(function (el, i) {
+      if (i === idx || el.classList.contains('slide-head') || el.hasAttribute('data-repeat') || el.hasAttribute('data-tail')) return;
+      el.remove();
+    });
+    fit.querySelectorAll(':scope > [data-tail]').forEach(function (el) { el.remove(); });
+    var ccont = cfit.querySelector('[data-split]');
+    Array.prototype.slice.call(ccont.children).forEach(function (e) { if (e.hasAttribute('data-item')) e.remove(); });
+    if (!clone.dataset.cont) {
+      var tt = clone.querySelector('.slide-title'); if (tt) tt.textContent += '（続き）';
+      clone.dataset.cont = '1';
+    }
+    s.after(clone);
+    setFit(s, 1); setFit(clone, 1);
+    while (overflowing(s) && items.length > 1) { ccont.prepend(items.pop()); grids(s); }
+    s.dataset.maxFit = '1'; clone.dataset.maxFit = '1';   // 分割したら前後で文字サイズを揃える
+    return clone;
+  };
+
+  /* 余白充填：表は行の上下余白を最大7mm/行まで増やす。カード群は中身が領域の45%以上あるときだけ縦に伸ばす */
+  var MM = 96 / 25.4;
+  var fill = function (s) {
+    var main = s.querySelector('.slide-main'), fit = s.querySelector('.fit');
+    var free = main.clientHeight - fit.scrollHeight;
+    if (free < 6 * MM) return;
+    var rows = s.querySelectorAll('.rs-table tbody tr');
+    if (rows.length) s.style.setProperty('--row-extra', Math.min(free * 0.7 / rows.length, 7 * MM).toFixed(1) + 'px');
+    else if (s.querySelectorAll('[data-stretch] [data-item]').length >= 2 && fit.scrollHeight > main.clientHeight * 0.45) s.dataset.fill = '1';
+    if (overflowing(s)) { s.style.removeProperty('--row-extra'); delete s.dataset.fill; }
+  };
+
+  var report = [];
+  var run = function () {
+    var s = document.querySelector('.slide');
+    while (s) {
+      grids(s);
+      var max = +s.dataset.maxFit || 1.45, comfort = Math.min(COMFORT, max), v;
+      if (fitsAt(s, comfort)) { v = best(s, comfort, max); }
+      else if (split(s)) { grids(s); v = best(s, comfort, 1) || best(s, MIN, comfort); }
+      else { v = best(s, MIN, comfort); }
+      if (v === null) { setFit(s, MIN); s.dataset.overflow = 'true'; }
+      else if (!s.classList.contains('cover')) fill(s);
+      s = s.nextElementSibling;
+    }
+    var all = document.querySelectorAll('.slide');
+    all.forEach(function (sl, i) {
+      sl.querySelector('.pg-num').textContent = i + 1;
+      sl.querySelector('.pg-total').textContent = all.length;
+      report.push({ page: i + 1, section: sl.dataset.section, fit: +(+sl.style.getPropertyValue('--fit')).toFixed(3), continued: !!sl.dataset.cont, overflow: sl.dataset.overflow === 'true' });
+    });
+    RS.ready({ template: 'A', pages: all.length, ok: report.every(function (r) { return !r.overflow; }), slides: report });
+  };
+  (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve()).then(run);
+})();
+</script>
+</body>
+</html>

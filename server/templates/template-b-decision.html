@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Research Studio — B. Executive Decision Brief (A4 Portrait)</title>
+<!--
+  バリエーションB：意思決定ペーパー型（A4縦・2〜3枚が目安のフロー型）
+  ------------------------------------------------------------
+  ・ページ枠を固定しないフロー型。内容が多ければページが自然に増え、少なければ早く終わる
+  ・ランニングヘッダー／フッターとページ番号（Page X / Y）は @page のマージンボックスで描画
+  ・カード／表の行／決裁欄は break-inside: avoid、見出しは break-after: avoid
+  ・データは下部の report-data ブロック（JSON）を差し替え（または window.RS_DATA）
+  ・完了時に window.__RS_READY__ = true
+-->
+<style>
+/*@@CORE_CSS@@*/
+
+/* =====================================================================
+   B. Page setup
+   左右余白は @page ではなく本文の padding で取る（1ページ目の帯を紙端まで裁ち落とすため）。
+   上下余白とマージンボックス（ヘッダー・フッター）は JS が @page に注入する
+   ===================================================================== */
+@page { size: A4 portrait; margin: 20mm 0 16mm; }
+@page :first { margin-top: 0; }
+
+html, body { background: #cbd5e1; }
+body { font-size: 8.4pt; line-height: 1.65; }
+.doc { width: 210mm; padding: 0 16mm; background: #fff; margin: 10mm auto; box-shadow: 0 1mm 4mm rgba(15,23,42,.14); }
+@media screen { .doc { padding-bottom: 16mm; } }
+@media print {
+  html, body { background: #fff; }
+  .doc { margin: 0; box-shadow: none; }
+}
+
+/* ---------- Masthead（1ページ目のみ。左右と上端を裁ち落とし） ---------- */
+.masthead { margin: 0 -16mm; padding: 10mm 16mm 7mm; background: var(--ink); color: #e2e8f0; position: relative; overflow: hidden; }
+.masthead::before { content: ""; position: absolute; inset: 0;
+  background: radial-gradient(90mm 70mm at 100% 0%, rgba(37,99,235,.55), transparent 70%), radial-gradient(60mm 50mm at 78% 120%, rgba(6,182,212,.28), transparent 70%); }
+.masthead::after { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1.1mm; background: var(--grad); }
+.masthead > * { position: relative; }
+.mh-top { display: flex; justify-content: space-between; align-items: center; gap: 6mm; }
+.mh-brand { display: flex; align-items: center; gap: 2mm; font-weight: 700; font-size: 9pt; color: #fff; }
+.mh-tags { display: flex; gap: 2.4mm; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.doc-type { font-size: 6.4pt; font-weight: 700; letter-spacing: .22em; color: #67e8f9; }
+.mh-class { font-size: 6.4pt; font-weight: 700; letter-spacing: .12em; color: #fecaca; border: .3mm solid rgba(254,202,202,.55); padding: .9mm 2.2mm; border-radius: .7mm; }
+.mh-main { margin-top: 6mm; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8mm; align-items: end; }
+.kicker { display: inline-flex; align-items: center; gap: 2mm; font-size: 6.6pt; font-weight: 700; letter-spacing: .22em; color: #67e8f9; }
+.kicker::before { content: ""; width: 7mm; height: .5mm; background: var(--grad); }
+.mh-title { margin-top: 2.4mm; font-size: 19pt; line-height: 1.36; font-weight: 700; color: #fff; }
+.mh-q { margin-top: 2.4mm; font-size: 9pt; line-height: 1.6; color: #cbd5e1; }
+.mh-q b { color: #fff; }
+.score { display: flex; align-items: center; gap: 3mm; background: rgba(15,23,42,.55); border: .25mm solid rgba(148,163,184,.3); border-radius: 2.4mm; padding: 2.6mm 4mm 2.6mm 2.6mm; }
+.score .lbl { font-size: 5.8pt; font-weight: 700; letter-spacing: .16em; color: var(--faint); }
+.score strong { display: block; font-size: 9pt; color: #fff; }
+.mh-meta { margin-top: 5mm; padding-top: 3mm; border-top: .2mm solid rgba(148,163,184,.25); display: flex; flex-wrap: wrap; gap: 2mm 9mm; }
+.mh-meta dt { font-size: 5.6pt; font-weight: 700; letter-spacing: .18em; color: var(--faint); text-transform: uppercase; }
+.mh-meta dd { margin-top: .5mm; font-size: 7.8pt; color: #f1f5f9; font-weight: 600; }
+.mh-meta dd.due { color: #fde68a; }
+
+/* ---------- 共通：セクション ---------- */
+.blk { margin-top: 6mm; }
+.sec-head { display: flex; align-items: baseline; gap: 2.6mm; padding-bottom: 1.4mm; border-bottom: .3mm solid var(--ink); margin-bottom: 3mm; }
+.sec-head .no { flex: none; font-size: 9pt; font-weight: 700; color: var(--blue); font-variant-numeric: tabular-nums; }
+.sec-head h2 { font-size: 11pt; font-weight: 700; color: var(--ink); line-height: 1.35; }
+.sec-head .note { margin-left: auto; font-size: 6.8pt; color: var(--muted); white-space: nowrap; }
+.lbl { font-size: 6.2pt; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+
+/* ---------- Bottom line ＋ KPI ---------- */
+.decision { margin-top: 5mm; display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 4mm; align-items: start; }
+.decision.solo { grid-template-columns: minmax(0, 1fr); }
+.verdict-card { border: .25mm solid var(--line); border-left: 1mm solid var(--blue); border-radius: 1.8mm; padding: 4mm 4.4mm; }
+.verdict-row { display: flex; align-items: center; gap: 3mm; margin: 1.6mm 0 2.4mm; flex-wrap: wrap; }
+.verdict { font-size: 16pt; font-weight: 800; color: var(--blue); line-height: 1.1; white-space: nowrap; }
+.verdict.go { color: var(--good); } .verdict.hold { color: var(--warn); } .verdict.nogo { color: var(--crit); }
+.scale { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); flex: 1; min-width: 50mm; border: .25mm solid var(--line); border-radius: 1.2mm; overflow: hidden; }
+.scale span { text-align: center; font-size: 6.2pt; font-weight: 700; color: var(--faint); padding: 1.1mm .4mm; white-space: nowrap; }
+.scale span + span { border-left: .25mm solid var(--line); }
+.scale .on { color: #fff; }
+.scale .on.go { background: var(--good); } .scale .on.cgo { background: var(--blue); } .scale .on.hold { background: var(--warn); } .scale .on.nogo { background: var(--crit); }
+.bl-text { font-size: 9.6pt; line-height: 1.65; color: var(--ink); font-weight: 700; }
+.asks { margin-top: 3mm; padding-top: 2.6mm; border-top: .2mm dashed var(--line-2); }
+.asks ol { list-style: none; margin-top: 1.4mm; display: grid; gap: 1.2mm; counter-reset: ask; }
+.asks li { display: grid; grid-template-columns: 4.8mm minmax(0, 1fr); font-size: 8pt; line-height: 1.55; counter-increment: ask; }
+.asks li::before { content: counter(ask); width: 3.4mm; height: 3.4mm; margin-top: .4mm; border-radius: 50%; background: var(--ink); color: #fff; font-size: 5.6pt; font-weight: 700; display: grid; place-items: center; }
+.kpis { display: grid; grid-template-columns: repeat(var(--kc, 2), minmax(0, 1fr)); gap: 2.6mm; }
+.kpi { background: var(--paper); border: .25mm solid var(--line); border-radius: 1.8mm; padding: 2.8mm 3.2mm; display: flex; flex-direction: column; min-width: 0; }
+.kpi:first-child { background: var(--blue-50); border-color: var(--blue-100); }
+.kpi:first-child .lbl { color: var(--blue); }
+.kpi .v { margin-top: 1mm; font-size: 17pt; font-weight: 700; color: var(--ink); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.kpi .v.v-m { font-size: 14pt; } .kpi .v.v-l { font-size: 12pt; } .kpi .v.v-xl { font-size: 10.5pt; }
+.kpi .cap { margin-top: auto; padding-top: 1.2mm; font-size: 6.6pt; color: var(--muted); line-height: 1.45; }
+
+/* ---------- Findings ---------- */
+.findings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2.4mm 3.4mm; }
+.finding { display: grid; grid-template-columns: 6mm minmax(0, 1fr); gap: 2mm; padding: 2.8mm 3.2mm; border: .25mm solid var(--line); border-radius: 1.6mm; position: relative; }
+.finding::before { content: ""; position: absolute; left: 0; top: 2.4mm; bottom: 2.4mm; width: .8mm; border-radius: 0 .6mm .6mm 0; background: var(--accent, var(--blue)); }
+.finding .n { font-size: 11pt; font-weight: 300; color: var(--accent, var(--blue)); line-height: 1.2; font-variant-numeric: tabular-nums; }
+.finding p { font-size: 8.2pt; line-height: 1.62; color: var(--ink-2); }
+
+/* ---------- Issues → actions ---------- */
+.issues { display: grid; gap: 0; border: .25mm solid var(--line); border-radius: 1.8mm; overflow: hidden; }
+.issue-row { display: grid; grid-template-columns: minmax(0, 1fr) 7mm minmax(0, 1fr); align-items: stretch; }
+.issue-row + .issue-row { border-top: .25mm solid var(--line); }
+.issue-row > div { padding: 2.6mm 3.4mm; font-size: 8.2pt; line-height: 1.58; }
+.issue-row .is { color: var(--ink-2); }
+.issue-row .ac { background: var(--blue-50); color: var(--ink); font-weight: 600; }
+.issue-row .arrow { display: grid; place-items: center; padding: 0; color: var(--blue); font-weight: 700; background: linear-gradient(90deg, #fff 50%, var(--blue-50) 50%); }
+.issue-head { display: grid; grid-template-columns: minmax(0, 1fr) 7mm minmax(0, 1fr); background: var(--paper); border-bottom: .25mm solid var(--line); }
+.issue-head span { padding: 1.4mm 3.4mm; font-size: 6.2pt; font-weight: 700; letter-spacing: .14em; color: var(--muted); }
+.issue-head span:last-child { color: var(--blue); }
+
+/* ---------- Tables ---------- */
+.doc .rs-table { font-size: 8pt; }
+.doc .rs-table td { padding: 2mm 2.2mm; }
+.doc .rs-table th { padding: 1.4mm 2.2mm 1.2mm; }
+
+/* ---------- Risk ---------- */
+.risk-wrap { display: grid; grid-template-columns: 54mm minmax(0, 1fr); gap: 5mm; align-items: start; }
+.heat-title { display: flex; justify-content: space-between; font-size: 6pt; color: var(--muted); margin-bottom: 1.2mm; }
+.heat { display: grid; grid-template-columns: 5.5mm repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(3, minmax(13mm, auto)) 4.6mm; gap: .7mm; }
+.heat .ax { font-size: 5.8pt; color: var(--muted); display: grid; place-items: center; font-weight: 700; }
+.heat .ax.x { min-height: 4.6mm; }
+.heat .cell { border-radius: 1mm; display: flex; flex-wrap: wrap; align-content: center; justify-content: center; gap: .8mm; padding: .8mm; }
+.heat .s1 { background: var(--good-50); } .heat .s2 { background: var(--warn-50); } .heat .s3 { background: #fde7c7; } .heat .s4 { background: var(--crit-50); box-shadow: inset 0 0 0 .25mm #fecaca; }
+.heat-cap { display: flex; justify-content: space-between; margin-top: 1mm; padding-left: 6.2mm; font-size: 5.8pt; color: var(--muted); }
+.rk { display: inline-grid; place-items: center; min-width: 6mm; height: 4.2mm; padding: 0 .8mm; border-radius: 2.1mm; background: var(--ink); color: #fff; font-size: 6pt; font-weight: 700; }
+
+/* ---------- Supporting detail ---------- */
+.detail { padding: 3mm 0 3.2mm; border-bottom: .2mm solid var(--line); }
+.detail:first-of-type { padding-top: 0; }
+.detail h3 { font-size: 9.4pt; color: var(--ink); line-height: 1.45; display: flex; gap: 2mm; }
+.detail h3 span { color: var(--blue); font-variant-numeric: tabular-nums; }
+.detail p { margin-top: 1.2mm; font-size: 8pt; line-height: 1.7; }
+.detail ul { margin-top: 1.6mm; list-style: none; display: grid; gap: .8mm; }
+.detail li { display: grid; grid-template-columns: 3.6mm minmax(0, 1fr); font-size: 7.8pt; line-height: 1.55; color: var(--ink-2); }
+.detail li::before { content: ""; width: 1.4mm; height: 1.4mm; margin-top: .55em; border-radius: .3mm; background: var(--blue); transform: rotate(45deg); }
+.detail .rs-table { margin-top: 2.4mm; }
+
+/* ---------- Sign-off ---------- */
+.close { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 5mm; align-items: start; }
+.signoff { border: .3mm solid var(--ink); border-radius: 1.8mm; padding: 3.6mm 4mm; display: grid; gap: 3mm; }
+.signoff .head { display: flex; justify-content: space-between; align-items: center; }
+.choices { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2mm; font-size: 8pt; color: var(--ink); font-weight: 700; }
+.choices span { display: inline-flex; align-items: center; gap: 1.4mm; white-space: nowrap; }
+.choices span::before { content: ""; width: 3.4mm; height: 3.4mm; border: .3mm solid var(--ink); border-radius: .6mm; }
+.sign-row { display: grid; grid-template-columns: 17mm minmax(0, 1fr) 22mm; gap: 2mm; align-items: end; font-size: 6.8pt; color: var(--muted); }
+.sign-row i { border-bottom: .25mm solid var(--line-2); height: 6mm; display: flex; align-items: flex-end; justify-content: flex-end; font-style: normal; color: var(--faint); padding-bottom: .4mm; }
+.comment { min-height: 15mm; border: .25mm dashed var(--line-2); border-radius: 1.2mm; padding: 1.6mm 2.2mm; font-size: 6.4pt; color: var(--faint); }
+.src-list { list-style: none; }
+.src-list li { display: grid; grid-template-columns: 7mm minmax(0, 1fr) auto; gap: 2mm; align-items: center; padding: 1.3mm 0; border-bottom: .2mm solid var(--line); font-size: 7.2pt; }
+.src-list .sid { font-weight: 700; color: var(--blue); }
+.src-list .t { color: var(--ink); line-height: 1.45; }
+.src-list .d { display: block; font-size: 6.2pt; color: var(--muted); }
+.fine { margin-top: 2.4mm; font-size: 6.3pt; line-height: 1.65; color: var(--muted); }
+.legend { font-size: 6.6pt; }
+</style>
+</head>
+<body>
+<main class="doc" id="doc"></main>
+
+<!-- ▼ データ差し替え箇所（JSON）。"</script>" を含む場合は "<\/script>" にエスケープしてください -->
+<script id="report-data" type="application/json">
+@@DATA@@
+</script>
+
+<script>
+/*@@CORE_JS@@*/
+</script>
+<script>
+(function () {
+  'use strict';
+  var d = RS.loadData(), m = d.meta || {}, E = RS.esc, A = RS.arr;
+  var dec = d.decision || {}, vKey = RS.verdict(dec.verdict);
+  var html = '', no = 0;
+  var head = function (title, note) {
+    no += 1;
+    return '<div class="sec-head keep-next"><span class="no">' + (no < 10 ? '0' : '') + no + '</span><h2>' + E(title) + '</h2>' + (note ? '<span class="note">' + E(note) + '</span>' : '') + '</div>';
+  };
+
+  /* ---- Masthead ---- */
+  var score = m.confidenceScore, hasScore = score !== undefined && score !== null && score !== '';
+  html += '<header class="masthead bleed avoid">' +
+    '<div class="mh-top"><div class="mh-brand"><span class="logo-mark"></span>' + E(m.publisher || 'Research Studio') + '</div>' +
+      '<div class="mh-tags"><span class="doc-type">EXECUTIVE DECISION BRIEF</span>' + (m.classification ? '<span class="mh-class">' + E(m.classification) + '</span>' : '') + '</div></div>' +
+    '<div class="mh-main"><div><div class="kicker">' + (vKey || dec.question ? 'Decision Required' : 'Executive Brief') + '</div>' +
+      '<h1 class="mh-title">' + E(m.title) + '</h1>' +
+      (dec.question ? '<p class="mh-q"><b>問い：</b>' + E(dec.question) + '</p>' : m.subtitle ? '<p class="mh-q">' + E(m.subtitle) + '</p>' : '') + '</div>' +
+      (hasScore ? '<div class="score">' + RS.ring(score, { size: '14mm', font: '12pt' }) + '<div><div class="lbl">CONFIDENCE</div><strong>信頼度：' + RS.scoreLabel(score) + '</strong></div></div>' : '') +
+    '</div><dl class="mh-meta">' +
+      [['Date', m.date], ['Theme', m.theme], ['Prepared by', m.publisher], ['Decision due', dec.due]].filter(function (x) { return x[1]; })
+        .map(function (x) { return '<div><dt>' + x[0] + '</dt><dd' + (x[0] === 'Decision due' ? ' class="due"' : '') + '>' + E(x[1]) + '</dd></div>'; }).join('') +
+    '</dl></header>';
+
+  /* ---- Bottom line ＋ KPI ---- */
+  var metrics = A(d.metrics), asks = A(dec.asks);
+  if (d.summary || vKey || metrics.length) {
+    var vc = (d.summary || vKey) ? '<div class="verdict-card avoid"><div class="lbl">Bottom Line · 結論と推奨判断</div>' +
+      (vKey ? '<div class="verdict-row"><div class="verdict ' + vKey + '">' + RS.verdictLabel[vKey] + '</div><div class="scale">' +
+        ['go', 'cgo', 'hold', 'nogo'].map(function (k) { return '<span class="' + (k === vKey ? 'on ' + k : '') + '">' + RS.verdictLabel[k].replace(' ', '') + '</span>'; }).join('') + '</div></div>' : '<div style="height:1.6mm"></div>') +
+      (d.summary ? '<p class="bl-text">' + E(d.summary) + '</p>' : '') +
+      (asks.length ? '<div class="asks"><div class="lbl">本日の承認依頼事項</div><ol>' + asks.map(function (a) { return '<li><span>' + E(a) + '</span></li>'; }).join('') + '</ol></div>' : '') +
+      '</div>' : '';
+    var kp = metrics.length ? '<div class="kpis" style="--kc:' + (metrics.length === 1 ? 1 : (vc ? 2 : Math.min(metrics.length, 4))) + '">' + metrics.map(function (k) {
+      return '<div class="kpi avoid"><div class="lbl">' + E(k.label) + '</div><div class="v ' + RS.valueSize(k.value) + '">' + E(k.value) + '</div>' + (k.note ? '<div class="cap">' + E(k.note) + '</div>' : '') + '</div>';
+    }).join('') + '</div>' : '';
+    html += '<section class="decision' + (!vc || !kp ? ' solo' : '') + '">' + vc + kp + '</section>';
+  }
+
+  /* ---- Key findings ---- */
+  var kpts = A(d.keyPoints);
+  if (kpts.length) {
+    var acc = ['var(--blue)', 'var(--cyan-700)', 'var(--indigo)'];
+    html += '<section class="blk">' + head('判断の根拠となる主要ファクト', kpts.length + '件') + '<div class="findings">' +
+      kpts.map(function (t, i) { return '<div class="finding avoid" style="--accent:' + acc[i % 3] + '"><span class="n">' + (i < 9 ? '0' : '') + (i + 1) + '</span><p>' + E(t) + '</p></div>'; }).join('') + '</div></section>';
+  }
+
+  /* ---- Issues → actions ---- */
+  var iss = A(d.issues);
+  if (iss.length) {
+    html += '<section class="blk">' + head('課題と打ち手', '課題 → 打ち手') + '<div class="issues"><div class="issue-head keep-next"><span>ISSUE · 課題</span><span></span><span>ACTION · 打ち手</span></div>' +
+      iss.map(function (x) { return '<div class="issue-row avoid"><div class="is">' + E(x.issue) + '</div><div class="arrow">→</div><div class="ac">' + E(x.action) + '</div></div>'; }).join('') + '</div></section>';
+  }
+
+  /* ---- Options comparison ---- */
+  if (d.table && A(d.table.rows).length) {
+    var t = RS.table(d.table, { widthChars: 112 });
+    html += '<section class="blk">' + head(d.table.caption || '選択肢の比較', A(d.table.rows).length + '案 × ' + (t.cols - 1) + '評価軸') + t.html + (t.hasRating ? RS.ratingLegend() : '') + '</section>';
+  }
+
+  /* ---- Risk ---- */
+  var risks = A(d.risks);
+  if (risks.length) {
+    var cells = {};
+    risks.forEach(function (r, i) { var k = RS.level3(r.impact) + '-' + RS.level3(r.likelihood); (cells[k] = cells[k] || []).push('R' + (i + 1)); });
+    var heat = '';
+    [3, 2, 1].forEach(function (im) {
+      heat += '<div class="ax">' + ['', '低', '中', '高'][im] + '</div>';
+      [1, 2, 3].forEach(function (lk) {
+        var sc = im * lk, cls = sc >= 6 ? 's4' : sc >= 4 ? 's3' : sc >= 3 ? 's2' : 's1';
+        heat += '<div class="cell ' + cls + '">' + (cells[im + '-' + lk] || []).map(function (id) { return '<span class="rk">' + id + '</span>'; }).join('') + '</div>';
+      });
+    });
+    heat += '<div></div><div class="ax x">低</div><div class="ax x">中</div><div class="ax x">高</div>';
+    var lv = RS.levelBadge;
+    var rt = RS.table({ columns: ['リスク', '影響度', '可能性', '対策', '担当'],
+      rows: risks.map(function (r, i) { return ['R' + (i + 1) + '\u2002' + RS.str(r.name), r.impact, r.likelihood, r.mitigation, r.owner]; }),
+      columnWeights: [27, 10, 10, 37, 16] }, { cellHtml: function (v, i) { return i === 1 || i === 2 ? lv(v) : null; } });
+    html += '<section class="blk">' + head('リスク評価と対策', '影響度 × 発生可能性') + '<div class="risk-wrap"><div class="avoid"><div class="heat-title"><span>RISK HEATMAP</span><span>対策前の評価</span></div><div class="heat">' + heat + '</div>' +
+      '<div class="heat-cap"><span>↑ 影響度</span><span>発生可能性 →</span></div></div>' + rt.html + '</div></section>';
+  }
+
+  /* ---- 90-day actions ---- */
+  var acts = A(d.actions);
+  if (acts.length) {
+    var at = RS.table({ columns: ['#', 'アクション', '責任者', '期限', '状態'],
+      rows: acts.map(function (a, i) { return ['A' + (i + 1), a.task, a.owner, a.due, a.status]; }), columnWeights: [6, 52, 17, 13, 12] },
+      { cellHtml: function (v, i) { return i === 4 && v ? '<span class="badge">' + E(v) + '</span>' : null; } });
+    html += '<section class="blk">' + head('実行計画（90日アクション）', acts.length + '件') + at.html + '</section>';
+  }
+
+  /* ---- Supporting detail ---- */
+  var secs = A(d.sections);
+  if (secs.length) {
+    html += '<section class="blk">' + head('根拠の詳細', secs.length + 'テーマ') + secs.map(function (s, i) {
+      var bl = A(s.bullets), paras = RS.paras(s.body);
+      // 見出し＋最初の段落をひとまとまりにして、見出しだけがページ末尾に残るのを防ぐ
+      var first = paras.match(/^<p>[\s\S]*?<\/p>/), restP = first ? paras.slice(first[0].length) : paras;
+      return '<article class="detail"><div class="avoid"><h3><span>' + (i + 1) + '.</span>' + E(RS.stripNum(s.heading)) + '</h3>' + (first ? first[0] : '') + '</div>' + restP +
+        (bl.length ? '<ul>' + bl.map(function (b) { return '<li><span>' + E(b) + '</span></li>'; }).join('') + '</ul>' : '') +
+        (s.table && A(s.table.rows).length ? RS.table(s.table, { widthChars: 112 }).html : '') + '</article>';
+    }).join('') + '</section>';
+  }
+
+  /* ---- Sign-off ＋ sources ---- */
+  var src = A(d.sources);
+  html += '<section class="blk">' + head('決裁・出典', '') + '<div class="close">' +
+    '<div class="signoff avoid"><div class="head"><span class="lbl" style="color:var(--ink)">Decision Record · 決裁欄</span><span class="badge ink">要記入</span></div>' +
+      '<div class="choices"><span>GO</span><span>条件付きGO</span><span>保留</span><span>NO-GO</span></div>' +
+      ['決裁者', '推進責任者', '財務確認'].map(function (r) { return '<div class="sign-row"><span>' + r + '</span><i></i><i>/　/</i></div>'; }).join('') +
+      '<div class="comment">条件・コメント</div></div>' +
+    '<div>' + (src.length ? '<div class="lbl" style="color:var(--ink);margin-bottom:1.2mm">Key Sources · 主要出典</div><ol class="src-list">' + src.map(function (s) {
+      var u = RS.safeUrl(s.url);
+      return '<li class="avoid"><span class="sid">' + E(s.id) + '</span><span class="t">' + (u ? '<a href="' + E(u) + '" style="color:inherit">' + E(s.title) + '</a>' : E(s.title)) +
+        '<span class="d">' + E([s.publisher, u ? RS.domain(u) : ''].filter(Boolean).join(' · ')) + '</span></span>' +
+        (s.score !== undefined ? '<span class="score-pill ' + RS.scoreClass(s.score) + '">' + E(s.score) + '</span>' : '') + '</li>';
+    }).join('') + '</ol>' : '') +
+    '<p class="fine"><b>信頼度：</b>85以上＝高　70〜84＝中　70未満＝要確認<br><b>免責：</b>本書は公開情報をもとにAIが自動収集・分析した結果であり、正確性・完全性を保証しません。最終判断の前に出典の原文を確認してください。</p></div>' +
+    '</div></section>';
+
+  document.getElementById('doc').innerHTML = html;
+  RS.layoutTables(document);
+
+  /* ---- ランニングヘッダー／フッター（@page マージンボックス） ---- */
+  var q = function (s) { return '"' + RS.str(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/[\r\n]+/g, ' ') + '"'; };
+  var short = function (s, n) { s = RS.str(s); return RS.textWidth(s) > n ? s.slice(0, Math.floor(n / 2)) + '…' : s; };
+  // マージンボックスでは CSS 変数が効かない環境があるため、フォントスタックを実値で渡す
+  var box = 'font-family: ' + getComputedStyle(document.documentElement).getPropertyValue('--font').trim() + '; font-size: 6.4pt; color: #64748b;';
+  var css = '@page { ' +
+    '@top-left { content: ' + q(m.publisher || 'Research Studio') + '; ' + box + ' font-weight: 700; color: #0f172a; padding-left: 16mm; vertical-align: bottom; padding-bottom: 4mm; } ' +
+    '@top-center { content: ' + q(short(m.title, 64)) + '; ' + box + ' vertical-align: bottom; padding-bottom: 4mm; } ' +
+    '@top-right { content: "EXECUTIVE DECISION BRIEF"; ' + box + ' font-weight: 700; color: #2563eb; padding-right: 16mm; vertical-align: bottom; padding-bottom: 4mm; } ' +
+    '@bottom-left { content: ' + q(short(m.classification, 40)) + '; ' + box + ' font-weight: 700; color: #b91c1c; padding-left: 16mm; vertical-align: top; padding-top: 4mm; } ' +
+    '@bottom-center { content: ' + q([m.date, '© ' + (m.publisher || 'Research Studio')].filter(Boolean).join(' · ')) + '; ' + box + ' vertical-align: top; padding-top: 4mm; } ' +
+    '@bottom-right { content: "Page " counter(page) " / " counter(pages); ' + box + ' padding-right: 16mm; vertical-align: top; padding-top: 4mm; } } ' +
+    '@page :first { @top-left { content: none; } @top-center { content: none; } @top-right { content: none; } }';
+  var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
+
+  var bad = RS.checkHorizontal(document.getElementById('doc'));
+  RS.ready({ template: 'B', ok: bad.length === 0, horizontalOverflow: bad.slice(0, 10) });
+})();
+</script>
+</body>
+</html>

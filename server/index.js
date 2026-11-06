@@ -42,6 +42,7 @@ const { tavilySearch } = require('./search');
 const deepdive = require('./deepdive');
 const pdf = require('./pdf');
 const excel = require('./excel');
+const templateEngine = require('./template-engine');
 const presentation = require('./presentation');
 const { getFullUsageSummary } = require('./usage');
 const { buildMarkdown, buildPlainText } = require('./util');
@@ -541,10 +542,40 @@ app.post('/api/research/deep-dive', async (req, res) => {
   }
 });
 
+/* ------------------------------------------------------------- PDF HTML preview */
+app.post('/api/export/pdf/html', (req, res) => {
+  const { data, brand, template } = req.body || {};
+  if (!data) return res.status(400).json({ error: 'data は必須です' });
+  try {
+    const html = templateEngine.renderTemplateHtml(template || 'slides', data, brand);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  } catch (err) {
+    console.error('PDF HTML generation error:', err);
+    res.status(500).json({ error: err.message || 'HTMLの生成に失敗しました' });
+  }
+});
+
 /* ------------------------------------------------------------- PDF export */
 app.post('/api/export/pdf', async (req, res) => {
-  const { html, filename, orientation } = req.body || {};
-  if (!html) return res.status(400).json({ error: 'html は必須です' });
+  let { html, data, brand, template, filename, orientation } = req.body || {};
+
+  // data と template がある場合はサーバー側で新テンプレートからHTMLを直接レンダリング
+  if (!html && data) {
+    try {
+      html = templateEngine.renderTemplateHtml(template || 'slides', data, brand);
+      if (!orientation) {
+        const norm = String(template || '').toLowerCase();
+        orientation = (norm === 'decision' || norm === 'decision-brief' || norm === 'b' || norm === 'report' || norm === 'research-report' || norm === 'c')
+          ? 'portrait'
+          : 'landscape';
+      }
+    } catch (e) {
+      return res.status(500).json({ error: `テンプレートレンダリングエラー: ${e.message}` });
+    }
+  }
+
+  if (!html) return res.status(400).json({ error: 'html または data は必須です' });
   console.log(`[PDF出力] ファイル名: "${filename || 'Research_Report.pdf'}" (${orientation || 'auto'}) の生成開始`);
 
   try {

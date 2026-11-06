@@ -1,0 +1,148 @@
+/* =====================================================================
+   Research Studio — Report Core CSS（A/B/C 共通）
+   ===================================================================== */
+:root {
+  /* ブランドトークン（既存テンプレートと共通） */
+  --white:   #ffffff;
+  --paper:   #f8fafc;
+  --ink:     #0f172a;
+  --ink-2:   #1e293b;
+  --text:    #334155;
+  --muted:   #64748b;
+  --faint:   #94a3b8;
+  --line:    #e2e8f0;
+  --line-2:  #cbd5e1;
+  --blue:    #2563eb;  --blue-50: #eff6ff;  --blue-100: #dbeafe;
+  --cyan:    #06b6d4;  --cyan-50: #ecfeff;  --cyan-700: #0e7490;
+  --indigo:  #4f46e5;  --indigo-50: #eef2ff;
+  --good:    #047857;  --good-50: #ecfdf5;
+  --warn:    #b45309;  --warn-50: #fffbeb;
+  --crit:    #b91c1c;  --crit-50: #fef2f2;
+  --grad: linear-gradient(90deg, #2563eb 0%, #06b6d4 55%, #4f46e5 100%);
+
+  /* 指定のフォントスタック ＋ Linux（Puppeteerサーバー）用の和文フォールバック */
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "Meiryo UI", Meiryo,
+          "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Noto Sans CJK JP", sans-serif;
+}
+
+/* 印刷カラー：全要素で背景・グラデーションの白抜けを防ぐ */
+*, *::before, *::after {
+  box-sizing: border-box; margin: 0; padding: 0;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+html { -webkit-text-size-adjust: 100%; }
+body {
+  font-family: var(--font);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+  /* 長い英単語・URL・型番でも枠を突き抜けない */
+  overflow-wrap: anywhere;
+  line-break: strict;
+}
+b, strong { color: var(--ink); font-weight: 700; }
+a { color: var(--blue); text-decoration: none; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* 和文見出しは文節単位で改行し、行の長さを揃える（Chromium 119+） */
+h1, h2, h3, h4, .balance { word-break: auto-phrase; text-wrap: balance; }
+
+/* ---------------------------------------------------------------------
+   改ページ制御（フロー型 B/C で効く。スライド A でも害はない）
+   --------------------------------------------------------------------- */
+h1, h2, h3, h4, .keep-next {
+  break-after: avoid; page-break-after: avoid;          /* 見出しの取り残し防止 */
+}
+.avoid, .card, .kpi, li, .rs-table tr {
+  break-inside: avoid; page-break-inside: avoid;        /* カード・行の途中で千切れない */
+}
+p { orphans: 3; widows: 3; }                            /* 段落の1〜2行だけが残るのを防ぐ */
+
+/* ---------------------------------------------------------------------
+   共通部品
+   --------------------------------------------------------------------- */
+.logo-mark {
+  width: 1.2em; height: 1.2em; border-radius: .3em; background: var(--grad);
+  display: inline-grid; place-items: center; flex: none; vertical-align: -.2em;
+}
+.logo-mark::after { content: ""; width: .46em; height: .46em; border: .12em solid #fff; border-radius: 50%; }
+
+.badge {
+  display: inline-flex; align-items: center; gap: .3em; white-space: nowrap;
+  font-size: .78em; font-weight: 700; letter-spacing: .04em; line-height: 1;
+  padding: .38em .7em; border-radius: 99em; background: var(--blue-50); color: var(--blue);
+}
+.badge.ink  { background: var(--ink); color: #fff; }
+.badge.good { background: var(--good-50); color: var(--good); }
+.badge.warn { background: var(--warn-50); color: var(--warn); }
+.badge.crit { background: var(--crit-50); color: var(--crit); }
+
+/* 評価（◎/○/△/×）：記号＋文字＋色の三重表現。色だけに頼らない */
+.rate { display: inline-flex; align-items: center; gap: .35em; font-weight: 700; line-height: 1.25; }
+.rate i {
+  font-style: normal; display: inline-grid; place-items: center; flex: none;
+  width: 1.75em; height: 1.75em; border-radius: 50%; font-size: .95em; line-height: 1;
+}
+.rate-a { color: var(--blue); }      .rate-a i { background: var(--blue); color: #fff; }
+.rate-b { color: var(--cyan-700); }  .rate-b i { background: var(--cyan-50); color: var(--cyan-700); box-shadow: inset 0 0 0 .08em #a5f3fc; }
+.rate-c { color: var(--warn); }      .rate-c i { background: var(--warn-50); color: var(--warn); box-shadow: inset 0 0 0 .08em #fde68a; }
+.rate-d { color: var(--crit); }      .rate-d i { background: var(--crit-50); color: var(--crit); box-shadow: inset 0 0 0 .08em #fecaca; }
+
+.score-pill { display: inline-block; min-width: 2.6em; text-align: center; font-weight: 700; padding: .22em .5em; border-radius: .35em; font-variant-numeric: tabular-nums; }
+.score-pill.hi  { background: var(--good-50); color: var(--good); }
+.score-pill.mid { background: var(--blue-50); color: var(--blue); }
+.score-pill.lo  { background: var(--warn-50); color: var(--warn); }
+
+/* ---------------------------------------------------------------------
+   可変列テーブル（3〜7列）
+   - table-layout: fixed ＋ JSが <colgroup> に重要列優先の比率を書き込む
+   - 列数が多いほど data-density で文字とパディングを段階的に詰める
+   --------------------------------------------------------------------- */
+.rs-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: separate; border-spacing: 0;
+  word-break: break-word; overflow-wrap: anywhere;
+  font-size: 1em;
+}
+.rs-table thead { display: table-header-group; }   /* 改ページ後も見出し行を繰り返す */
+.rs-table tfoot { display: table-footer-group; }
+.rs-table th {
+  text-align: left; vertical-align: bottom; font-weight: 700; color: var(--muted);
+  font-size: .8em; letter-spacing: .06em; padding: .7em .75em .6em;
+  border-bottom: .18em solid var(--ink); background: var(--white);
+}
+.rs-table td {
+  vertical-align: middle; padding: .75em .75em; line-height: 1.55;
+  border-bottom: .07em solid var(--line); color: var(--text);
+}
+.rs-table td:first-child { color: var(--ink); font-weight: 700; }
+.rs-table tbody tr:nth-child(even) td { background: var(--paper); }
+.rs-table tr.is-rec td { background: var(--blue-50) !important; }
+.rs-table tr.is-rec td:first-child { box-shadow: inset .3em 0 0 var(--blue); }
+.rs-table .c-num    { text-align: right; font-variant-numeric: tabular-nums; }
+.rs-table .c-rating { text-align: left; }
+.rs-table th.c-num  { text-align: right; }
+.rs-table[data-density="compact"] { font-size: .93em; }
+.rs-table[data-density="compact"] td, .rs-table[data-density="compact"] th { padding-left: .6em; padding-right: .6em; }
+.rs-table[data-density="dense"] { font-size: .86em; }
+.rs-table[data-density="dense"] td, .rs-table[data-density="dense"] th { padding-left: .5em; padding-right: .5em; }
+.rs-table[data-density="dense"] .rate i { width: 1.6em; height: 1.6em; }
+.rs-table .url { font-size: .9em; color: var(--blue); }
+
+.table-caption { display: flex; align-items: baseline; gap: .8em; margin-bottom: .55em; }
+.table-caption b { font-size: 1.05em; }
+.table-caption span { color: var(--muted); font-size: .85em; }
+.legend { display: flex; flex-wrap: wrap; gap: .6em 1.4em; color: var(--muted); font-size: .82em; margin-top: .7em; }
+.legend .rate i { width: 1.5em; height: 1.5em; }
+
+/* 影響度・可能性などの3段階レベル（記号＋文字＋色） */
+.lv { display: inline-flex; align-items: center; gap: .3em; font-size: .82em; font-weight: 700; padding: .3em .7em; border-radius: 99em; line-height: 1; white-space: nowrap; }
+.lv.l3 { background: var(--crit-50); color: var(--crit); } .lv.l3::before { content: "▲"; font-size: .75em; }
+.lv.l2 { background: var(--warn-50); color: var(--warn); } .lv.l2::before { content: "■"; font-size: .75em; }
+.lv.l1 { background: var(--good-50); color: var(--good); } .lv.l1::before { content: "▼"; font-size: .75em; }
+
+/* スコアリング（信頼度） */
+.ring { position: relative; display: inline-block; flex: none; }
+.ring svg { display: block; width: 100%; height: 100%; }
+.ring b { position: absolute; inset: 0; display: grid; place-items: center; font-variant-numeric: tabular-nums; line-height: 1; }

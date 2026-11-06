@@ -1124,6 +1124,16 @@ export function resolveOptimalPdfTemplate(data) {
 
   const isDecisionKeyword = /意思決定|要否|承認|可否|決裁|go\/no-go|稟議|判断|導入可否|採用可否/i.test(text);
 
+  const isReportKeyword = /白書|年次レポート|詳細調査|技術調査|学術|リサーチレポート|ホワイトペーパー/i.test(text);
+
+  if (focus === 'academic' || focus === 'deep' || focus === 'report' || isReportKeyword) {
+    return {
+      template: 'research-report',
+      label: '📘 A4縦調査白書型（詳細レポート）',
+      reason: '詳細論述・各章深掘り・体系的白書に最適化',
+    };
+  }
+
   if (focus === 'decision' || focus === 'brief' || isDecisionKeyword) {
     return {
       template: 'decision-brief',
@@ -2219,12 +2229,233 @@ export function buildSlideDeckHtml(data, brand = 'Research Studio') {
 }
 
 /**
+ * 調査白書型（A4縦 複数ページ詳細レポート）HTMLマークアップを生成 (v2.4.0)
+ */
+export function buildResearchReportHtml(data, brand = 'Research Studio') {
+  if (!data) return '';
+
+  const publisherName = (typeof brand === 'object' && brand.publisherName) ? brand.publisherName : (typeof brand === 'string' ? brand : 'Research Studio');
+  const confidentiality = (typeof brand === 'object' && brand.confidentiality) ? brand.confidentiality : '社内限定 (INTERNAL USE ONLY)';
+  const disclaimer = (typeof brand === 'object' && brand.disclaimer && brand.disclaimer.trim())
+    ? brand.disclaimer
+    : '本書は公開情報をもとにAIが自動収集・分析した結果であり、正確性・完全性を保証しません。意思決定にあたっては出典の原文を確認してください。';
+
+  const reportTheme = (typeof brand === 'object' && (brand.theme || brand.reportTheme)) || data.reportTheme;
+  const themeStyle = buildThemePdfStyle(reportTheme);
+
+  const createdStr = fmtDate(data.createdAt, false);
+  const totalSources = data.sources ? data.sources.length : 0;
+  const score = data.confidenceScore || data.score || 88;
+
+  const rawKpis = (data.metrics && data.metrics.length) ? data.metrics : [
+    { label: '総合信頼度', value: `${score}点`, note: '一次情報裏付け' },
+    { label: '参照ソース数', value: `${totalSources}件`, note: 'Webインデックス及び一次情報源' },
+    { label: '分析フォーカス', value: data.styleLabel || data.style || '標準ビジネス', note: 'AI動的構造化エンジン' },
+    { label: '調査品質水準', value: 'エンタープライズ', note: '多角クロスチェック検証' },
+  ];
+
+  const sections = Array.isArray(data.sections) ? data.sections : [];
+  const keyPoints = Array.isArray(data.keyPoints) ? data.keyPoints : [];
+  const sources = Array.isArray(data.sources) ? data.sources : [];
+
+  let html = `<div class="doc research-report">${themeStyle}`;
+
+  // 1. カバー（表紙）
+  html += `
+  <section class="page cover" data-section="Cover">
+    <div class="cv-top">
+      <div class="cv-brand"><span class="logo-mark"></span>${esc(publisherName)}</div>
+      <div class="cv-class">${esc(confidentiality)}</div>
+    </div>
+    <div class="cv-main">
+      <div class="cv-kicker">Strategic Intelligence White Paper</div>
+      <h1 class="cv-title">${esc(data.title || data.theme || 'エグゼクティブ・リサーチレポート')}</h1>
+      <p class="cv-sub">${esc(data.subtitle || data.theme || '一次情報に基づく構造化調査・分析白書')}</p>
+    </div>
+    <div class="cv-bottom">
+      <dl class="cv-meta">
+        <div><dt>発行日</dt><dd>${esc(createdStr)}</dd></div>
+        <div><dt>調査対象</dt><dd>${esc(data.theme || '指定領域')}</dd></div>
+        <div><dt>情報源数</dt><dd>${totalSources} ソース</dd></div>
+        <div><dt>機密区分</dt><dd>${esc(confidentiality)}</dd></div>
+      </dl>
+      <div class="cv-score">
+        <div class="score-ring">
+          <svg viewBox="0 0 36 36" style="width: 14mm; height: 14mm;">
+            <circle cx="18" cy="18" r="15" fill="none" stroke="rgba(148,163,184,.28)" stroke-width="3.2"/>
+            <circle cx="18" cy="18" r="15" fill="none" stroke="#06b6d4" stroke-width="3.2" stroke-linecap="round" stroke-dasharray="${(score * 0.9425).toFixed(1)} 94.25"/>
+          </svg>
+          <div style="font-size: 11pt; font-weight: bold; color: #fff;">${score}</div>
+        </div>
+        <div>
+          <div class="lbl" style="font-size: 6pt; color: #94a3b8; font-weight: bold;">信頼度スコア</div>
+          <strong style="color: #fff; font-size: 10pt;">Grade ${score >= 85 ? 'A' : (score >= 65 ? 'B' : 'C')}</strong>
+        </div>
+      </div>
+    </div>
+  </section>
+  `;
+
+  // 2. エグゼクティブサマリー
+  html += `
+  <section class="page" data-section="Executive Summary">
+    <header class="rh">
+      <div class="rh-brand"><span class="logo-mark"></span>${esc(publisherName)}</div>
+      <div class="rh-title">${esc(data.title || data.theme)}</div>
+      <div class="rh-section">Executive Summary</div>
+    </header>
+
+    <main class="page-body">
+      <div class="sec-head"><span class="no">01</span><h2>エグゼクティブ・サマリー</h2><span class="note">総括提言・主要結論</span></div>
+      <div class="lead">${esc(data.summary || '本調査における一次情報と構造化分析の結果、実効性と安全性を両立する推進計画を推奨します。')}</div>
+
+      <div class="kpis" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 3mm; margin-top: 5mm;">
+        ${rawKpis.slice(0, 4).map(k => `
+          <div class="kpi" style="border: .25mm solid var(--line); border-top: .9mm solid var(--cyan); border-radius: 1.8mm; padding: 3mm 3.4mm; background: #fff;">
+            <div class="lbl" style="font-size: 6.4pt; font-weight: 700; color: var(--muted);">${esc(k.label)}</div>
+            <div class="v" style="margin-top: 1mm; font-size: 14pt; font-weight: 700; color: var(--ink);">${esc(k.value)}</div>
+            <div class="cap" style="margin-top: 1.2mm; font-size: 6.8pt; color: var(--muted);">${esc(k.note || '一次情報抽出')}</div>
+          </div>
+        `).join('')}
+      </div>
+
+      <div class="points" style="margin-top: 5mm; background: var(--paper); border: .25mm solid var(--line); border-left: 1mm solid var(--blue); border-radius: 0 1.8mm 1.8mm 0; padding: 3.4mm 4.6mm;">
+        <div class="lbl" style="font-size: 6.4pt; font-weight: 700; color: var(--blue); margin-bottom: 1.4mm;">本調査のコア・ファインディングス（要点）</div>
+        <ul style="list-style: none; display: grid; gap: 1.4mm; padding: 0; margin: 0;">
+          ${keyPoints.map(kp => `<li style="font-size: 8.5pt; line-height: 1.6; color: var(--ink);">• ${esc(kp)}</li>`).join('')}
+        </ul>
+      </div>
+
+      ${sections.length > 0 ? `
+        <div class="sec-head" style="margin-top: 6mm;"><span class="no">02</span><h2>${esc(sections[0].heading || '詳細論点・実証分析')}</h2></div>
+        <div class="chapter-body" style="font-size: 8.8pt; line-height: 1.7; color: var(--text);">
+          ${esc(sections[0].body).replace(/\\n\\n/g, '<br><br>')}
+        </div>
+      ` : ''}
+    </main>
+
+    <footer class="rf">
+      <div class="rf-left"><span class="conf-tag">${esc(confidentiality)}</span></div>
+      <div class="rf-center">${esc(createdStr)} 発行 · © 2026 ${esc(publisherName)}</div>
+      <div class="rf-right">Page <b class="pg-num">2</b></div>
+    </footer>
+  </section>
+  `;
+
+  // 3. 詳細セクション（2章以降）＆ 比較マトリクス
+  if (sections.length > 1 || (data.table && data.table.rows && data.table.rows.length > 0)) {
+    html += `
+    <section class="page" data-section="Detailed Analysis">
+      <header class="rh">
+        <div class="rh-brand"><span class="logo-mark"></span>${esc(publisherName)}</div>
+        <div class="rh-title">${esc(data.title || data.theme)}</div>
+        <div class="rh-section">Detailed Analysis &amp; Data Matrix</div>
+      </header>
+
+      <main class="page-body">
+        ${sections.slice(1).map((sec, idx) => `
+          <div class="sec-head" style="margin-top: 4mm;"><span class="no">0${idx + 3}</span><h2>${esc(sec.heading)}</h2></div>
+          <div class="chapter-body" style="font-size: 8.6pt; line-height: 1.65; color: var(--text);">
+            ${esc(sec.body).replace(/\\n\\n/g, '<br><br>')}
+          </div>
+          ${Array.isArray(sec.bullets) && sec.bullets.length > 0 ? `
+            <ul style="margin: 2mm 0 4mm 4mm; font-size: 8.4pt; color: var(--ink);">
+              ${sec.bullets.map(b => `<li>${esc(b)}</li>`).join('')}
+            </ul>
+          ` : ''}
+        `).join('')}
+
+        ${data.table && data.table.columns && data.table.rows ? `
+          <div class="sec-head" style="margin-top: 5mm;"><span class="no">04</span><h2>${esc(data.table.caption || '構造化比較マトリクス')}</h2><span class="note">一次情報直接抽出</span></div>
+          <table class="tbl criteria" style="width: 100%; border-collapse: collapse; font-size: 8.2pt; margin-top: 2mm;">
+            <thead>
+              <tr style="background: var(--ink); color: #fff;">
+                ${data.table.columns.map((c, i) => `<th style="padding: 2mm 2.4mm; text-align: ${i === 0 ? 'left' : 'center'};">${esc(c)}</th>`).join('')}
+              </tr>
+            </thead>
+            <tbody>
+              ${data.table.rows.map((r, rIdx) => `
+                <tr style="background: ${rIdx % 2 === 1 ? 'var(--paper)' : '#fff'}; border-bottom: .2mm solid var(--line);">
+                  ${data.table.columns.map((_, cIdx) => `<td style="padding: 2mm 2.4mm; text-align: ${cIdx === 0 ? 'left' : 'center'};">${esc(r[cIdx] || '')}</td>`).join('')}
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        ` : ''}
+      </main>
+
+      <footer class="rf">
+        <div class="rf-left"><span class="conf-tag">${esc(confidentiality)}</span></div>
+        <div class="rf-center">${esc(createdStr)} 発行 · © 2026 ${esc(publisherName)}</div>
+        <div class="rf-right">Page <b class="pg-num">3</b></div>
+      </footer>
+    </section>
+    `;
+  }
+
+  // 4. 出典一覧＆ディスクレーマー
+  if (sources.length > 0) {
+    html += `
+    <section class="page" data-section="Sources">
+      <header class="rh">
+        <div class="rh-brand"><span class="logo-mark"></span>${esc(publisherName)}</div>
+        <div class="rh-title">${esc(data.title || data.theme)}</div>
+        <div class="rh-section">Sources &amp; Appendix</div>
+      </header>
+
+      <main class="page-body">
+        <div class="sec-head"><span class="no">05</span><h2>参照ソース・エビデンス一覧</h2><span class="note">全件ファクトチェック裏付け</span></div>
+        <table class="tbl sources" style="width: 100%; border-collapse: collapse; font-size: 8pt; margin-top: 2mm;">
+          <thead>
+            <tr style="background: var(--ink); color: #fff;">
+              <th style="padding: 1.8mm 2mm; width: 8%;">ID</th>
+              <th style="padding: 1.8mm 2mm; width: 44%;">タイトル・文書名</th>
+              <th style="padding: 1.8mm 2mm; width: 18%;">発行元・ドメイン</th>
+              <th style="padding: 1.8mm 2mm; width: 10%; text-align: center;">信頼度</th>
+              <th style="padding: 1.8mm 2mm; width: 20%;">参照URL</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${sources.slice(0, 10).map((s, idx) => `
+              <tr style="background: ${idx % 2 === 1 ? 'var(--paper)' : '#fff'}; border-bottom: .2mm solid var(--line);">
+                <td style="padding: 1.8mm 2mm; color: var(--blue); font-weight: bold;">${esc(s.id || 'S' + (idx + 1))}</td>
+                <td style="padding: 1.8mm 2mm;">${esc(s.title || s.domain)}</td>
+                <td style="padding: 1.8mm 2mm; color: var(--muted);">${esc(s.publisher || s.domain)}</td>
+                <td style="padding: 1.8mm 2mm; text-align: center;"><span class="badge" style="background: var(--good-bg); color: var(--good); font-weight: bold; padding: 1px 6px; border-radius: 4px;">${esc(s.score || 85)}</span></td>
+                <td style="padding: 1.8mm 2mm; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"><a href="${esc(s.url)}" target="_blank" style="color: var(--blue); text-decoration: underline;">${esc(s.url || '—')}</a></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+
+        <div class="disclaimer-box" style="margin-top: 8mm; padding: 3mm 4mm; border: .25mm solid var(--line); border-radius: 1.6mm; background: var(--paper); font-size: 7.2pt; color: var(--muted); line-height: 1.5;">
+          <strong>免責事項：</strong>${esc(disclaimer)}
+        </div>
+      </main>
+
+      <footer class="rf">
+        <div class="rf-left"><span class="conf-tag">${esc(confidentiality)}</span></div>
+        <div class="rf-center">${esc(createdStr)} 発行 · © 2026 ${esc(publisherName)}</div>
+        <div class="rf-right">Page <b class="pg-num">4</b></div>
+      </footer>
+    </section>
+    `;
+  }
+
+  html += '</div>';
+  return html;
+}
+
+/**
  * 統合PDFマークアップ生成エンジン
- * templateType ('slide-deck' または 'decision-brief') に応じて最適なマークアップを返す
+ * templateType ('slide-deck', 'decision-brief', 'research-report') に応じて最適なマークアップを返す
  */
 export function buildPdfHtml(data, brand = 'Research Studio', templateType = 'slide-deck') {
-  if (templateType === 'decision-brief') {
+  if (templateType === 'decision-brief' || templateType === 'decision' || templateType === 'b') {
     return buildDecisionBriefHtml(data, brand);
+  }
+  if (templateType === 'research-report' || templateType === 'report' || templateType === 'c') {
+    return buildResearchReportHtml(data, brand);
   }
   return buildSlideDeckHtml(data, brand);
 }
@@ -2234,8 +2465,8 @@ export function buildPdfHtml(data, brand = 'Research Studio', templateType = 'sl
  */
 export async function exportPDF(data, brand = 'Research Studio', templateType = null) {
   const tpl = templateType || resolveOptimalPdfTemplate(data).template;
-  const isPortrait = tpl === 'decision-brief';
-  const typeLabel = isPortrait ? '意思決定ペーパー' : '商用スライド';
+  const isPortrait = tpl === 'decision-brief' || tpl === 'research-report';
+  const typeLabel = tpl === 'research-report' ? '調査白書' : (tpl === 'decision-brief' ? '意思決定ペーパー' : '商用スライド');
   const filename = `【${typeLabel}】${safeFilename(data.title || data.theme)}.pdf`;
   const htmlContent = buildPdfHtml(data, brand, tpl);
 
@@ -2245,7 +2476,14 @@ export async function exportPDF(data, brand = 'Research Studio', templateType = 
     const res = await fetch('/api/export/pdf', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ html: htmlContent, filename, orientation: isPortrait ? 'portrait' : 'landscape' }),
+      body: JSON.stringify({
+        data,
+        brand,
+        template: tpl,
+        html: htmlContent,
+        filename,
+        orientation: isPortrait ? 'portrait' : 'landscape'
+      }),
     });
 
     if (!res.ok) {

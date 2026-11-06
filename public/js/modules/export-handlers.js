@@ -64,6 +64,16 @@ export function bindExportActions(onOpenHistory) {
     });
   }
 
+  // ハブ内 3. A4縦調査白書型PDF
+  const btnEhPdfReport = $('#btn-eh-pdf-report');
+  if (btnEhPdfReport) {
+    btnEhPdfReport.addEventListener('click', () => {
+      if (!appState.currentResult) return;
+      closeModal('modal-export-hub');
+      openPdfPreview(appState.currentResult, getBrandConfig(), 'research-report');
+    });
+  }
+
   // ハブ内 3. PowerPoint (.pptx)
   const btnEhPptx = $('#btn-eh-pptx');
   if (btnEhPptx) {
@@ -483,7 +493,8 @@ export function bindPdfPreviewModal() {
       if (aiBadge) {
         if (currentPdfTemplate === rec.template) {
           aiBadge.style.display = 'inline-flex';
-          aiBadge.textContent = `✨ AI推奨: ${rec.template === 'decision-brief' ? 'ペーパー' : 'スライド'}`;
+          const tplLabel = rec.template === 'research-report' ? '調査白書' : (rec.template === 'decision-brief' ? 'ペーパー' : 'スライド');
+    aiBadge.textContent = `✨ AI推奨: ${tplLabel}`;
         } else {
           aiBadge.style.display = 'inline-flex';
           aiBadge.textContent = `💡 AI推奨は${rec.template === 'decision-brief' ? 'ペーパー' : 'スライド'}`;
@@ -600,7 +611,8 @@ export function openPdfPreview(data, publisher, forceTemplate = null) {
   const aiBadge = $('#pdf-template-ai-badge');
   if (aiBadge) {
     aiBadge.style.display = 'inline-flex';
-    aiBadge.textContent = `✨ AI推奨: ${rec.template === 'decision-brief' ? 'ペーパー' : 'スライド'}`;
+    const tplLabel = rec.template === 'research-report' ? '調査白書' : (rec.template === 'decision-brief' ? 'ペーパー' : 'スライド');
+    aiBadge.textContent = `✨ AI推奨: ${tplLabel}`;
     aiBadge.title = rec.reason;
   }
 
