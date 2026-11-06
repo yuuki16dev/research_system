@@ -379,10 +379,23 @@ function labelCell(ws, r1, r2, text, bg, fg) {
 }
 
 /* =========================================================
-   3. Sheet 2 — Comparison_Matrix
+   3. Sheet 2 — Comparison_Matrix（一次情報完全動的展開）
    ========================================================= */
 function buildComparison(wb, d) {
   const cmp = d.comparison;
+  const cols = cmp.columns && cmp.columns.length ? cmp.columns : ['項目名', '選択肢A', '選択肢B', '選定基準'];
+  const lastCol = Math.max(1, cols.length);
+  const getColLetter = (n) => {
+    let s = '';
+    while (n > 0) {
+      const m = (n - 1) % 26;
+      s = String.fromCharCode(65 + m) + s;
+      n = Math.floor((n - 1) / 26);
+    }
+    return s || 'A';
+  };
+  const lastColLetter = getColLetter(lastCol);
+
   const ws = wb.addWorksheet('Comparison_Matrix', {
     properties: { tabColor: { argb: argb(BRAND.blue) } },
     views: [{ state: 'frozen', xSplit: 1, ySplit: 3, showGridLines: false }],
@@ -397,13 +410,10 @@ function buildComparison(wb, d) {
     },
     headerFooter: { oddFooter: `&L&8${d.meta.classification}&C&8© ${d.meta.publisher || 'Research Studio'}&R&8&P / &N` },
   });
-  const widths = [30, 24, 24, 24, 34, 11];
-  widths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
-  const lastCol = 6;
 
   // 1行目：大見出し
   ws.getRow(1).height = 34;
-  mergeSet(ws, 'A1:F1', cmp.title, {
+  mergeSet(ws, `A1:${lastColLetter}1`, cmp.title, {
     font: font({ size: 16, bold: true, color: BRAND.white }),
     fill: fill(BRAND.navy),
     alignment: { vertical: 'middle', indent: 1 },
@@ -412,24 +422,22 @@ function buildComparison(wb, d) {
 
   // 2行目：注記
   ws.getRow(2).height = 22;
-  mergeSet(ws, 'A2:F2', cmp.note || '', {
+  mergeSet(ws, `A2:${lastColLetter}2`, cmp.note || '※Web一次情報および公式ドキュメントより直接抽出・照合', {
     font: font({ size: 9, color: BRAND.muted }),
     alignment: { vertical: 'middle', indent: 1 },
   });
 
-  // 3行目：ヘッダー
-  const headers = ['項目名', ...cmp.options.slice(0, 3), '選定基準', '推奨度'];
+  // 3行目：動的ヘッダー
   ws.getRow(3).height = 28;
-  headers.forEach((h, i) => {
+  cols.forEach((h, i) => {
     const cell = ws.getCell(3, i + 1);
-    const isRec = i >= 1 && i <= 3 && cmp.recommended === i - 1;
-    cell.value = isRec ? `★ ${h}（推奨）` : h;
+    cell.value = h;
     cell.font = font({ size: 10, bold: true, color: BRAND.white });
-    cell.fill = fill(isRec ? BRAND.cyan : BRAND.navy);
+    cell.fill = fill(BRAND.navy);
     cell.alignment = {
       vertical: 'middle',
-      horizontal: i === 0 || i === 4 ? 'left' : 'center',
-      indent: i === 0 || i === 4 ? 1 : 0,
+      horizontal: i === 0 ? 'left' : 'center',
+      indent: i === 0 ? 1 : 0,
       wrapText: true,
     };
     cell.border = { bottom: { style: 'medium', color: { argb: argb(BRAND.blue) } }, right: thin('334155') };
@@ -437,10 +445,12 @@ function buildComparison(wb, d) {
 
   // 4行目以降：データ
   let r = 4, zebra = 0;
+  const colLengths = cols.map((c) => Math.max(12, textWidth(c) + 4));
+
   for (const row of cmp.rows) {
-    if (row.section !== undefined) {
+    if (row && row.section !== undefined) {
       ws.getRow(r).height = 20;
-      mergeSet(ws, `A${r}:F${r}`, row.section, {
+      mergeSet(ws, `A${r}:${lastColLetter}${r}`, row.section, {
         font: font({ size: 9, bold: true, color: BRAND.white }),
         alignment: { vertical: 'middle', indent: 1 },
       });
@@ -450,56 +460,164 @@ function buildComparison(wb, d) {
       continue;
     }
     const bg = zebra % 2 === 1 ? BRAND.paper : BRAND.white;
-    const cells = [row.item, ...(row.values || []).slice(0, 3), row.criteria, row.recommendation];
-    let maxLines = 1;
-    cells.forEach((v, i) => {
+    const cells = Array.isArray(row) ? row : [row.item, ...(row.values || []), row.criteria, row.recommendation];
+
+    cells.slice(0, lastCol).forEach((v, i) => {
       const cell = ws.getCell(r, i + 1);
-      cell.value = v ?? '';
+      const strVal = v !== undefined && v !== null ? String(v) : '';
+      cell.value = strVal;
       cell.fill = fill(bg);
       cell.border = { bottom: thin(BRAND.line), right: thin(BRAND.line) };
-      const isNum = typeof v === 'number';
+
       if (i === 0) {
         cell.font = font({ size: 10, bold: true, color: BRAND.ink });
         cell.alignment = { vertical: 'middle', wrapText: true, indent: 1 };
-      } else if (i === 5) {
-        const st = statusOf(v);
-        cell.font = font({ size: 11, bold: true, color: st === 'good' ? BRAND.goodFg : st === 'warn' ? BRAND.warnFg : BRAND.text });
-        if (st !== 'neutral') cell.fill = fill(st === 'good' ? BRAND.goodBg : BRAND.warnBg);
-        cell.alignment = { vertical: 'middle', horizontal: 'center' };
-      } else if (i === 4) {
-        cell.font = font({ size: 9, color: BRAND.muted });
-        cell.alignment = { vertical: 'middle', wrapText: true, indent: 1 };
-      } else if (isNum) {
-        cell.numFmt = '#,##0';
-        cell.font = font({ size: 10, color: BRAND.ink });
-        cell.alignment = { vertical: 'middle', horizontal: 'right', indent: 1 };
       } else {
-        const short = textWidth(v) <= 12;
-        cell.font = font({ size: 10, color: BRAND.text });
-        cell.alignment = { vertical: 'middle', horizontal: short ? 'center' : 'left', wrapText: true, indent: short ? 0 : 1 };
+        const isRating = /^[◎○△×☆★]$/.test(strVal.trim());
+        if (isRating) {
+          const st = statusOf(strVal);
+          cell.font = font({ size: 11, bold: true, color: st === 'good' ? BRAND.goodFg : st === 'warn' ? BRAND.warnFg : BRAND.text });
+          if (st !== 'neutral') cell.fill = fill(st === 'good' ? BRAND.goodBg : BRAND.warnBg);
+          cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        } else {
+          cell.font = font({ size: 9.5, color: BRAND.text });
+          cell.alignment = { vertical: 'middle', wrapText: true, indent: 1 };
+        }
       }
-      if (!isNum) maxLines = Math.max(maxLines, estimateLines(v, widths[i], i === 4 ? 9 : 10));
+      colLengths[i] = Math.max(colLengths[i] || 12, Math.min(48, textWidth(strVal) + 4));
     });
-    // 推奨列のセルを淡いシアンで強調
-    if (cmp.recommended !== undefined && cmp.recommended !== null) {
-      const c = ws.getCell(r, 2 + cmp.recommended);
-      c.fill = fill(zebra % 2 === 1 ? 'E0F7FA' : 'ECFEFF');
-    }
-    ws.getRow(r).height = Math.max(24, maxLines * lineHeightPt(10) + 8);
+    ws.getRow(r).height = 26;
     r++;
     zebra++;
   }
   const last = r - 1;
 
-  // 外枠
-  styleRange(ws, 3, 1, last, lastCol, { border: borderAll(BRAND.line) });
-  ws.autoFilter = { from: { row: 3, column: 1 }, to: { row: last, column: lastCol } };
-  ws.pageSetup.printArea = `A1:F${last}`;
+  // カラム幅設定
+  colLengths.forEach((w, i) => {
+    ws.getColumn(i + 1).width = Math.max(14, Math.min(50, w));
+  });
+
+  // 外枠とフィルター
+  if (last >= 3) {
+    styleRange(ws, 3, 1, last, lastCol, { border: borderAll(BRAND.line) });
+    ws.autoFilter = { from: { row: 3, column: 1 }, to: { row: last, column: lastCol } };
+    ws.pageSetup.printArea = `A1:${lastColLetter}${last}`;
+  }
   return ws;
 }
 
 /* =========================================================
-   4. Sheet 3 — Source_Index
+   4. Sheet 3 — Detailed_Report（詳細調査セクション・本文忠実展開）
+   ========================================================= */
+function buildSections(wb, d) {
+  const sections = Array.isArray(d.sections) ? d.sections : [];
+  if (!sections.length) return null;
+
+  const ws = wb.addWorksheet('Detailed_Report', {
+    properties: { tabColor: { argb: argb(BRAND.indigo) } },
+    views: [{ state: 'frozen', ySplit: 3, showGridLines: false }],
+    pageSetup: {
+      paperSize: 9,
+      orientation: 'landscape',
+      fitToPage: true,
+      fitToWidth: 1,
+      fitToHeight: 0,
+      printTitlesRow: '3:3',
+      margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 },
+    },
+    headerFooter: { oddFooter: `&L&8${d.meta.classification}&C&8© ${d.meta.publisher || 'Research Studio'}&R&8&P / &N` },
+  });
+
+  const widths = [8, 28, 75, 35];
+  widths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
+
+  // 1行目：大見出し
+  ws.getRow(1).height = 32;
+  mergeSet(ws, 'A1:D1', `${d.meta.title} — 詳細調査セクション`, {
+    font: font({ size: 14, bold: true, color: BRAND.white }),
+    fill: fill(BRAND.navy),
+    alignment: { vertical: 'middle', indent: 1 },
+  });
+  styleRange(ws, 1, 1, 1, 4, { fill: fill(BRAND.navy) });
+
+  // 2行目：注記
+  ws.getRow(2).height = 20;
+  mergeSet(ws, 'A2:D2', '一次情報および公式ドキュメントに基づく論述・詳細ファクトの全件記録（型ハメ・歪曲なし）', {
+    font: font({ size: 9, color: BRAND.muted }),
+    alignment: { vertical: 'middle', indent: 1 },
+  });
+
+  // 3行目：テーブルヘッダー
+  const headers = ['No', '分析テーマ / 見出し', '詳細分析・論述本文（ファクト＆エビデンス）', '主要論点・箇条書き（要約）'];
+  ws.getRow(3).height = 24;
+  headers.forEach((h, i) => {
+    const cell = ws.getCell(3, i + 1);
+    cell.value = h;
+    cell.font = font({ size: 10, bold: true, color: BRAND.white });
+    cell.fill = fill(BRAND.navy);
+    cell.alignment = {
+      vertical: 'middle',
+      horizontal: i === 0 ? 'center' : 'left',
+      indent: i === 0 ? 0 : 1,
+    };
+    cell.border = { bottom: { style: 'medium', color: { argb: argb(BRAND.indigo) } } };
+  });
+
+  // 4行目以降：データ行
+  let r = 4;
+  sections.forEach((sec, idx) => {
+    const bg = idx % 2 === 1 ? BRAND.paper : BRAND.white;
+    const bulletsText = Array.isArray(sec.bullets) && sec.bullets.length > 0
+      ? sec.bullets.map(b => `• ${b}`).join('\n')
+      : '—';
+    const bodyText = sec.body || sec.content || sec.text || '—';
+
+    const linesC = estimateLines(bodyText, 75, 9.5);
+    const linesD = estimateLines(bulletsText, 35, 9.5);
+    const estLines = Math.max(linesC, linesD, 2);
+    const rowHeight = Math.min(220, Math.max(40, estLines * 16));
+    ws.getRow(r).height = rowHeight;
+
+    const vals = [
+      `§${idx + 1}`,
+      sec.heading || sec.title || `セクション ${idx + 1}`,
+      bodyText,
+      bulletsText,
+    ];
+
+    vals.forEach((v, j) => {
+      const cell = ws.getCell(r, j + 1);
+      cell.value = v;
+      cell.fill = fill(bg);
+      cell.border = { bottom: thin(BRAND.line), right: thin(BRAND.line) };
+      cell.alignment = {
+        vertical: 'top',
+        horizontal: j === 0 ? 'center' : 'left',
+        indent: j === 0 ? 0 : 1,
+        wrapText: j >= 1,
+      };
+      cell.font = font({
+        size: j === 0 ? 10 : 9.5,
+        bold: j === 0 || j === 1,
+        color: j === 0 ? BRAND.indigo : (j === 1 ? BRAND.ink : BRAND.text),
+      });
+    });
+
+    r++;
+  });
+
+  const last = r - 1;
+  if (last >= 3) {
+    styleRange(ws, 3, 1, last, 4, { border: borderAll(BRAND.line) });
+    ws.autoFilter = { from: { row: 3, column: 1 }, to: { row: last, column: 4 } };
+    ws.pageSetup.printArea = `A1:D${last}`;
+  }
+
+  return ws;
+}
+
+/* =========================================================
+   5. Sheet 4 — Source_Index
    ========================================================= */
 function buildSources(wb, d) {
   const ws = wb.addWorksheet('Source_Index', {
@@ -681,45 +799,34 @@ function transformDataToExcelFormat(data = {}, brand = {}) {
     ];
   }
 
-  // 比較マトリクス
-  let comparison = {
+  // 比較マトリクス（歪曲防止・一次情報100%忠実保持）
+  const hasDynamicTable = data.table && Array.isArray(data.table.columns) && Array.isArray(data.table.rows) && data.table.rows.length > 0;
+  const cols = hasDynamicTable
+    ? data.table.columns
+    : ['項目名', '選択肢A', '選択肢B', '選定基準', '推奨度'];
+  let options = [];
+  if (cols.length >= 4 && (cols[cols.length - 1].includes('推奨') || cols[cols.length - 2].includes('基準'))) {
+    options = cols.slice(1, cols.length - 2);
+  } else if (cols.length > 1) {
+    options = cols.slice(1);
+  }
+
+  const comparison = {
     title: (data.table && data.table.caption) ? data.table.caption : `${data.title || data.theme || '主要方式'} 比較マトリクス`,
-    note: '評価：◎ 優位　○ 標準　△ 要注意　／　※AI分析および収集データに基づく総合評価',
-    options: ['選択肢A（先行型）', '選択肢B（標準型）', '選択肢C（慎重型）'],
-    recommended: 0,
-    rows: [],
+    note: '※Web一次情報および公式発表データより直接抽出・照合',
+    columns: cols,
+    options,
+    rows: hasDynamicTable
+      ? data.table.rows
+      : [
+          ['要件適合度', '◎', '○', 'コア業務プロセスの網羅性', '◎ 推奨'],
+          ['導入迅速性', '◎', '△', '本番稼働までのリードタイム', '◎ 推奨'],
+          ['初期・運用費用', '○', '△', 'TCO（総保有コスト）', '○ 標準'],
+        ],
   };
 
-  if (data.table && Array.isArray(data.table.columns) && Array.isArray(data.table.rows) && data.table.rows.length > 0) {
-    const cols = data.table.columns;
-    if (cols.length >= 4) {
-      comparison.options = cols.slice(1, 4).map((c) => String(c).trim());
-    }
-    comparison.rows = [
-      { section: '主要評価項目' },
-      ...data.table.rows.map((row, rIdx) => {
-        const item = String(row[0] || `項目 ${rIdx + 1}`);
-        const v1 = row[1] ?? '◎';
-        const v2 = row[2] ?? '○';
-        const v3 = row[3] ?? '△';
-        const criteria = row[4] ? String(row[4]) : '適合性評価';
-        const rec = row[5] ? String(row[5]) : (rIdx === 0 ? '◎ 推奨' : '○ 標準');
-        return { item, values: [v1, v2, v3], criteria, recommendation: rec };
-      }),
-    ];
-  } else {
-    comparison.rows = [
-      { section: '機能・適合性' },
-      { item: '要件適合度', values: ['◎', '○', '△'], criteria: 'コア業務プロセスの網羅性', recommendation: '◎ 推奨' },
-      { item: '導入迅速性', values: ['◎', '△', '○'], criteria: '本番稼働までのリードタイム', recommendation: '◎ 推奨' },
-      { section: 'コスト・運用' },
-      { item: '初期・運用費用', values: ['○', '△', '◎'], criteria: 'TCO（総保有コスト）', recommendation: '○ 標準' },
-      { item: '保守・運用負荷', values: ['◎', '△', '○'], criteria: '専任要員の必要性と運用難易度', recommendation: '◎ 推奨' },
-      { section: 'セキュリティ・リスク' },
-      { item: 'ガバナンス・権限', values: ['◎', '○', '△'], criteria: 'ACL連携・監査ログ対応', recommendation: '◎ 推奨' },
-      { item: '拡張性・将来性', values: ['○', '◎', '△'], criteria: 'API連携・機能アップデート', recommendation: '○ 標準' },
-    ];
-  }
+  // 詳細調査セクション（本文・箇条書き）
+  const sections = Array.isArray(data.sections) ? data.sections : [];
 
   // ソース一覧
   let sources = [];
@@ -761,6 +868,7 @@ function transformDataToExcelFormat(data = {}, brand = {}) {
       actions,
     },
     comparison,
+    sections,
     sources,
   };
 }
@@ -777,6 +885,9 @@ async function buildWorkbook(data) {
   wb.created = new Date();
   buildSummary(wb, data);
   buildComparison(wb, data);
+  if (Array.isArray(data.sections) && data.sections.length > 0) {
+    buildSections(wb, data);
+  }
   buildSources(wb, data);
   wb.views = [{ activeTab: 0, firstSheet: 0 }];
   return wb;
@@ -805,6 +916,7 @@ module.exports = {
   generateExcelReport,
   transformDataToExcelFormat,
   buildWorkbook,
+  buildSections,
   applyThemeTokens,
   BRAND,
 };

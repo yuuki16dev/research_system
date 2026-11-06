@@ -35,3 +35,4 @@ test('live thinking: pipeline.js emits thinking logs during research', () => {
   const pipeline = fs.readFileSync(path.join(ROOT, 'server', 'pipeline.js'), 'utf8');
   assert.ok(pipeline.includes("'thinking'"), "pipeline.js must emit logs with 'thinking' kind");
 });
+
