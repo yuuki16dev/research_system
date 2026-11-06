@@ -127,6 +127,10 @@ function lanAddresses(port = currentPort) {
   return out.sort((a, b) => Number(!a.address.startsWith('192.168.')) - Number(!b.address.startsWith('192.168.')));
 }
 
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', app: 'Research Studio', version: pkgVer, uptime: Math.floor(process.uptime()) });
+});
+
 app.get('/api/info', (req, res) => {
   res.json({ app: 'Research Studio', version: pkgVer, port: currentPort, lan: lanAddresses(currentPort), settings: settings.publicView() });
 });

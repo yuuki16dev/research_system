@@ -1,0 +1,25 @@
+# ======================================================================
+# Render Blueprint Specification
+# Docs: https://render.com/docs/blueprint-spec
+# ======================================================================
+
+services:
+  - type: web
+    name: research-studio
+    env: docker
+    plan: starter # $7/month (常時稼働・スリープなし)
+    region: oregon # or tokyo if available
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: 3939
+      - key: NODE_ENV
+        value: production
+      - key: GEMINI_API_KEY
+        sync: false # Renderダッシュボードの環境変数画面で入力
+      - key: TAVILY_API_KEY
+        sync: false # Renderダッシュボードの環境変数画面で入力
+      - key: GROQ_API_KEY
+        sync: false

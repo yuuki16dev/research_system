@@ -7,6 +7,10 @@ const os = require('os');
  * OS内に既にインストールされている Edge または Chrome の実行ファイルパスを探索
  */
 function findSystemBrowser() {
+  // 環境変数指定（Docker / クラウド環境用）
+  const envPath = process.env.CHROME_PATH || process.env.PUPPETEER_EXECUTABLE_PATH;
+  if (envPath && fs.existsSync(envPath)) return envPath;
+
   const platform = process.platform;
 
   if (platform === 'win32') {
@@ -118,6 +122,9 @@ async function generatePdfFromHtml(htmlContent, options = {}) {
   return new Promise((resolve, reject) => {
     const args = [
       '--headless',
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
       '--disable-gpu',
       '--disable-extensions',
       '--disable-background-networking',
