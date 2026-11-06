@@ -32,7 +32,8 @@ const PURPOSE_LABELS = {
   general: '総合リサーチ（標準）',
   compare: '競合比較・機能・価格',
   tool: 'ツール選定・料金・制限',
-  risk: 'リスク・法規制・落とし穴',
+  risk: 'リスク・落とし穴徹底調査',
+  cost: 'コスト・ROI・相見積もり',
   get trend() {
     return `${new Date().getFullYear()}年最新トレンド・速報`;
   },

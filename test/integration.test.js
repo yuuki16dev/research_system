@@ -139,8 +139,26 @@ test('integration: /api/research creates job, returns 202, and accepts cancel', 
   });
 });
 
-test('integration: /api/research accepts new styles (tech, brief, decision, academic, custom) and customPurpose', async () => {
+test('integration: /api/research accepts new styles (tech, brief, decision, academic, risk, cost, custom) and customPurpose', async () => {
   await runWithServer(async (url) => {
+    // 1. risk purpose
+    const resRisk = await fetch(`${url}/api/research`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        theme: '生成AI社内導入のリスク検証',
+        scope: 'web',
+        depth: 'quick',
+        purpose: 'risk',
+        forceMock: true,
+      }),
+    });
+    assert.strictEqual(resRisk.status, 202);
+    const dataRisk = await resRisk.json();
+    assert.ok(dataRisk.jobId, 'jobId must be returned for risk purpose request');
+    await fetch(`${url}/api/research/${dataRisk.jobId}/cancel`, { method: 'POST' });
+
+    // 2. custom purpose
     const res = await fetch(`${url}/api/research`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

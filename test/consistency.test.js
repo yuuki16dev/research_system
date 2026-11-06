@@ -183,6 +183,8 @@ test('style selector and custom style field consistency: DOM elements and CSS ru
   assert.ok(html.includes('data-style="auto"'), 'auto style option must exist');
   assert.ok(html.includes('data-style="business"'), 'business style option must exist');
   assert.ok(html.includes('data-style="tech"'), 'tech style option must exist');
+  assert.ok(html.includes('data-style="risk"'), 'risk style option must exist');
+  assert.ok(html.includes('data-style="cost"'), 'cost style option must exist');
   assert.ok(html.includes('data-style="brief"'), 'brief style option must exist');
   assert.ok(html.includes('data-style="decision"'), 'decision style option must exist');
   assert.ok(html.includes('data-style="academic"'), 'academic style option must exist');

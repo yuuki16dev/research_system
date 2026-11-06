@@ -740,10 +740,13 @@ function transformDataToExcelFormat(data = {}, brand = {}) {
     ];
   }
 
+  const purposeLabel = data.purposeLabel || (data.purpose ? `分析レンズ: ${data.purpose}` : '');
+  const subtitleText = data.subtitle || [data.theme, purposeLabel].filter(Boolean).join(' — ') || '構造化比較分析';
+
   return {
     meta: {
       title: data.title || data.theme || 'エグゼクティブ・リサーチレポート',
-      subtitle: data.subtitle || `${data.theme || ''} に関する構造化比較分析`,
+      subtitle: subtitleText,
       theme: data.theme || 'ビジネスリサーチ',
       date: dateStr,
       publisher,

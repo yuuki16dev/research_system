@@ -218,15 +218,27 @@ function extractText(html) {
   let body = html
     .replace(/<(script|style|noscript|svg|iframe|template)[\s\S]*?<\/\1>/gi, ' ')
     .replace(/<(header|footer|nav|aside|form)[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<(div|section)[^>]*(cookie|modal|banner|advertisement|share|social|sidebar)[^>]*>[\s\S]*?<\/\1>/gi, ' ')
     .replace(/<!--[\s\S]*?-->/g, ' ');
-  const main = /<(article|main)[\s\S]*?<\/\1>/i.exec(body);
-  if (main && main[0].length > 1500) body = main[0];
-  body = body.replace(/<\/(p|div|h[1-6]|li|tr|br|section)>/gi, '\n');
-  const text = stripTags(body.replace(/\n/g, ' ⏎ ')).replace(/( ?⏎ ?)+/g, '\n').trim();
+
+  // 主要な本文コンテナ（article / main / entry-content / post-content）を優先抽出
+  const main = /<(article|main)[^>]*>([\s\S]*?)<\/\1>/i.exec(body);
+  if (main && main[2].length > 800) {
+    body = main[2];
+  }
+
+  // 表やリストの構造を保持して整形
+  body = body
+    .replace(/<\/(th|td)>/gi, ' | ')
+    .replace(/<\/(tr)>/gi, '\n')
+    .replace(/<\/(li)>/gi, '\n・')
+    .replace(/<\/(p|div|h[1-6]|br|section)>/gi, '\n');
+
+  const text = stripTags(body.replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n')).trim();
   return { title: titleM ? stripTags(titleM[1]) : '', text };
 }
 
-async function fetchPage(url, { signal, maxChars = 4000, timeoutMs = 6000 } = {}) {
+async function fetchPage(url, { signal, maxChars = 6000, timeoutMs = 7000 } = {}) {
   const res = await fetch(url, {
     headers: { 'User-Agent': UA, Accept: 'text/html,application/xhtml+xml', 'Accept-Language': 'ja,en;q=0.8' },
     redirect: 'follow',
@@ -249,6 +261,7 @@ async function fetchPage(url, { signal, maxChars = 4000, timeoutMs = 6000 } = {}
 module.exports = {
   run,
   fetchPage,
+  extractText,
   tavilySearch,
   ddgSearch,
   unwrapDdgUrl,

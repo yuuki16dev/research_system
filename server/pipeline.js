@@ -97,6 +97,65 @@ function resolveSearchDateParams(period = 'year', customPeriod = '') {
 function buildLocalSearchPlan(theme, purpose, period, deep) {
   const currentYear = new Date().getFullYear();
   const kw = String(theme || '').trim();
+
+  if (purpose === 'risk') {
+    const queries = [
+      `${kw} リスク 課題 注意点`,
+      `${kw} 失敗事例 落とし穴 デメリット`,
+      `${kw} 法規制 セキュリティ 規約`,
+      `${kw} 隠れコスト トラブル 回避策`,
+    ];
+    if (deep) {
+      queries.push(`${kw} 訴訟 炎上 事故 過去事例`);
+      queries.push(`${kw} 導入前 チェックリスト ガイドライン`);
+    }
+    return {
+      queries,
+      angles: ['法的・規約リスク', '失敗事例と教訓', 'セキュリティ・運用落とし穴', 'リスク回避チェックリスト'],
+      framework: {
+        focus: 'risk',
+        focusLabel: 'リスク・落とし穴徹底調査',
+        rationale: '導入や投資における潜在的リスクと失敗要因の早期特定',
+        dynamicHeadings: [
+          { heading: `${kw}における潜在リスクと重大落とし穴`, keyQuestion: 'どのような見落としやすいリスクが存在するか？' },
+          { heading: '過去の失敗事例と教訓の分析', keyQuestion: '先行事例では何が原因でトラブルや失敗が生じたか？' },
+          { heading: '法規制・コンプライアンス・セキュリティ上の留意点', keyQuestion: '法的・契約上の制約やセキュリティ脆弱性は何か？' },
+          { heading: 'リスク緩和策と事前検証チェックリスト', keyQuestion: '事故や損失を未然に防ぐ具体的な防衛策は？' },
+        ],
+        tableComparisonAxis: 'リスク要因 / 影響度・発生確率 / 典型的な被害 / 推奨回避策',
+      },
+    };
+  }
+
+  if (purpose === 'cost') {
+    const queries = [
+      `${kw} 料金プラン 価格 月額 初期費用`,
+      `${kw} コスト 比較 無料枠 制限`,
+      `${kw} 費用対効果 ROI 投資対効果`,
+      `${kw} 見積もり 追加費用 課金体系`,
+    ];
+    if (deep) {
+      queries.push(`${kw} 価格改定 値上げ ランニングコスト`);
+      queries.push(`${kw} 競合 相見積もり コスト削減`);
+    }
+    return {
+      queries,
+      angles: ['料金体系・初期費用', 'プラン比較と無料枠', '隠れコストと従量課金', 'ROI・投資回収試算'],
+      framework: {
+        focus: 'cost',
+        focusLabel: 'コスト・ROI・相見積もり',
+        rationale: '初期費用から月額運用費、ROIまでを定量的に比較',
+        dynamicHeadings: [
+          { heading: `${kw}の料金体系と初期・月額コスト構造`, keyQuestion: '基本プランや従量課金の仕組みはどうなっているか？' },
+          { heading: '主要選択肢のコスト・無料枠徹底比較', keyQuestion: '競合や代替手段と比べた費用差や制限は？' },
+          { heading: '見落としがちな追加費用と隠れコスト', keyQuestion: '超過料金、移行費用、サポート費用などの盲点は？' },
+          { heading: '費用対効果（ROI）試算と投資回収ロードマップ', keyQuestion: '投資に対してどれだけの成果やコスト削減が見込めるか？' },
+        ],
+        tableComparisonAxis: '初期費用 / 月額費用 / 無料枠制限 / サポート費用 / 推奨規模',
+      },
+    };
+  }
+
   const queries = [
     kw,
     `${kw} 最新動向 ${currentYear}`,
@@ -321,7 +380,9 @@ async function runLive(p, s, ctx) {
   } else if (purpose === 'tool') {
     purposeInstruction = '【調査目的: ツール選定・導入検討】具体的な料金プラン、無料プランの制限、導入手順、連携機能、実際のユーザーの不満点やデメリットを調査するクエリを作成してください。';
   } else if (purpose === 'risk') {
-    purposeInstruction = '【調査目的: リスク・法規制・落とし穴】導入時の法的リスク、セキュリティ懸念、失敗事例、隠れたコスト、留意点を浮き彫りにするクエリを作成してください。';
+    purposeInstruction = '【調査の方向性: リスク・落とし穴徹底調査】重大な見落としや失敗を防ぐため、導入時の法的リスク、規約違反、セキュリティ懸念、実際の失敗事例やトラブル、隠れたコスト、デメリットを洗い出すクエリ（「失敗事例」「トラブル」「リスク」「落とし穴」「デメリット」等）を重点的に作成してください。';
+  } else if (purpose === 'cost') {
+    purposeInstruction = '【調査の方向性: コスト・ROI・相見積もり】正確な予算算出と投資判断のため、初期費用、月額ランニングコスト、従量課金、無料枠の制限、追加オプション費用、ROI・費用対効果、競合相見積もりを徹底検証できるクエリ（「料金」「価格」「月額」「初期費用」「無料枠」「コスト比較」等）を作成してください。';
   } else if (purpose === 'trend') {
     purposeInstruction = `【調査目的: ${currentYear}年最新トレンド・速報】直近数ヶ月の最新ニュース、大型アップデート、新規参入、今後のロードマップを追跡できるクエリを作成してください。`;
   } else {
@@ -588,14 +649,23 @@ async function runLive(p, s, ctx) {
   }
 
 
-  // 一次情報・公的データ優先モード時のドメイン信頼度スコアリング
+  // ドメイン信頼度スコアリング（公的・一次情報の優先 ＆ SEOスパム・まとめサイトの自動除外）
   function getDomainAuthorityScore(url) {
-    if (!isAuthoritative) return 0;
     const u = (url || '').toLowerCase();
-    if (/\.(go\.jp|gov|ac\.jp|edu|or\.jp|org|jpx\.co\.jp)/.test(u)) return 4;
-    if (/(ir|release|news|corporate|investor|report|whitepaper|stat|soumu|meti|mhlw|e-stat)/.test(u)) return 2;
-    if (/(matome|blog|affiliate|ranking|osusume|wiki)/.test(u)) return -2;
-    return 1;
+    let score = 0;
+    // 公的機関・学術機関・公式発表（.go.jp, .ac.jp, .edu 等）
+    if (/\.(go\.jp|gov|ac\.jp|edu|or\.jp|org|jpx\.co\.jp)/.test(u)) {
+      score += isAuthoritative ? 6 : 3;
+    }
+    // IR・公式白書・プレスリリース・公的統計
+    if (/(ir|release|corporate|investor|report|whitepaper|stat|soumu|meti|mhlw|e-stat|nikkei|reuters|bloomberg)/.test(u)) {
+      score += isAuthoritative ? 3 : 2;
+    }
+    // 低品質まとめ・アフィリエイト特化・キュレーション・質問箱の自動減点（ノイズ除外）
+    if (/(matome|affiliate|ranking-best|hikaku-master|osusume|ranking|chiebukuro|oshiete|wiki|blog\.livedoor|fc2\.com)/.test(u)) {
+      score -= 3;
+    }
+    return score;
   }
 
   // ラウンドロビンで重複除去しながら統合（特定クエリへの偏りを防ぐ）
@@ -733,9 +803,8 @@ async function runLive(p, s, ctx) {
   }
 
   sources = rawSources;
-  if (isAuthoritative) {
-    sources.sort((a, b) => getDomainAuthorityScore(b.url) - getDomainAuthorityScore(a.url));
-  }
+  // 低品質ノイズ・まとめサイトを自動除外し、信頼性の高い公的・公式ドメインを優先選定
+  sources.sort((a, b) => getDomainAuthorityScore(b.url) - getDomainAuthorityScore(a.url));
   sources = sources.slice(0, limit);
 
   ctx.progress(55, 'search');
@@ -748,15 +817,15 @@ async function runLive(p, s, ctx) {
       ctx.log('検索結果が0件でした。AIの知識ベースで続行します', 'warn');
     }
   } else {
-    const authCount = isAuthoritative ? sources.filter((s) => getDomainAuthorityScore(s.url) >= 2).length : 0;
-    const authNote = isAuthoritative ? `（公的・企業公式・学術ソース: ${authCount}件を優先抽出）` : '';
-    ctx.log(`重複を除いた ${sources.length} 件のソースを解析対象に選定 ${authNote}`, 'ok');
+    const authCount = sources.filter((s) => getDomainAuthorityScore(s.url) >= 2).length;
+    const authNote = authCount > 0 ? `（信頼できる公的・公式・学術ソース: ${authCount}件を優先解析）` : '';
+    ctx.log(`重複・ノイズを除いた ${sources.length} 件のソースを解析対象に選定 ${authNote}`, 'ok');
   }
 
-  /* ---- 4. ページ解析 */
-  const fetchN = Math.min(deep ? 16 : 8, sources.length);
-  const maxChars = deep ? 6500 : 4000;
-  const timeoutMs = deep ? 7500 : 4000;
+  /* ---- 4. ページ解析（本文ディープ抽出） */
+  const fetchN = Math.min(deep ? 18 : 10, sources.length);
+  const maxChars = deep ? 8000 : 5500;
+  const timeoutMs = deep ? 8000 : 5000;
   let done = 0;
   const targets = sources.slice(0, fetchN);
   const worker = async (src) => {
@@ -964,10 +1033,20 @@ ${p.customPurpose || 'ユーザーの自由な指定に沿って構成してく�
 - 導入の難易度（工数・学習コスト）、実際のユーザーレビューにおけるリアルな不満点やデメリットを漏れなく記述すること`;
   } else if (purpose === 'risk') {
     purposeFocus = `
-# 【調査目的: リスク・法規制・落とし穴】
-読者は見落としがちな失敗要因とコンプライアンスリスクを求めています。
-- 法的規制、プライバシー・セキュリティ懸念、導入失敗の典型パターン、後戻りできないコストやベンダーロックインのリスクを深掘りすること
-- リスク回避のための防衛策とチェックリストを提示すること`;
+# 【出力スタイル・方向性: リスク・落とし穴徹底調査】
+読者は重大な失敗、法規制違反、セキュリティ事故、予期せぬ金銭的損失を未然に防ぐための厳格なリスク監査資料を求めています。
+- summary: 想定される最大のリスク要因、失敗確率・インパクト、見落としがちな盲点、および最優先で講じるべき防衛策を結論ファーストで総括すること
+- metrics: 失敗率、インシデント発生件数、違約金/復旧コスト、セキュリティ脆弱性スコア、コンプライアンス遵守率などのリスクKPIを優先すること
+- table: リスク項目ごとの【影響度（大/中/小）】【発生確率】【具体的な被害・トラブル例】【回避・緩和策】を完全マトリクス化すること
+- sections: ①重大な落とし穴・隠れたデメリット、②先行事例における実際のトラブル・失敗原因の徹底解剖、③法的リスク・規約・セキュリティ/プライバシー上の留意点、④導入・実行前リスクチェックリストと防衛ロードマップを容赦なく客観的に論述すること`;
+  } else if (purpose === 'cost') {
+    purposeFocus = `
+# 【出力スタイル・方向性: コスト・ROI・相見積もり】
+読者は稟議や予算獲得に必要な、初期費用・月額ランニング・無料枠・ROI（費用対効果）の精緻な定量試算を求めています。
+- summary: 総所有コスト（TCO）、最もコストパフォーマンスが高い選択肢、投資回収期間（ROI）、および予算最適化の推奨解を総括すること
+- metrics: 初期費用、月額相場、無料枠制限値、コスト削減率（%）、ROI回収予測月数などの費用数値を最優先で選定すること
+- table: 主要選択肢の【初期費用】【月額基本料】【従量課金単価】【無料プラン制限】【サポート費用】【推奨規模】を横断比較すること
+- sections: ①コスト構造の全体像と課金体系の仕組み、②主要選択肢の費用対効果（ROI）シミュレーション、③見落としがちな隠れコスト（超過料金・移行工数・解約違約金など）、④相見積もり・コスト最小化のための交渉/選定チェックポイントを具体的に論述すること`;
   } else if (purpose === 'trend') {
     purposeFocus = `
 # 【調査目的: ${currentYear}年最新トレンド・速報】
@@ -1033,7 +1112,7 @@ ${p.referenceContext && p.referenceContext.trim() ? `\n【追加前提メモ】:
 `
     : '';
 
-  const bodySnippetLen = isFreeTier ? 250 : 1500;
+  const bodySnippetLen = isFreeTier ? 600 : 2500;
   const block = sources.length
     ? sources
         .map((s, i) => {
