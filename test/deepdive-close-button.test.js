@@ -40,3 +40,4 @@ test('deep-dive module binds close buttons and keyboard Escape in public/js/modu
   assert.ok(js.includes("e.key === 'Escape'"), 'deep-dive.js must support Escape key');
   assert.ok(js.includes('hydrateIcons(drawerEl)'), 'deep-dive.js must hydrate icons when drawer opens');
 });
+

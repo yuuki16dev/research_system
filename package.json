@@ -1,6 +1,6 @@
 {
   "name": "research_system",
-  "version": "1.24.1",
+  "version": "2.0.0",
   "description": "AI駆動型の自律リサーチ＆総合インテリジェンス自動生成システム",
   "main": "server/index.js",
   "bin": "server/index.js",
@@ -13,7 +13,9 @@
     "test:exports": "node scripts/verify-all-exports.js",
     "test:exe": "node scripts/verify-exe.js",
     "fix:bat": "node scripts/normalize-bat.js",
-    "build:exe": "npx --yes pkg . --targets node18-win-x64 --output dist/ResearchStudio.exe"
+    "build:exe": "npx --yes pkg . --targets node18-win-x64 --output dist/ResearchStudio.exe",
+    "package:release": "node scripts/package-release.js",
+    "build:all": "npm run build:exe && npm run package:release"
   },
   "pkg": {
     "scripts": [
