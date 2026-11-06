@@ -138,7 +138,7 @@ test('distortion-free: Excel engine creates 4 sheets including Detailed_Report w
     ],
   };
 
-  const buffer = await excel.generateExcelReport(fullData, { publisherName: 'Tech Research Lab' });
+  const buffer = await excel.generateExcelReport(fullData, { publisherName: 'Tech Research Lab', engine: 'legacy' });
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(buffer);
 

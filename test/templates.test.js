@@ -156,8 +156,8 @@ test('excel engine: transformDataToExcelFormat and generateExcelReport produce c
   assert.strictEqual(formatted.comparison.options.length, 3);
   assert.strictEqual(formatted.sources.length, 3);
 
-  // 2. ExcelJS バッファ生成の検証
-  const buffer = await excel.generateExcelReport(mockData, brand);
+  // 2. ExcelJS バッファ生成の検証（レガシー互換モード）
+  const buffer = await excel.generateExcelReport(mockData, { ...brand, engine: 'legacy' });
   assert.ok(Buffer.isBuffer(buffer), 'Output must be Buffer');
   assert.ok(buffer.length > 8000, `Buffer size (${buffer.length} bytes) must be substantial`);
 

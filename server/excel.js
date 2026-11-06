@@ -2,6 +2,7 @@
 
 const ExcelJS = require('exceljs');
 const { resolveTheme } = require('./themes');
+const excelCommercial = require('./excel-commercial');
 
 /**
  * Research Studio — 商用グレード Excel レポート生成エンジン（ExcelJS）
@@ -897,23 +898,49 @@ async function buildWorkbook(data) {
  * 商用レポート Excel Buffer 生成
  * @param {Object} data リサーチデータ
  * @param {Object} brand ブランド・ホワイトラベル設定
+ * @param {Object} [options] 追加オプション（engine, fonts, sheetNaming等）
  * @returns {Promise<Buffer>}
  */
-async function generateExcelReport(data, brand = {}) {
+async function generateExcelReport(data, brand = {}, options = {}) {
   const theme = brand.theme || brand.reportTheme || (data && data.reportTheme);
   if (theme) {
     applyThemeTokens(theme);
   } else {
     Object.assign(BRAND, DEFAULT_BRAND);
   }
-  const formatted = transformDataToExcelFormat(data, brand);
-  const wb = await buildWorkbook(formatted);
-  const buffer = await wb.xlsx.writeBuffer();
-  return buffer;
+
+  // 明示的なレガシー指定時のみ旧エンジンを使用
+  if (options.engine === 'legacy' || brand.engine === 'legacy') {
+    const formatted = transformDataToExcelFormat(data, brand);
+    const wb = await buildWorkbook(formatted);
+    return await wb.xlsx.writeBuffer();
+  }
+
+  // デフォルト: 次世代商用エグゼクティブエンジン（歪曲・欠落ゼロ・和欧混植・動的数式・長文自動行分割）
+  const customColors = {
+    ink: BRAND.navy,
+    slate: BRAND.navy2 || BRAND.navy,
+    band: BRAND.paper || 'F1F5F9',
+    border: BRAND.line || 'E2E8F0',
+    link: BRAND.blue || '2563EB',
+  };
+  const commercialOptions = {
+    ...options,
+    publisher: brand.publisherName || brand.publisher || data.publisher,
+    colors: customColors,
+    classification: brand.confidentiality || brand.classification || 'CONFIDENTIAL',
+    sheetNaming: options.sheetNaming || brand.sheetNaming || 'commercial',
+  };
+
+  const wb = await excelCommercial.generateCommercialExcel(data, commercialOptions);
+  return await wb.xlsx.writeBuffer();
 }
 
 module.exports = {
   generateExcelReport,
+  generateCommercialExcel: excelCommercial.generateCommercialExcel,
+  verifyNoDataLoss: excelCommercial.verifyNoDataLoss,
+  SHEETS: excelCommercial.SHEETS,
   transformDataToExcelFormat,
   buildWorkbook,
   buildSections,
