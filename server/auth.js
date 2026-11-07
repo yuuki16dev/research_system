@@ -10,6 +10,8 @@
 
 const SUPABASE_URL = process.env.SUPABASE_URL ? process.env.SUPABASE_URL.replace(/\/+$/, '') : '';
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
+// 一般ユーザー向け認証を明示的に有効化する場合のみ true (デフォルトはオーナー直接利用モード)
+const ENABLE_AUTH = process.env.ENABLE_AUTH === 'true';
 
 /**
  * Bearer トークンから Supabase ユーザー情報を取得
@@ -40,14 +42,15 @@ async function verifySupabaseToken(token) {
  * 認証ミドルウェア（必須）
  */
 function requireAuth(req, res, next) {
-  // ローカル環境・シングルユーザーモードの場合
-  if (!SUPABASE_URL) {
+  // 認証が明示的に有効化されていない場合（オーナー直接利用・テストモード）
+  // または SUPABASE_URL が未設定の場合は自動でオーナー（無制限）として通過
+  if (!ENABLE_AUTH || !SUPABASE_URL) {
     req.user = {
-      id: 'local-user',
+      id: 'owner-user',
       email: 'owner@local',
       role: 'authenticated',
       plan: 'admin',
-      isLocal: true,
+      isLocal: !SUPABASE_URL,
     };
     return next();
   }
@@ -81,13 +84,13 @@ function requireAuth(req, res, next) {
  * 認証ミドルウェア（任意：ログインしていればユーザー情報を付与、未ログインでも通過）
  */
 function optionalAuth(req, res, next) {
-  if (!SUPABASE_URL) {
+  if (!ENABLE_AUTH || !SUPABASE_URL) {
     req.user = {
-      id: 'local-user',
+      id: 'owner-user',
       email: 'owner@local',
       role: 'authenticated',
       plan: 'admin',
-      isLocal: true,
+      isLocal: !SUPABASE_URL,
     };
     return next();
   }
@@ -112,6 +115,6 @@ module.exports = {
   requireAuth,
   optionalAuth,
   verifySupabaseToken,
-  isCloudAuthEnabled: () => !!SUPABASE_URL,
+  isCloudAuthEnabled: () => ENABLE_AUTH && !!SUPABASE_URL,
 };
 
