@@ -182,18 +182,24 @@ function toZonedDate(iso, timeZone) {
     return new Date(Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute, +p.second));
 }
 const tzLabel = (tz) => (tz === 'Asia/Tokyo' ? 'JST' : tz);
-/** 未知フィールドを「キー：値」の行に展開（入れ子は字下げ） */
+/** 未知フィールドを「キー：値」の行に展開（入れ子は字下げ、空値はスキップ） */
 function flatten(value, key, depth = 0) {
+    if (value === null || value === undefined || value === '') return [];
     const label = key !== undefined ? key : '';
-    if (value === null || typeof value !== 'object') {
+    if (typeof value !== 'object') {
         return [{ depth, text: key !== undefined ? `${label}：${str(value)}` : str(value) }];
     }
-    const head = key !== undefined ? [{ depth, text: `${label}：` }] : [];
-    const d = depth + (key !== undefined ? 1 : 0);
     if (Array.isArray(value)) {
+        if (value.length === 0) return [];
+        const head = key !== undefined ? [{ depth, text: `${label}：` }] : [];
+        const d = depth + (key !== undefined ? 1 : 0);
         return head.concat(value.flatMap((v, i) => v !== null && typeof v === 'object' ? flatten(v, `[${i + 1}]`, d) : [{ depth: d, text: '・' + str(v) }]));
     }
-    return head.concat(Object.entries(value).flatMap(([k, v]) => flatten(v, k, d)));
+    const entries = Object.entries(value).filter(([, v]) => v !== null && v !== undefined && v !== '');
+    if (entries.length === 0) return [];
+    const head = key !== undefined ? [{ depth, text: `${label}：` }] : [];
+    const d = depth + (key !== undefined ? 1 : 0);
+    return head.concat(entries.flatMap(([k, v]) => flatten(v, k, d)));
 }
 const extras = (obj, known) => isPlainObject(obj) ? Object.fromEntries(Object.entries(obj).filter(([k, v]) => !known.includes(k) && v !== undefined)) : {};
 const LATIN = /[ -~ -ɏ -‧‰-⁞]/;
@@ -346,9 +352,9 @@ async function generateCommercialExcel(rawInput, options = {}) {
     const data = (rawInput && rawInput.meta) ? {
         title: rawInput.meta.title || rawInput.title,
         theme: rawInput.meta.theme || rawInput.theme,
-        generatedAt: rawInput.meta.date || rawInput.generatedAt,
-        publisher: rawInput.meta.publisher || rawInput.publisher,
-        confidenceScore: rawInput.meta.score ?? rawInput.confidenceScore,
+        generatedAt: rawInput.meta.date || rawInput.generatedAt || rawInput.createdAt || rawInput.meta.createdAt,
+        publisher: rawInput.meta.publisher || rawInput.publisher || options.publisher || options.publisherName,
+        confidenceScore: rawInput.meta.score ?? rawInput.confidenceScore ?? rawInput.score,
         summary: rawInput.summary?.conclusion || rawInput.summary,
         metrics: rawInput.metrics,
         decision: rawInput.decision || rawInput.summary?.decision,
@@ -360,7 +366,20 @@ async function generateCommercialExcel(rawInput, options = {}) {
         sections: rawInput.sections,
         sources: rawInput.sources,
         ...rawInput
-    } : (rawInput || {});
+    } : {
+        ...(rawInput || {}),
+        generatedAt: rawInput?.generatedAt || rawInput?.createdAt || (rawInput?.meta && (rawInput.meta.date || rawInput.meta.createdAt)),
+        publisher: rawInput?.publisher || options.publisher || options.publisherName || (rawInput?.meta && rawInput.meta.publisher),
+        confidenceScore: rawInput?.confidenceScore ?? rawInput?.score ?? (rawInput?.meta && rawInput.meta.score),
+    };
+
+    // 総合信頼度の自動算出（未定義かつ出典が存在する場合）
+    if (data.confidenceScore === undefined || data.confidenceScore === null) {
+        const nums = (Array.isArray(data.sources) ? data.sources : []).map(s => Number(s.score)).filter(Number.isFinite);
+        if (nums.length) {
+            data.confidenceScore = Math.round(nums.reduce((a, b) => a + b, 0) / nums.length);
+        }
+    }
 
     // シート命名の決定
     const useLegacy = options.sheetNaming === 'legacy' || options.numberedSheets === false;
@@ -479,7 +498,7 @@ async function generateCommercialExcel(rawInput, options = {}) {
                         longCells.push({ where: `${exports.SHEETS.matrix}!${colLetter(ci + 2)}${rowNo}（${columns[ci]}）`, text });
                         ws.getCell(rowNo, ci + 2).note = '長文のためセル内の表示は途中までです。数式バー、または 03_Detailed_Report の付録で全文を確認できます。';
                     }
-                    h = Math.max(h, rowHeight(text, widths[ci], PT.body, 20));
+                    h = Math.min(50, Math.max(h, rowHeight(text, widths[ci], PT.body, 20)));
                 });
                 ws.getRow(rowNo).height = h;
             });
@@ -511,24 +530,64 @@ async function generateCommercialExcel(rawInput, options = {}) {
        ------------------------------------------------------------------- */
     const sources = Array.isArray(data.sources) ? data.sources : [];
     const srcHeaderRow = 5;
-    const srcKnown = ['id', 'title', 'publisher', 'score', 'url'];
+    const srcKnown = [
+        'id', 'index', 'title', 'publisher', 'domain', 'score', 'url',
+        'snippet', 'category', 'categoryLabel', 'categoryBadge',
+        'note', 'type', 'publishedDate', 'fromMemory', 'hop', 'aiScore'
+    ];
     const srcExtraKeys = [];
-    sources.forEach((s) => Object.keys(extras(s, srcKnown)).forEach((k) => { if (!srcExtraKeys.includes(k))
-        srcExtraKeys.push(k); }));
-    const srcCols = ['ID', '出典名', '発信元', 'ドメイン', '信頼性スコア', 'URL', ...srcExtraKeys];
-    const SCORE_COL = 6; // F 列
+    sources.forEach((s) => Object.keys(extras(s, srcKnown)).forEach((k) => {
+        if (!srcExtraKeys.includes(k)) srcExtraKeys.push(k);
+    }));
+
+    const hasCategory = sources.some((s) => s.categoryLabel || s.category);
+    const hasSnippet = sources.some((s) => s.snippet || s.note);
+
+    const srcCols = [
+        'ID',
+        '出典名',
+        '発信元',
+        'ドメイン',
+        ...(hasCategory ? ['カテゴリ'] : []),
+        '信頼性スコア',
+        'URL',
+        ...(hasSnippet ? ['概要・抜粋'] : []),
+        ...srcExtraKeys
+    ];
+    const scoreColIdx = srcCols.indexOf('信頼性スコア') + 2; // B列=2
+    const scoreColLetter = colLetter(scoreColIdx);
+
     {
         const ws = wsSrc;
         ws.getColumn(1).width = 2;
-        const vals = sources.map((s) => [str(s.id), str(s.title), str(s.publisher), domainOf(s.url), str(s.score), str(s.url), ...srcExtraKeys.map((k) => str(s[k]))]);
+        const vals = sources.map((s, ri) => {
+            const sid = s.id || (s.index !== undefined ? String(s.index) : String(ri + 1));
+            const pub = str(s.publisher || (s.domain ? s.domain : domainOf(s.url)));
+            const dom = str(s.domain || domainOf(s.url));
+            const cat = str(s.categoryLabel || s.category || 'Web情報');
+            const sc = typeof s.score === 'number' ? s.score : (typed(s.score).value ?? 70);
+            const snip = str(s.snippet || s.note || '');
+            return [
+                sid,
+                str(s.title),
+                pub,
+                dom,
+                ...(hasCategory ? [cat] : []),
+                str(sc),
+                str(s.url),
+                ...(hasSnippet ? [snip] : []),
+                ...srcExtraKeys.map((k) => str(s[k]))
+            ];
+        });
         const widths = srcCols.map((h, i) => {
             const v = vals.map((r) => r[i]);
-            if (i === 0)
-                return autoWidth(h, v, 8, 12);
-            if (i === 4)
-                return 13;
-            if (i === 1 || i === 5)
-                return autoWidth(h, v, 24, 60);
+            if (h === 'ID') return 8;
+            if (h === '信頼性スコア') return 13;
+            if (h === 'カテゴリ') return 14;
+            if (h === '発信元' || h === 'ドメイン') return autoWidth(h, v, 14, 25);
+            if (h === '出典名') return autoWidth(h, v, 24, 45);
+            if (h === 'URL') return autoWidth(h, v, 20, 40);
+            if (h === '概要・抜粋') return 50;
             return autoWidth(h, v, 12, 30);
         });
         widths.forEach((wd, i) => { ws.getColumn(i + 2).width = wd; });
@@ -538,29 +597,56 @@ async function generateCommercialExcel(rawInput, options = {}) {
         ws.getRow(srcHeaderRow).height = 24;
         srcCols.forEach((h, i) => w.put(ws.getCell(srcHeaderRow, i + 2), h, {
             size: PT.th, bold: true, color: COLOR.white, fill: COLOR.slate, border: box,
-            align: { vertical: 'middle', horizontal: i === 0 || i === 4 ? 'center' : 'left', indent: i === 0 || i === 4 ? 0 : 1, wrapText: false },
+            align: { vertical: 'middle', horizontal: h === 'ID' || h === '信頼性スコア' || h === 'カテゴリ' ? 'center' : 'left', indent: h === 'ID' || h === '信頼性スコア' || h === 'カテゴリ' ? 0 : 1, wrapText: false },
         }));
         sources.forEach((s, ri) => {
             const r = srcHeaderRow + 1 + ri;
             const url = safeUrl(s.url);
-            const cells = [s.id, s.title, s.publisher, domainOf(s.url), s.score,
-                url ? w.link(url, url, 'クリックでブラウザを開く') : s.url, ...srcExtraKeys.map((k) => str(s[k]))];
+            const sid = s.id || (s.index !== undefined ? String(s.index) : String(ri + 1));
+            const pub = str(s.publisher || (s.domain ? s.domain : domainOf(s.url)));
+            const dom = str(s.domain || domainOf(s.url));
+            const cat = str(s.categoryLabel || s.category || 'Web情報');
+            const sc = typeof s.score === 'number' ? s.score : (typed(s.score).value ?? 70);
+            const snip = str(s.snippet || s.note || '');
+            const cells = [
+                sid,
+                s.title,
+                pub,
+                dom,
+                ...(hasCategory ? [cat] : []),
+                sc,
+                url ? w.link(url, url, 'クリックでブラウザを開く') : s.url,
+                ...(hasSnippet ? [snip] : []),
+                ...srcExtraKeys.map((k) => str(s[k]))
+            ];
             let h = 20;
             cells.forEach((v, ci) => {
-                const isUrl = ci === 5 && !!url;
+                const colName = srcCols[ci];
+                const isUrl = colName === 'URL' && !!url;
+                const isCenter = colName === 'ID' || colName === '信頼性スコア' || colName === 'カテゴリ';
+                const isScore = colName === '信頼性スコア';
                 w.put(ws.getCell(r, ci + 2), v, {
-                    border: box, bold: ci === 0, color: isUrl ? COLOR.link : ci === 0 ? COLOR.ink : COLOR.slate, underline: isUrl,
-                    numFmt: ci === 4 ? '0' : undefined, plain: ci === 4,
-                    align: { vertical: 'middle', horizontal: ci === 0 || ci === 4 ? 'center' : 'left', indent: ci === 0 || ci === 4 ? 0 : 1 },
+                    border: box,
+                    bold: colName === 'ID',
+                    color: isUrl ? COLOR.link : colName === 'ID' ? COLOR.ink : COLOR.slate,
+                    underline: isUrl,
+                    numFmt: isScore ? '0' : undefined,
+                    plain: isScore,
+                    align: {
+                        vertical: 'middle',
+                        horizontal: isCenter ? 'center' : 'left',
+                        indent: isCenter ? 0 : 1,
+                        wrapText: colName === '概要・抜粋' || colName === '出典名'
+                    },
                 });
-                h = Math.max(h, rowHeight(ci === 5 ? str(s.url) : str(v), widths[ci], PT.body, 20));
+                h = Math.min(48, Math.max(h, rowHeight(isUrl ? str(s.url) : str(v), widths[ci], PT.body, 20)));
             });
             ws.getRow(r).height = h;
         });
         const last = srcHeaderRow + Math.max(sources.length, 1);
         ws.autoFilter = `B${srcHeaderRow}:${colLetter(lastCol)}${last}`;
         if (sources.length)
-            cfScore(ws, `F${srcHeaderRow + 1}:F${last}`, `F${srcHeaderRow + 1}`);
+            cfScore(ws, `${scoreColLetter}${srcHeaderRow + 1}:${scoreColLetter}${last}`, `${scoreColLetter}${srcHeaderRow + 1}`);
         else
             w.put(ws.getCell(srcHeaderRow + 1, 3), '出典データはありません。', { color: COLOR.muted });
         const lr = last + 2;
@@ -625,13 +711,17 @@ async function generateCommercialExcel(rawInput, options = {}) {
             r += 2;
         }
         // 付録：スキーマ外のトップレベル項目／表示枠を超えた長文セル
-        const topExtras = extras(data, ['title', 'theme', 'generatedAt', 'publisher', 'confidenceScore', 'summary', 'metrics', 'decision', 'table', 'sections', 'sources']);
-        if (Object.keys(topExtras).length || longCells.length) {
+        const topExtras = extras(data, [
+            'title', 'theme', 'generatedAt', 'publisher', 'confidenceScore', 'summary', 'metrics', 'decision', 'table', 'sections', 'sources',
+            'id', 'mode', 'model', 'searchProvider', 'durationMs', 'reportTheme', 'scopeLabel', 'depthLabel', 'focusLabel', 'purposeLabel', 'periodLabel'
+        ]);
+        const extraLines = flatten(topExtras);
+        if (extraLines.length || longCells.length) {
             appendixRow = r;
             w.put(ws.getCell(r, 2), '付録：その他の調査データ（原文のまま）', { size: PT.h2, bold: true, color: COLOR.ink, fill: COLOR.band, border: { bottom: thin }, align: { vertical: 'middle', indent: 1 } });
             ws.getRow(r).height = 26;
             r += 2;
-            flatten(topExtras).forEach((line) => writeText(line.text, { color: COLOR.slate }, 1 + Math.min(line.depth, 6)));
+            extraLines.forEach((line) => writeText(line.text, { color: COLOR.slate }, 1 + Math.min(line.depth, 6)));
             longCells.forEach((lc) => {
                 r += 1;
                 writeText(`長文セルの全文：${lc.where}`, { size: PT.meta, bold: true, color: COLOR.muted }, 1);
@@ -684,7 +774,7 @@ async function generateCommercialExcel(rawInput, options = {}) {
         value(r, 3, 5, { formula: `COUNTA('${exports.SHEETS.sources}'!B${srcFirst}:B${srcLast})`, result: sources.length }, { numFmt: '0"件"' });
         label(r, 6, '平均信頼性');
         const nums = sources.map((s) => Number(s.score)).filter(Number.isFinite);
-        value(r, 7, 9, { formula: `IFERROR(AVERAGE('${exports.SHEETS.sources}'!F${srcFirst}:F${srcLast}),"—")`, result: nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : '—' }, { numFmt: '0.0" / 100"' });
+        value(r, 7, 9, { formula: `IFERROR(AVERAGE('${exports.SHEETS.sources}'!${scoreColLetter}${srcFirst}:${scoreColLetter}${srcLast}),"—")`, result: nums.length ? Math.round((nums.reduce((a, b) => a + b, 0) / nums.length) * 10) / 10 : '—' }, { numFmt: '0.0" / 100"' });
         r += 1;
         if (data.generatedAt) {
             w.merge(ws, r, 2, r, C2, `調査日時の原データ：${data.generatedAt}　｜　出典数・平均信頼性は 04_Sources_Data からの集計式（出典を追加・修正すると自動更新）`, { size: PT.meta, color: COLOR.muted, align: { wrapText: false } });

@@ -102,3 +102,54 @@ test('new commercial excel: generateExcelReport returns valid buffer using comme
   assert.ok(wb.getWorksheet('01_Executive_Summary'), 'Must contain 01_Executive_Summary');
 });
 
+test('new commercial excel: normalized research result produces tidy columns and bounded row heights', async () => {
+  const { buildMock } = require(path.join(ROOT, 'server', 'mock.js'));
+  const { normalizeResult } = require(path.join(ROOT, 'server', 'util.js'));
+
+  const p = { theme: 'エンタープライズAI選定', depth: 'deep', scope: 'web' };
+  const m = buildMock(p);
+  const normalized = normalizeResult(m.raw, {
+    id: 'test-job-999',
+    theme: p.theme,
+    scope: p.scope,
+    sites: m.sites,
+    depth: p.depth,
+    sources: m.sources,
+    queries: m.queries,
+    createdAt: new Date().toISOString(),
+  });
+
+  const wb = await excel.generateCommercialExcel(normalized, {
+    publisher: 'Enterprise Research Corp',
+  });
+
+  // 1. 04_Sources_Data の列数と行の高さの検証（肥大化・崩れ防止）
+  const wsSrc = wb.getWorksheet('04_Sources_Data');
+  assert.ok(wsSrc, '04_Sources_Data must exist');
+  assert.ok(wsSrc.columnCount <= 10, `Columns must not explode beyond 10 (got ${wsSrc.columnCount})`);
+
+  // データ行（Row 6以降）の行高が 48pt 以下に収まっていること
+  for (let r = 6; r <= 5 + m.sources.length; r++) {
+    const row = wsSrc.getRow(r);
+    assert.ok(row.height <= 50, `Row ${r} height must be <= 50pt, got ${row.height}`);
+    // ID が空欄ではなく 1, 2, ... であること
+    assert.ok(row.getCell(2).value !== null && row.getCell(2).value !== undefined, `Row ${r} ID must not be empty`);
+  }
+
+  // 2. 01_Executive_Summary のメタ情報と数式結果の検証
+  const wsSum = wb.getWorksheet('01_Executive_Summary');
+  assert.ok(wsSum, '01_Executive_Summary must exist');
+  const getCellText = (c) => {
+    const v = wsSum.getCell(c).value;
+    if (v && v.richText) return v.richText.map(t => t.text).join('');
+    return String(v || '');
+  };
+  assert.strictEqual(getCellText('C5'), p.theme, 'Theme must be populated');
+  assert.strictEqual(getCellText('C6'), 'Enterprise Research Corp', 'Publisher must be populated');
+  assert.ok(getCellText('G6') !== '', 'Confidence score must not be empty');
+
+  // 出典数数式の result が sources.length と一致すること（COUNTA が機能していること）
+  const countaCell = wsSum.getCell('C7').value;
+  assert.strictEqual(countaCell.result, m.sources.length, 'COUNTA formula result must match source count');
+});
+
