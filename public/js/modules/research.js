@@ -9,6 +9,7 @@ import { appState } from './state.js';
 import { bindReportDeepDiveActions } from './deep-dive.js';
 import { loadRecentHistory } from './history.js';
 import { resetEditMode } from './editor.js';
+import { refreshAuthStatus } from './auth.js';
 
 export function bindFormControls() {
   const form = $('#research-form');
@@ -1143,6 +1144,7 @@ export function finishSuccess(resultData) {
   toast('リサーチが完了しました！', 'success');
   notifyResearchComplete(resultData);
   loadRecentHistory();
+  refreshAuthStatus();
 }
 
 function diagnoseError(msg = '') {

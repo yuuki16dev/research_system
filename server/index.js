@@ -133,6 +133,44 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', app: 'Research Studio', version: pkgVer, uptime: Math.floor(process.uptime()) });
 });
 
+/* ------------------------------------------------------------- Auth & Quota */
+app.get('/api/auth/config', (req, res) => {
+  res.json({
+    enabled: auth.isCloudAuthEnabled(),
+    hasSupabase: !!process.env.SUPABASE_URL,
+    isLocal: !process.env.SUPABASE_URL,
+  });
+});
+
+app.post('/api/auth/signup', async (req, res) => {
+  const { email, password } = req.body || {};
+  if (!email || !password) {
+    return res.status(400).json({ error: 'メールアドレスとパスワードを入力してください' });
+  }
+  if (password.length < 6) {
+    return res.status(400).json({ error: 'パスワードは6文字以上で設定してください' });
+  }
+  try {
+    const data = await auth.signupUser(email, password);
+    res.json(data);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  const { email, password } = req.body || {};
+  if (!email || !password) {
+    return res.status(400).json({ error: 'メールアドレスとパスワードを入力してください' });
+  }
+  try {
+    const data = await auth.loginUser(email, password);
+    res.json(data);
+  } catch (err) {
+    res.status(401).json({ error: err.message });
+  }
+});
+
 app.get('/api/auth/me', auth.optionalAuth, async (req, res) => {
   const user = req.user;
   if (!user) {

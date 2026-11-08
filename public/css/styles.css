@@ -9999,6 +9999,264 @@ body.dd-expanded {
   transform: scale(0.95);
 }
 
+/* ==========================================================================
+   認証 & サブスクリプション残り回数メーター (Auth & Quota Meter)
+   ========================================================================== */
+
+.auth-meter-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 4px;
+}
+
+.user-quota-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.12));
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: var(--text-1);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+.user-quota-badge:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: var(--primary, #6366f1);
+  transform: translateY(-1px);
+}
+
+.user-plan-pill {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  text-transform: uppercase;
+}
+
+.plan-free {
+  background: rgba(148, 163, 184, 0.2);
+  color: #94a3b8;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+.plan-light {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.plan-pro {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(168, 85, 247, 0.25));
+  color: #a855f7;
+  border: 1px solid rgba(168, 85, 247, 0.4);
+}
+
+.plan-admin {
+  background: rgba(245, 158, 11, 0.2);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.user-quota-count {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-2, #94a3b8);
+}
+
+.user-quota-count strong {
+  color: var(--text-1, #f8fafc);
+  font-weight: 700;
+}
+
+.quota-low {
+  color: #ef4444 !important;
+}
+
+.quota-unlimited {
+  color: #10b981;
+  font-weight: 600;
+}
+
+/* 認証モーダル */
+.auth-modal-card {
+  max-width: 420px;
+  width: 95%;
+  border-radius: 16px;
+  padding: 24px;
+}
+
+.auth-tabs {
+  display: flex;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.15);
+  padding: 4px;
+  border-radius: 10px;
+  margin: 16px 0 20px;
+}
+
+.auth-tab {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  color: var(--text-2, #94a3b8);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.auth-tab.active {
+  background: var(--bg-card, #1e293b);
+  color: var(--text-1, #f8fafc);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.auth-form .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.auth-form label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2, #94a3b8);
+}
+
+.auth-form input.input {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--text-1, #fff);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.auth-form input.input:focus {
+  border-color: var(--primary, #6366f1);
+}
+
+.auth-perk-banner {
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-1, #f8fafc);
+}
+
+.auth-perk-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  color: #818cf8;
+  margin-bottom: 4px;
+}
+
+.auth-error-msg {
+  font-size: 12px;
+  color: #ef4444;
+  min-height: 18px;
+}
+
+/* アカウント利用状況モーダル */
+.account-modal-card {
+  max-width: 440px;
+  width: 95%;
+  border-radius: 16px;
+  padding: 24px;
+}
+
+.account-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.account-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+
+.account-label {
+  color: var(--text-2, #94a3b8);
+}
+
+.account-val {
+  color: var(--text-1, #f8fafc);
+}
+
+.account-divider {
+  height: 1px;
+  background: var(--line, rgba(255, 255, 255, 0.1));
+  margin: 4px 0;
+}
+
+.account-quota-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 6px 0;
+}
+
+.account-stat-box {
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+  border-radius: 10px;
+  padding: 12px 8px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.account-stat-box .stat-num {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--primary, #6366f1);
+}
+
+.account-stat-box .stat-label {
+  font-size: 11px;
+  color: var(--text-2, #94a3b8);
+}
+
+.account-reset-row {
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+
+.account-actions {
+  margin-top: 10px;
+}
+
+
 
 
 

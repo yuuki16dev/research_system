@@ -3,9 +3,16 @@
 // ==========================================================================
 
 async function request(method, url, body) {
+  const headers = {};
+  if (body) headers['Content-Type'] = 'application/json';
+  try {
+    const token = localStorage.getItem('rs_auth_token');
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+  } catch {}
+
   const res = await fetch(url, {
     method,
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    headers: Object.keys(headers).length ? headers : undefined,
     body: body ? JSON.stringify(body) : undefined,
   });
   let data = null;
@@ -14,12 +21,21 @@ async function request(method, url, body) {
   } catch {
     /* empty */
   }
-  if (!res.ok) throw new Error((data && data.error) || `HTTP ${res.status}`);
+  if (!res.ok) {
+    const err = new Error((data && data.error) || `HTTP ${res.status}`);
+    err.status = res.status;
+    err.data = data;
+    throw err;
+  }
   return data;
 }
 
 export const api = {
   info: () => request('GET', '/api/info'),
+  authConfig: () => request('GET', '/api/auth/config'),
+  authMe: () => request('GET', '/api/auth/me'),
+  signup: (body) => request('POST', '/api/auth/signup', body),
+  login: (body) => request('POST', '/api/auth/login', body),
   getSettings: () => request('GET', '/api/settings'),
   saveSettings: (patch) => request('PUT', '/api/settings', patch),
   testSettings: (body) => request('POST', '/api/settings/test', body),

@@ -40,6 +40,19 @@
         <i class="dot"></i><span id="status-text">接続中…</span>
       </div>
 
+      <!-- ユーザー認証 & 残り回数メーター (Auth & Quota Meter) -->
+      <div class="auth-meter-container" id="auth-meter-container">
+        <!-- 未ログイン時（クラウド環境） -->
+        <button class="btn btn-primary-gradient btn-sm" id="btn-open-auth-modal" type="button" style="display: none;" title="ログインまたは無料会員登録">
+          <span data-icon="user"></span><span class="label">ログイン / 登録</span>
+        </button>
+        <!-- ログイン済またはローカル時 -->
+        <button class="user-quota-badge" id="user-quota-badge" type="button" style="display: none;" title="月間リサーチ残り回数・アカウント詳細">
+          <span class="user-plan-pill" id="user-plan-pill">FREE</span>
+          <span class="user-quota-count" id="user-quota-count">残り <strong>3</strong> / 3 回</span>
+        </button>
+      </div>
+
       <nav class="topbar-actions" aria-label="グローバル">
         <button class="btn btn-danger btn-sm" id="btn-topbar-cancel" type="button" title="実行中のリサーチを中止" style="display: none;"><span data-icon="stop"></span><span class="label">調査を中止</span></button>
         <button class="btn btn-primary-gradient btn-sm" id="btn-open-presentation-maker" type="button" title="企画書・資料からプレゼンスライドを作成"><span data-icon="monitor"></span><span class="label">スライド作成</span></button>
@@ -672,8 +685,100 @@
     </main>
 
     <footer class="footer">
-      <span id="footer-version">Research Studio v2.8.2</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span><span class="sep">·</span><a href="https://github.com/yuuki16dev/research_system/issues" target="_blank" rel="noopener" class="footer-link"><span data-icon="github"></span>GitHubでお問い合わせ</a>
+      <span id="footer-version">Research Studio v2.9.0</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span><span class="sep">·</span><a href="https://github.com/yuuki16dev/research_system/issues" target="_blank" rel="noopener" class="footer-link"><span data-icon="github"></span>GitHubでお問い合わせ</a>
     </footer>
+  </div>
+
+  <!-- ========================================================== AUTH MODAL -->
+  <div class="modal" id="modal-auth" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card glass auth-modal-card">
+      <header class="modal-head">
+        <h2 id="auth-modal-title"><span data-icon="user"></span><span id="auth-modal-title-text">アカウント認証</span></h2>
+        <button class="btn btn-ghost btn-icon" type="button" data-close aria-label="閉じる"><span data-icon="x"></span></button>
+      </header>
+
+      <div class="auth-tabs">
+        <button class="auth-tab active" id="auth-tab-login" type="button">ログイン</button>
+        <button class="auth-tab" id="auth-tab-signup" type="button">無料アカウント作成</button>
+      </div>
+
+      <!-- ログインフォーム -->
+      <form id="auth-form-login" class="auth-form">
+        <div class="form-group">
+          <label for="auth-login-email">メールアドレス</label>
+          <input type="email" id="auth-login-email" class="input" placeholder="name@example.com" required autocomplete="email" />
+        </div>
+        <div class="form-group">
+          <label for="auth-login-password">パスワード</label>
+          <input type="password" id="auth-login-password" class="input" placeholder="••••••••" required autocomplete="current-password" />
+        </div>
+        <div class="auth-error-msg" id="auth-login-error"></div>
+        <button type="submit" class="btn btn-primary-gradient btn-block">ログイン</button>
+      </form>
+
+      <!-- 新規登録フォーム -->
+      <form id="auth-form-signup" class="auth-form" hidden>
+        <div class="auth-perk-banner">
+          <span class="auth-perk-badge">🎁 無料登録特典</span>
+          <p>月3回まで高精度ディープリサーチ＆Excel/PDFエクスポートを無料でお試しいただけます。</p>
+        </div>
+        <div class="form-group">
+          <label for="auth-signup-email">メールアドレス</label>
+          <input type="email" id="auth-signup-email" class="input" placeholder="name@example.com" required autocomplete="email" />
+        </div>
+        <div class="form-group">
+          <label for="auth-signup-password">パスワード（6文字以上）</label>
+          <input type="password" id="auth-signup-password" class="input" placeholder="••••••••" minlength="6" required autocomplete="new-password" />
+        </div>
+        <div class="auth-error-msg" id="auth-signup-error"></div>
+        <button type="submit" class="btn btn-primary-gradient btn-block">無料で新規登録</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ======================================================= ACCOUNT MODAL -->
+  <div class="modal" id="modal-account" role="dialog" aria-modal="true" aria-labelledby="account-modal-title" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card glass account-modal-card">
+      <header class="modal-head">
+        <h2 id="account-modal-title"><span data-icon="user"></span>アカウント・利用状況</h2>
+        <button class="btn btn-ghost btn-icon" type="button" data-close aria-label="閉じる"><span data-icon="x"></span></button>
+      </header>
+
+      <div class="account-card-body">
+        <div class="account-info-row">
+          <span class="account-label">メールアドレス:</span>
+          <strong id="account-email" class="account-val">—</strong>
+        </div>
+        <div class="account-info-row">
+          <span class="account-label">現在のプラン:</span>
+          <span id="account-plan" class="user-plan-pill plan-free">FREE</span>
+        </div>
+        <div class="account-divider"></div>
+        <div class="account-quota-stats">
+          <div class="account-stat-box">
+            <span class="stat-num" id="account-remaining">3</span>
+            <span class="stat-label">今月の残り枠</span>
+          </div>
+          <div class="account-stat-box">
+            <span class="stat-num" id="account-used">0</span>
+            <span class="stat-label">消化済み回数</span>
+          </div>
+          <div class="account-stat-box">
+            <span class="stat-num" id="account-limit">3</span>
+            <span class="stat-label">月間付与枠</span>
+          </div>
+        </div>
+        <div class="account-info-row account-reset-row">
+          <span class="account-label">次回リセット日時:</span>
+          <span id="account-reset" class="account-val">—</span>
+        </div>
+        <div class="account-actions">
+          <button type="button" class="btn btn-outline btn-block" id="btn-account-logout">ログアウト</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- =============================================================== MODALS -->
@@ -681,7 +786,7 @@
     <div class="modal-backdrop" data-close></div>
     <div class="modal-card glass">
       <header class="modal-head">
-        <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v2.8.2</small></h2>
+        <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v2.9.0</small></h2>
         <div style="display: flex; gap: 8px; align-items: center; margin-left: auto;">
           <button class="btn btn-ghost btn-sm" type="button" id="btn-settings-changelog" title="アップデート履歴 &amp; リリースノート"><span data-icon="book-open"></span><span class="label">更新履歴</span></button>
           <button class="btn btn-ghost btn-sm" type="button" id="btn-open-guide-from-settings" title="APIキー取得ガイド &amp; GitHubお問い合わせ"><span data-icon="help-circle"></span><span class="label">ガイド・問い合わせ</span></button>

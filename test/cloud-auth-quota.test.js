@@ -73,3 +73,37 @@ test('quota: requireQuota blocks request when limit is reached', (t, done) => {
   });
 });
 
+test('auth: signupUser and loginUser reject gracefully when SUPABASE_URL is unconfigured', async () => {
+  await assert.rejects(async () => {
+    await auth.signupUser('test@example.com', 'password123');
+  }, /Supabase/);
+
+  await assert.rejects(async () => {
+    await auth.loginUser('test@example.com', 'password123');
+  }, /Supabase/);
+});
+
+test('auth & quota: UI elements and DOM consistency in public/index.html', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
+
+  // ヘッダーメーター
+  assert.ok(html.includes('id="auth-meter-container"'), 'Must have auth-meter-container');
+  assert.ok(html.includes('id="btn-open-auth-modal"'), 'Must have btn-open-auth-modal');
+  assert.ok(html.includes('id="user-quota-badge"'), 'Must have user-quota-badge');
+  assert.ok(html.includes('id="user-plan-pill"'), 'Must have user-plan-pill');
+  assert.ok(html.includes('id="user-quota-count"'), 'Must have user-quota-count');
+
+  // 認証モーダル
+  assert.ok(html.includes('id="modal-auth"'), 'Must have modal-auth');
+  assert.ok(html.includes('id="auth-tab-login"'), 'Must have auth-tab-login');
+  assert.ok(html.includes('id="auth-tab-signup"'), 'Must have auth-tab-signup');
+  assert.ok(html.includes('id="auth-form-login"'), 'Must have auth-form-login');
+  assert.ok(html.includes('id="auth-form-signup"'), 'Must have auth-form-signup');
+
+  // アカウント詳細モーダル
+  assert.ok(html.includes('id="modal-account"'), 'Must have modal-account');
+  assert.ok(html.includes('id="btn-account-logout"'), 'Must have btn-account-logout');
+});
+

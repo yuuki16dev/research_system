@@ -111,10 +111,72 @@ function optionalAuth(req, res, next) {
   });
 }
 
+/**
+ * Supabase Auth での新規ユーザー登録
+ * @param {string} email
+ * @param {string} password
+ * @returns {Promise<object>}
+ */
+async function signupUser(email, password) {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    throw new Error('Supabase 認証が設定されていません');
+  }
+
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: SUPABASE_ANON_KEY,
+    },
+    body: JSON.stringify({
+      email,
+      password,
+      data: { plan: 'free' },
+    }),
+    signal: AbortSignal.timeout(6000),
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.msg || data.error_description || data.message || 'ユーザー登録に失敗しました');
+  }
+  return data;
+}
+
+/**
+ * Supabase Auth でのメール・パスワードログイン
+ * @param {string} email
+ * @param {string} password
+ * @returns {Promise<object>}
+ */
+async function loginUser(email, password) {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    throw new Error('Supabase 認証が設定されていません');
+  }
+
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: SUPABASE_ANON_KEY,
+    },
+    body: JSON.stringify({ email, password }),
+    signal: AbortSignal.timeout(6000),
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error_description || data.msg || data.message || 'メールアドレスまたはパスワードが正しくありません');
+  }
+  return data;
+}
+
 module.exports = {
   requireAuth,
   optionalAuth,
   verifySupabaseToken,
+  signupUser,
+  loginUser,
   isCloudAuthEnabled: () => ENABLE_AUTH && !!SUPABASE_URL,
 };
 
