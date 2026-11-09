@@ -43,6 +43,7 @@ const deepdive = require('./deepdive');
 const pdf = require('./pdf');
 const excel = require('./excel');
 const templateEngine = require('./template-engine');
+const profile = require('./profile');
 const presentation = require('./presentation');
 const { getFullUsageSummary } = require('./usage');
 const { buildMarkdown, buildPlainText } = require('./util');
@@ -778,6 +779,60 @@ app.get('/api/history', auth.optionalAuth, (req, res) => {
   const userId = req.user ? req.user.id : null;
   const userPlan = req.user ? (req.user.plan || 'free') : 'admin';
   res.json(history.list(userId, userPlan));
+});
+
+// 全履歴の一括バックアップダウンロード (v2.13.0)
+app.get('/api/history/backup', auth.optionalAuth, (req, res) => {
+  const userId = req.user ? req.user.id : 'owner-user';
+  const userPlan = req.user ? (req.user.plan || 'free') : 'admin';
+  const reports = history.getAllForUser(userId, userPlan);
+  const userProf = profile.getProfile(userId);
+  const ymd = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Content-Disposition', `attachment; filename="research_studio_backup_${userId}_${ymd}.json"`);
+  res.json({
+    version: '2.13.0',
+    exportedAt: new Date().toISOString(),
+    userId,
+    profile: userProf,
+    count: reports.length,
+    reports,
+  });
+});
+
+// バックアップからの全履歴復元・インポート (v2.13.0)
+app.post('/api/history/restore', auth.optionalAuth, (req, res) => {
+  const userId = req.user ? req.user.id : 'owner-user';
+  const { reports, profile: incomingProfile } = req.body || {};
+  if (!Array.isArray(reports)) {
+    return res.status(400).json({ error: 'reports は配列である必要があります' });
+  }
+
+  const result = history.restoreReports(reports, userId);
+  if (incomingProfile && typeof incomingProfile === 'object') {
+    profile.updateProfile(userId, incomingProfile);
+  }
+
+  res.json({
+    ok: true,
+    userId,
+    restored: result.restored,
+    skipped: result.skipped,
+    totalInPayload: reports.length,
+  });
+});
+
+/* ------------------------------------------------------------ profile (v2.13.0) */
+app.get('/api/user/profile', auth.optionalAuth, (req, res) => {
+  const userId = req.user ? req.user.id : 'owner-user';
+  res.json({ ok: true, profile: profile.getProfile(userId) });
+});
+
+app.put('/api/user/profile', auth.optionalAuth, (req, res) => {
+  const userId = req.user ? req.user.id : 'owner-user';
+  const updated = profile.updateProfile(userId, req.body || {});
+  res.json({ ok: true, profile: updated });
 });
 app.get('/api/history/:id', auth.optionalAuth, (req, res) => {
   const userId = req.user ? req.user.id : null;

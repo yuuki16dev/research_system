@@ -33,13 +33,14 @@ function list(userId = null, userPlan = 'admin') {
     .map((f) => {
       try {
         const r = JSON.parse(fs.readFileSync(path.join(DIR, f), 'utf8'));
+        const reportUserId = r.userId || 'owner-user';
         // ユーザーごとのフィルタリング
-        if (!isAdmin && r.userId && r.userId !== userId) {
+        if (!isAdmin && reportUserId !== userId) {
           return null;
         }
         return {
           id: r.id,
-          userId: r.userId || 'owner-user',
+          userId: reportUserId,
           theme: r.theme,
           title: r.title,
           createdAt: r.createdAt,
@@ -76,7 +77,8 @@ function get(id, userId = null, userPlan = 'admin') {
   try {
     const item = JSON.parse(fs.readFileSync(path.join(DIR, `${id}.json`), 'utf8'));
     const isAdmin = userPlan === 'admin' || !userId;
-    if (!isAdmin && item.userId && item.userId !== userId) {
+    const reportUserId = item.userId || 'owner-user';
+    if (!isAdmin && reportUserId !== userId) {
       return null;
     }
     return item;
@@ -128,4 +130,62 @@ function prune() {
   items.slice(MAX_ITEMS).forEach((x) => remove(x.id, null, 'admin'));
 }
 
-module.exports = { save, list, get, remove, update, togglePin };
+/**
+ * ユーザーの全レポートを完全データで取得（一括バックアップ用）
+ * @param {string|null} userId
+ * @param {string} userPlan
+ */
+function getAllForUser(userId = null, userPlan = 'admin') {
+  if (!fs.existsSync(DIR)) return [];
+  const isAdmin = userPlan === 'admin' || !userId;
+
+  return fs
+    .readdirSync(DIR)
+    .filter((f) => f.endsWith('.json') && isId(f.slice(0, -5)))
+    .map((f) => {
+      try {
+        const item = JSON.parse(fs.readFileSync(path.join(DIR, f), 'utf8'));
+        const reportUserId = item.userId || 'owner-user';
+        if (!isAdmin && reportUserId !== userId) {
+          return null;
+        }
+        return item;
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean)
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+}
+
+/**
+ * レポートの一括復元（バックアップからのリストア用）
+ * @param {Array<Object>} reports
+ * @param {string} targetUserId
+ */
+function restoreReports(reports = [], targetUserId = 'owner-user') {
+  if (!Array.isArray(reports)) return { restored: 0, skipped: 0 };
+  let restored = 0;
+  let skipped = 0;
+
+  fs.mkdirSync(DIR, { recursive: true });
+
+  for (const r of reports) {
+    if (!r || typeof r !== 'object' || !r.id || !isId(r.id)) {
+      skipped++;
+      continue;
+    }
+    const cloned = { ...r, userId: targetUserId || 'owner-user' };
+    try {
+      fs.writeFileSync(path.join(DIR, `${cloned.id}.json`), JSON.stringify(cloned), 'utf8');
+      restored++;
+    } catch {
+      skipped++;
+    }
+  }
+
+  prune();
+  return { restored, skipped };
+}
+
+module.exports = { save, list, get, remove, update, togglePin, getAllForUser, restoreReports };

@@ -10329,6 +10329,95 @@ body.dd-expanded {
   margin-top: 10px;
 }
 
+/* プロフィール設定 & バックアップスタイル (v2.13.0) */
+.account-subheading-wrap {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.account-subheading {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-1, #f8fafc);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+
+.account-subtext-inline {
+  font-size: 11px;
+  color: var(--text-3, #64748b);
+}
+
+.account-form-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.profile-avatar-selector {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.btn-avatar-choice {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-avatar-choice:hover {
+  background: rgba(255, 255, 255, 0.12);
+  transform: translateY(-1px);
+}
+
+.btn-avatar-choice.active {
+  border-color: var(--primary, #6366f1);
+  background: rgba(99, 102, 241, 0.2);
+  box-shadow: 0 0 8px rgba(99, 102, 241, 0.4);
+}
+
+.account-backup-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.btn-restore-label {
+  cursor: pointer;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+}
+
+.user-avatar-badge {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.user-name-badge {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-1, #f8fafc);
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ==========================================================================
    シェアページ & 閲覧専用レポート (Share Page & Readonly Report View) v2.10.0
    ========================================================================== */

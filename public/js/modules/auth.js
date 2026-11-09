@@ -13,6 +13,7 @@ export const authState = {
   authenticated: false,
   user: null,
   quota: null,
+  profile: null,
 };
 
 /**
@@ -57,6 +58,8 @@ export function updateQuotaMeterUI() {
   const userBadge = document.getElementById('user-quota-badge');
   const planPill = document.getElementById('user-plan-pill');
   const countEl = document.getElementById('user-quota-count');
+  const avatarBadge = document.getElementById('user-avatar-badge');
+  const nameBadge = document.getElementById('user-name-badge');
 
   if (!loginBtn || !userBadge) return;
 
@@ -70,6 +73,20 @@ export function updateQuotaMeterUI() {
   // ログイン中 ➔ ユーザー情報・残り回数バッジを表示
   loginBtn.style.display = 'none';
   userBadge.style.display = 'inline-flex';
+
+  // プロフィール表示の反映
+  const prof = authState.profile;
+  if (avatarBadge) {
+    avatarBadge.textContent = (prof && prof.avatar) || '👤';
+  }
+  if (nameBadge) {
+    if (prof && prof.displayName) {
+      nameBadge.textContent = prof.displayName;
+      nameBadge.style.display = 'inline';
+    } else {
+      nameBadge.style.display = 'none';
+    }
+  }
 
   const q = authState.quota;
   const plan = (q && q.plan) || (authState.user && authState.user.plan) || (authState.isLocal ? 'admin' : 'free');
@@ -103,12 +120,27 @@ export function updateAccountDetailsUI() {
   const limitEl = document.getElementById('account-limit');
   const remainingEl = document.getElementById('account-remaining');
   const resetEl = document.getElementById('account-reset');
+  const nameInput = document.getElementById('profile-display-name');
+  const avatarSelector = document.getElementById('profile-avatar-selector');
 
   const u = authState.user;
   const q = authState.quota;
+  const prof = authState.profile;
 
   if (emailEl) emailEl.textContent = (u && u.email) || (authState.isLocal ? 'ローカル管理者 (ローカル起動)' : 'ゲスト');
   if (planEl) planEl.textContent = ((q && q.plan) || 'FREE').toUpperCase();
+
+  // プロフィール入力欄の初期化
+  if (nameInput) {
+    nameInput.value = (prof && prof.displayName) || '';
+  }
+  if (avatarSelector) {
+    const curAvatar = (prof && prof.avatar) || '👤';
+    const choices = avatarSelector.querySelectorAll('.btn-avatar-choice');
+    choices.forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.avatar === curAvatar);
+    });
+  }
 
   if (q) {
     if (usedEl) usedEl.textContent = `${q.used || 0} 回`;
@@ -144,10 +176,18 @@ export async function refreshAuthStatus() {
       authState.authenticated = true;
       authState.user = me.user;
       authState.quota = me.quota;
+      // プロフィールの取得
+      try {
+        const profRes = await api.getProfile();
+        authState.profile = (profRes && profRes.profile) || null;
+      } catch {
+        authState.profile = null;
+      }
     } else {
       authState.authenticated = false;
       authState.user = null;
       authState.quota = null;
+      authState.profile = null;
     }
 
     updateQuotaMeterUI();
@@ -356,7 +396,103 @@ export function initAuth() {
     });
   }
 
-  // 6. 初回ステータス取得
+  // 8. プロフィール設定・アバター選択 (v2.13.0)
+  const avatarChoices = document.querySelectorAll('.btn-avatar-choice');
+  avatarChoices.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      avatarChoices.forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+
+  const saveProfileBtn = document.getElementById('btn-save-profile');
+  if (saveProfileBtn) {
+    saveProfileBtn.addEventListener('click', async () => {
+      const nameInput = document.getElementById('profile-display-name');
+      const activeAvatarBtn = document.querySelector('.btn-avatar-choice.active');
+      const displayName = nameInput ? nameInput.value.trim() : '';
+      const avatar = activeAvatarBtn ? activeAvatarBtn.dataset.avatar : '👤';
+
+      saveProfileBtn.disabled = true;
+      saveProfileBtn.textContent = '保存中…';
+
+      try {
+        const res = await api.updateProfile({ displayName, avatar });
+        if (res && res.profile) {
+          authState.profile = res.profile;
+          updateQuotaMeterUI();
+          toast('プロフィールを保存しました！', 'success');
+        }
+      } catch (err) {
+        toast(`プロフィールの保存に失敗しました: ${err.message}`, 'error');
+      } finally {
+        saveProfileBtn.disabled = false;
+        saveProfileBtn.textContent = 'プロフィールを保存';
+      }
+    });
+  }
+
+  // 9. 一括バックアップダウンロード (v2.13.0)
+  const handleBackup = async () => {
+    try {
+      toast('バックアップデータを生成中…', 'info');
+      const backup = await api.backupHistory();
+      const jsonStr = JSON.stringify(backup, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const ymd = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      a.download = `research_studio_backup_${backup.userId || 'my'}_${ymd}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast(`全 ${backup.count || 0} 件のレポートを一括バックアップしました`, 'success');
+    } catch (err) {
+      toast(`バックアップの生成に失敗しました: ${err.message}`, 'error');
+    }
+  };
+
+  const backupBtn = document.getElementById('btn-backup-history');
+  if (backupBtn) backupBtn.addEventListener('click', handleBackup);
+
+  const quickBackupBtn = document.getElementById('btn-history-backup-quick');
+  if (quickBackupBtn) quickBackupBtn.addEventListener('click', handleBackup);
+
+  // 10. バックアップからの全履歴復元・インポート (v2.13.0)
+  const restoreInput = document.getElementById('input-restore-file');
+  if (restoreInput) {
+    restoreInput.addEventListener('change', async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+
+      try {
+        toast('バックアップファイルを解析中…', 'info');
+        const text = await file.text();
+        const data = JSON.parse(text);
+        if (!data || !Array.isArray(data.reports)) {
+          throw new Error('有効なバックアップファイル (JSON) ではありません');
+        }
+
+        const res = await api.restoreHistory(data);
+        if (res && res.ok) {
+          toast(`バックアップから ${res.restored} 件のレポートを復元しました！`, 'success');
+          await loadRecentHistory();
+          await renderHistoryDrawerList();
+          await refreshAuthStatus();
+        } else {
+          throw new Error('復元に失敗しました');
+        }
+      } catch (err) {
+        toast(`復元エラー: ${err.message}`, 'error');
+      } finally {
+        restoreInput.value = '';
+      }
+    });
+  }
+
+  // 11. 初回ステータス取得
   refreshAuthStatus();
 }
 
