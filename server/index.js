@@ -171,23 +171,36 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-app.get('/api/auth/me', auth.optionalAuth, async (req, res) => {
-  const user = req.user;
-  if (!user) {
-    return res.json({ authenticated: false, isCloud: auth.isCloudAuthEnabled() });
+app.get('/api/auth/me', async (req, res) => {
+  const authHeader = req.headers.authorization || '';
+  const match = authHeader.match(/^Bearer\s+(.+)$/i);
+
+  // トークンがリクエストに明示的に含まれている場合のみ認証済みとする
+  if (match) {
+    const user = await auth.verifyToken(match[1]);
+    if (user) {
+      const userPlan = user.plan || (user.user_metadata && user.user_metadata.plan) || 'free';
+      const q = await quota.getMonthlyQuota(user.id, userPlan);
+      return res.json({
+        authenticated: true,
+        isCloud: auth.isCloudAuthEnabled(),
+        user: {
+          id: user.id,
+          email: user.email,
+          plan: userPlan,
+          isLocal: !!user.isLocal,
+        },
+        quota: q,
+      });
+    }
   }
-  const userPlan = user.plan || (user.user_metadata && user.user_metadata.plan) || 'free';
-  const q = await quota.getMonthlyQuota(user.id, userPlan);
+
+  // トークンがない場合、または無効なトークンの場合は未ログイン（ゲスト）
   res.json({
-    authenticated: true,
+    authenticated: false,
     isCloud: auth.isCloudAuthEnabled(),
-    user: {
-      id: user.id,
-      email: user.email,
-      plan: userPlan,
-      isLocal: !!user.isLocal,
-    },
-    quota: q,
+    user: null,
+    quota: null,
   });
 });
 

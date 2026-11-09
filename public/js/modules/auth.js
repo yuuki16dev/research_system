@@ -60,14 +60,14 @@ export function updateQuotaMeterUI() {
 
   if (!loginBtn || !userBadge) return;
 
-  // クラウド認証が有効で、未ログインの場合
-  if (authState.isCloud && !authState.authenticated) {
+  // 未ログインの場合 ➔ ログインボタンを表示
+  if (!authState.authenticated) {
     loginBtn.style.display = 'inline-flex';
     userBadge.style.display = 'none';
     return;
   }
 
-  // ログイン中、またはローカル無制限モードの場合
+  // ログイン中 ➔ ユーザー情報・残り回数バッジを表示
   loginBtn.style.display = 'none';
   userBadge.style.display = 'inline-flex';
 

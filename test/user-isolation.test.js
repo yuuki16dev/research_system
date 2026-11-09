@@ -124,3 +124,11 @@ test('user-isolation: UI includes test account quick buttons and switch button',
   assert.ok(html.includes('id="btn-account-switch"'), 'Must have btn-account-switch in account modal');
 });
 
+test('user-isolation: unauthenticated token verification returns null', async () => {
+  const noToken = await auth.verifyToken('');
+  assert.equal(noToken, null);
+  const nullToken = await auth.verifyToken(null);
+  assert.equal(nullToken, null);
+});
+
+
