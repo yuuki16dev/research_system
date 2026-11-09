@@ -388,13 +388,14 @@ svg.i {
   height: var(--topbar-h);
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 0 14px 0 18px;
+  gap: 10px;
+  padding: 0 12px 0 16px;
   border-radius: var(--radius);
   background: var(--topbar-bg);
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
   transition: transform 0.28s var(--ease), opacity 0.22s var(--ease);
+  box-sizing: border-box;
 }
 
 .topbar.is-scrolled-hidden {
@@ -509,7 +510,36 @@ svg.i {
   margin-left: auto;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.topbar-actions .btn {
+  height: 34px;
+  padding: 0 10px;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.topbar-actions .btn.btn-icon {
+  width: 34px;
+  padding: 0;
+  justify-content: center;
+}
+
+.topbar-actions .btn-icon .label {
+  display: none !important;
+}
+
+.topbar-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--border-subtle, rgba(255, 255, 255, 0.12));
+  margin: 0 3px;
+  flex-shrink: 0;
 }
 
 [data-theme='dark'] .only-light,
@@ -5753,6 +5783,36 @@ table.matrix {
   }
 }
 
+@media (max-width: 1140px) {
+  #btn-tour .label,
+  #btn-settings .label {
+    display: none;
+  }
+  #btn-tour,
+  #btn-settings {
+    width: 34px;
+    padding: 0;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 1000px) {
+  #btn-history .label {
+    display: none;
+  }
+  #btn-history {
+    width: 34px;
+    padding: 0;
+    justify-content: center;
+  }
+  .status-pill #status-text {
+    display: none;
+  }
+  .brand-text small {
+    display: none;
+  }
+}
+
 @media (max-width: 900px) {
   .period-tabs {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -5770,8 +5830,19 @@ table.matrix {
     display: none;
   }
   .topbar-actions .btn {
-    width: 38px;
+    width: 34px;
+    height: 34px;
     padding: 0;
+    justify-content: center;
+  }
+  #user-quota-badge .user-quota-count {
+    display: none;
+  }
+  .topbar-divider {
+    margin: 0 1px;
+  }
+  .topbar-actions {
+    gap: 4px;
   }
   .btn-claude .label {
     display: none;
@@ -5845,7 +5916,9 @@ table.matrix {
   #btn-topbar-cancel .label {
     display: none !important;
   }
-  #btn-mobile {
+  #btn-mobile,
+  #btn-changelog,
+  #btn-guide {
     display: none !important;
   }
   .sp-only {

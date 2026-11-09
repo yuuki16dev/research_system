@@ -40,31 +40,37 @@
         <i class="dot"></i><span id="status-text">接続中…</span>
       </div>
 
-      <!-- ユーザー認証 & 残り回数メーター (Auth & Quota Meter) -->
-      <div class="auth-meter-container" id="auth-meter-container">
-        <!-- 未ログイン時（クラウド環境） -->
-        <button class="btn btn-primary-gradient btn-sm" id="btn-open-auth-modal" type="button" style="display: none;" title="ログインまたは無料会員登録">
-          <span data-icon="user"></span><span class="label">ログイン / 登録</span>
-        </button>
-        <!-- ログイン済またはローカル時 -->
-        <button class="user-quota-badge" id="user-quota-badge" type="button" style="display: none;" title="月間リサーチ残り回数・アカウント詳細">
-          <span class="user-plan-pill" id="user-plan-pill">FREE</span>
-          <span class="user-quota-count" id="user-quota-count">残り <strong>3</strong> / 3 回</span>
-        </button>
-      </div>
-
       <nav class="topbar-actions" aria-label="グローバル">
         <button class="btn btn-danger btn-sm" id="btn-topbar-cancel" type="button" title="実行中のリサーチを中止" style="display: none;"><span data-icon="stop"></span><span class="label">調査を中止</span></button>
         <button class="btn btn-primary-gradient btn-sm" id="btn-open-presentation-maker" type="button" title="企画書・資料からプレゼンスライドを作成"><span data-icon="monitor"></span><span class="label">スライド作成</span></button>
-        <button class="btn btn-ghost" id="btn-history" type="button" title="リサーチ履歴"><span data-icon="history"></span><span class="label">履歴</span></button>
-        <button class="btn btn-ghost" id="btn-mobile" type="button" title="スマホ連携"><span data-icon="smartphone"></span><span class="label">スマホ連携</span></button>
-        <button class="btn btn-ghost" id="btn-usage" type="button" title="API利用状況 &amp; クォータ"><span data-icon="chart"></span><span class="label">クォータ</span></button>
-        <button class="btn btn-ghost" id="btn-settings" type="button" title="API設定"><span data-icon="key"></span><span class="label">設定</span></button>
-        <button class="btn btn-ghost" id="btn-tour" type="button" title="使い方ガイド &amp; クイックツアー"><span data-icon="sparkles"></span><span class="label">使い方</span></button>
-        <button class="btn btn-ghost" id="btn-guide" type="button" title="APIキー取得ガイド &amp; GitHubお問い合わせ"><span data-icon="help-circle"></span><span class="label">ガイド・問い合わせ</span></button>
-        <button class="btn btn-ghost" id="btn-changelog" type="button" title="アップデート履歴 &amp; リリースノート"><span data-icon="book-open"></span><span class="label">更新履歴</span></button>
-        <button class="btn btn-ghost btn-icon" id="btn-theme" type="button" title="テーマ切替 (ライト/ダーク)" aria-label="ライト/ダーク切替"><span data-icon="sun" class="only-dark"></span><span data-icon="moon" class="only-light"></span></button>
-        <button class="btn btn-ghost btn-icon btn-shutdown" id="btn-power-shutdown" type="button" title="アプリを終了 (サーバー停止)" aria-label="アプリ終了"><span data-icon="power"></span></button>
+        <button class="btn btn-ghost btn-sm" id="btn-history" type="button" title="リサーチ履歴"><span data-icon="history"></span><span class="label">履歴</span></button>
+        <button class="btn btn-ghost btn-sm" id="btn-tour" type="button" title="使い方ガイド &amp; クイックツアー"><span data-icon="sparkles"></span><span class="label">使い方</span></button>
+        <button class="btn btn-ghost btn-sm" id="btn-settings" type="button" title="API設定"><span data-icon="key"></span><span class="label">設定</span></button>
+
+        <span class="topbar-divider" aria-hidden="true"></span>
+
+        <!-- ユーティリティ・ツールボタン群 (アイコン表示) -->
+        <button class="btn btn-ghost btn-sm btn-icon" id="btn-usage" type="button" title="API利用状況 &amp; クォータ" aria-label="クォータ"><span data-icon="chart"></span><span class="label">クォータ</span></button>
+        <button class="btn btn-ghost btn-sm btn-icon" id="btn-mobile" type="button" title="スマホ連携" aria-label="スマホ連携"><span data-icon="smartphone"></span><span class="label">スマホ連携</span></button>
+        <button class="btn btn-ghost btn-sm btn-icon" id="btn-guide" type="button" title="APIキー取得ガイド &amp; GitHubお問い合わせ" aria-label="ガイド・問い合わせ"><span data-icon="help-circle"></span><span class="label">ガイド・問い合わせ</span></button>
+        <button class="btn btn-ghost btn-sm btn-icon" id="btn-changelog" type="button" title="アップデート履歴 &amp; リリースノート" aria-label="更新履歴"><span data-icon="book-open"></span><span class="label">更新履歴</span></button>
+        <button class="btn btn-ghost btn-sm btn-icon" id="btn-theme" type="button" title="テーマ切替 (ライト/ダーク)" aria-label="ライト/ダーク切替"><span data-icon="sun" class="only-dark"></span><span data-icon="moon" class="only-light"></span></button>
+        <button class="btn btn-ghost btn-sm btn-icon btn-shutdown" id="btn-power-shutdown" type="button" title="アプリを終了 (サーバー停止)" aria-label="アプリ終了"><span data-icon="power"></span></button>
+
+        <span class="topbar-divider" aria-hidden="true"></span>
+
+        <!-- ユーザー認証 & 残り回数メーター (Auth & Quota Meter) -->
+        <div class="auth-meter-container" id="auth-meter-container">
+          <!-- 未ログイン時（クラウド環境） -->
+          <button class="btn btn-primary-gradient btn-sm" id="btn-open-auth-modal" type="button" style="display: none;" title="ログインまたは無料会員登録">
+            <span data-icon="user"></span><span class="label">ログイン</span>
+          </button>
+          <!-- ログイン済またはローカル時 -->
+          <button class="user-quota-badge" id="user-quota-badge" type="button" style="display: none;" title="月間リサーチ残り回数・アカウント詳細">
+            <span class="user-plan-pill" id="user-plan-pill">FREE</span>
+            <span class="user-quota-count" id="user-quota-count">残り <strong>3</strong> / 3 回</span>
+          </button>
+        </div>
       </nav>
     </header>
 
@@ -689,7 +695,7 @@
     </main>
 
     <footer class="footer">
-      <span id="footer-version">Research Studio v2.12.0</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span><span class="sep">·</span><a href="https://github.com/yuuki16dev/research_system/issues" target="_blank" rel="noopener" class="footer-link"><span data-icon="github"></span>GitHubでお問い合わせ</a>
+      <span id="footer-version">Research Studio v2.12.1</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span><span class="sep">·</span><a href="https://github.com/yuuki16dev/research_system/issues" target="_blank" rel="noopener" class="footer-link"><span data-icon="github"></span>GitHubでお問い合わせ</a>
     </footer>
   </div>
 
@@ -809,7 +815,7 @@
     <div class="modal-backdrop" data-close></div>
     <div class="modal-card glass">
       <header class="modal-head">
-        <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v2.12.0</small></h2>
+        <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v2.12.1</small></h2>
         <div style="display: flex; gap: 8px; align-items: center; margin-left: auto;">
           <button class="btn btn-ghost btn-sm" type="button" id="btn-settings-changelog" title="アップデート履歴 &amp; リリースノート"><span data-icon="book-open"></span><span class="label">更新履歴</span></button>
           <button class="btn btn-ghost btn-sm" type="button" id="btn-open-guide-from-settings" title="APIキー取得ガイド &amp; GitHubお問い合わせ"><span data-icon="help-circle"></span><span class="label">ガイド・問い合わせ</span></button>

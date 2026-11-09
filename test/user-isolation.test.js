@@ -123,3 +123,4 @@ test('user-isolation: UI includes test account quick buttons and switch button',
   // Account switch button
   assert.ok(html.includes('id="btn-account-switch"'), 'Must have btn-account-switch in account modal');
 });
+
