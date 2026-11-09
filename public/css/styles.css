@@ -10302,6 +10302,137 @@ body.dd-expanded {
   border-color: var(--accent);
 }
 
+/* ==========================================================================
+   ウェルカム＆初回オンボーディングモーダル (Welcome & Onboarding) v2.11.0
+   ========================================================================== */
+.welcome-modal-card {
+  max-width: 760px;
+}
+
+.welcome-steps-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+@media (max-width: 680px) {
+  .welcome-steps-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+}
+
+.welcome-step-card {
+  background: var(--surface-card, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  border-radius: 12px;
+  padding: 16px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.welcome-step-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(99, 102, 241, 0.4);
+}
+
+.wsc-badge {
+  align-self: flex-start;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(34, 211, 238, 0.2));
+  color: var(--accent-light, #93c5fd);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+}
+
+.wsc-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(99, 102, 241, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary, #6366f1);
+  font-size: 18px;
+  margin-bottom: 2px;
+}
+
+.welcome-step-card strong {
+  font-size: 14px;
+  color: var(--text-1);
+}
+
+.welcome-step-card p {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-2);
+  margin: 0;
+}
+
+.welcome-samples-box {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.wsb-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+.wsb-title [data-icon] {
+  color: var(--accent);
+}
+
+.welcome-samples-list {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+@media (max-width: 680px) {
+  .welcome-samples-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+.btn-welcome-sample {
+  text-align: left;
+  justify-content: flex-start;
+  padding: 8px 12px;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--text-2);
+  white-space: normal;
+  line-height: 1.4;
+  height: auto;
+  transition: all 0.15s ease;
+}
+
+.btn-welcome-sample:hover {
+  background: rgba(99, 102, 241, 0.1);
+  border-color: rgba(99, 102, 241, 0.4);
+  color: var(--text-1);
+  transform: translateX(2px);
+}
+
+
 
 
 

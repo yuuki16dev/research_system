@@ -60,6 +60,7 @@
         <button class="btn btn-ghost" id="btn-mobile" type="button" title="スマホ連携"><span data-icon="smartphone"></span><span class="label">スマホ連携</span></button>
         <button class="btn btn-ghost" id="btn-usage" type="button" title="API利用状況 &amp; クォータ"><span data-icon="chart"></span><span class="label">クォータ</span></button>
         <button class="btn btn-ghost" id="btn-settings" type="button" title="API設定"><span data-icon="key"></span><span class="label">設定</span></button>
+        <button class="btn btn-ghost" id="btn-tour" type="button" title="使い方ガイド &amp; クイックツアー"><span data-icon="sparkles"></span><span class="label">使い方</span></button>
         <button class="btn btn-ghost" id="btn-guide" type="button" title="APIキー取得ガイド &amp; GitHubお問い合わせ"><span data-icon="help-circle"></span><span class="label">ガイド・問い合わせ</span></button>
         <button class="btn btn-ghost" id="btn-changelog" type="button" title="アップデート履歴 &amp; リリースノート"><span data-icon="book-open"></span><span class="label">更新履歴</span></button>
         <button class="btn btn-ghost btn-icon" id="btn-theme" type="button" title="テーマ切替 (ライト/ダーク)" aria-label="ライト/ダーク切替"><span data-icon="sun" class="only-dark"></span><span data-icon="moon" class="only-light"></span></button>
@@ -688,7 +689,7 @@
     </main>
 
     <footer class="footer">
-      <span id="footer-version">Research Studio v2.10.0</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span><span class="sep">·</span><a href="https://github.com/yuuki16dev/research_system/issues" target="_blank" rel="noopener" class="footer-link"><span data-icon="github"></span>GitHubでお問い合わせ</a>
+      <span id="footer-version">Research Studio v2.11.0</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span><span class="sep">·</span><a href="https://github.com/yuuki16dev/research_system/issues" target="_blank" rel="noopener" class="footer-link"><span data-icon="github"></span>GitHubでお問い合わせ</a>
     </footer>
   </div>
 
@@ -789,7 +790,7 @@
     <div class="modal-backdrop" data-close></div>
     <div class="modal-card glass">
       <header class="modal-head">
-        <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v2.10.0</small></h2>
+        <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v2.11.0</small></h2>
         <div style="display: flex; gap: 8px; align-items: center; margin-left: auto;">
           <button class="btn btn-ghost btn-sm" type="button" id="btn-settings-changelog" title="アップデート履歴 &amp; リリースノート"><span data-icon="book-open"></span><span class="label">更新履歴</span></button>
           <button class="btn btn-ghost btn-sm" type="button" id="btn-open-guide-from-settings" title="APIキー取得ガイド &amp; GitHubお問い合わせ"><span data-icon="help-circle"></span><span class="label">ガイド・問い合わせ</span></button>
@@ -1786,6 +1787,75 @@
       </div>
       <footer class="modal-foot" style="display: flex; justify-content: flex-end;">
         <button type="button" class="btn btn-secondary btn-sm" data-close>閉じる</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- ============================================== WELCOME & ONBOARDING MODAL (v2.11.0) -->
+  <div class="modal" id="modal-welcome" role="dialog" aria-modal="true" aria-labelledby="welcome-modal-title" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card glass modal-lg welcome-modal-card">
+      <header class="modal-head">
+        <div class="modal-head-title-group">
+          <h2 class="modal-title" id="welcome-modal-title"><span data-icon="sparkles"></span>Research Studio へようこそ！</h2>
+          <p class="modal-subtitle" style="font-size: 13px; color: var(--text-2); margin-top: 4px;">知りたいテーマを入力するだけで、AIがWeb検索から多角分析・商用レポート作成まで全自動で行います。</p>
+        </div>
+        <button class="btn btn-ghost btn-icon" type="button" data-close aria-label="閉じる"><span data-icon="x"></span></button>
+      </header>
+
+      <div class="modal-body welcome-modal-body" style="padding: 20px; display: flex; flex-direction: column; gap: 20px;">
+        <!-- 3ステップ ハイライトカード -->
+        <div class="welcome-steps-grid">
+          <div class="welcome-step-card">
+            <div class="wsc-badge">Step 1</div>
+            <div class="wsc-icon"><span data-icon="search"></span></div>
+            <strong>テーマを入力</strong>
+            <p>市場動向、競合比較、技術調査など、知りたいキーワードを1行入力するだけ。</p>
+          </div>
+          <div class="welcome-step-card">
+            <div class="wsc-badge">Step 2</div>
+            <div class="wsc-icon"><span data-icon="cpu"></span></div>
+            <strong>AIが多角分析</strong>
+            <p>信頼できる公的・一次ソースを巡回し、市場KPI・比較表・レーダーチャートを自動抽出。</p>
+          </div>
+          <div class="welcome-step-card">
+            <div class="wsc-badge">Step 3</div>
+            <div class="wsc-icon"><span data-icon="download"></span></div>
+            <strong>資料書き出し＆共有</strong>
+            <p>ワンクリックでPDF、Excel、スライド、Markdownに出力。閲覧専用URLで手軽に共有。</p>
+          </div>
+        </div>
+
+        <!-- すぐに試せるサンプルテーマ -->
+        <div class="welcome-samples-box">
+          <div class="wsb-title">
+            <span data-icon="play-circle"></span><strong>人気のテーマですぐに試してみる:</strong>
+          </div>
+          <div class="welcome-samples-list">
+            <button type="button" class="btn btn-ghost btn-sm btn-welcome-sample" data-topic="2026年 生成AIエージェントの企業導入動向とROI測定">
+              <span>📊 2026年 生成AIエージェントの企業導入動向とROI測定</span>
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm btn-welcome-sample" data-topic="個人開発ツールのマネタイズ事例と価格設定モデル">
+              <span>🧭 個人開発ツールのマネタイズ事例と価格設定モデル</span>
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm btn-welcome-sample" data-topic="次世代フロントエンドフレームワークの性能・開発体験比較">
+              <span>💻 次世代フロントエンドフレームワークの性能・開発体験比較</span>
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm btn-welcome-sample" data-topic="社内ナレッジ共有ツールの選定基準と失敗事例">
+              <span>⚠️ 社内ナレッジ共有ツールの選定基準と失敗事例</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <footer class="modal-foot welcome-modal-foot" style="display: flex; justify-content: space-between; align-items: center;">
+        <label class="welcome-dont-show-label" style="font-size: 12px; color: var(--text-2); display: inline-flex; align-items: center; gap: 6px; cursor: pointer;">
+          <input type="checkbox" id="chk-welcome-dont-show" />
+          <span>次回から自動表示しない</span>
+        </label>
+        <button type="button" class="btn btn-primary" id="btn-welcome-start">
+          <span data-icon="check"></span><span>さっそく使ってみる</span>
+        </button>
       </footer>
     </div>
   </div>
