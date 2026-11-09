@@ -4,6 +4,7 @@
 
 import { api } from '../api.js';
 import { toast, openModal, closeModal } from '../ui.js';
+import { loadRecentHistory, renderHistoryDrawerList } from './history.js';
 
 export const authState = {
   isCloud: false,
@@ -230,6 +231,8 @@ export function initAuth() {
           await refreshAuthStatus();
           closeModal(document.getElementById('modal-auth'));
           toast(`ログインしました（ようこそ、${(res.user && res.user.email) || ''}さん！）`, 'success');
+          await loadRecentHistory();
+          await renderHistoryDrawerList();
         } else {
           throw new Error('アクセストークンの取得に失敗しました');
         }
@@ -280,6 +283,8 @@ export function initAuth() {
           await refreshAuthStatus();
           closeModal(document.getElementById('modal-auth'));
           toast('アカウント作成が完了しました！月3回まで無料でお使いいただけます。', 'success', 5000);
+          await loadRecentHistory();
+          await renderHistoryDrawerList();
         } else {
           // メール確認が必要な設定の場合
           closeModal(document.getElementById('modal-auth'));
@@ -296,7 +301,49 @@ export function initAuth() {
     });
   }
 
-  // 5. ログアウトボタン
+  // 5. テストアカウント ワンクリックログイン (v2.12.0)
+  const quickTestBtns = document.querySelectorAll('.btn-quick-test-user');
+  quickTestBtns.forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const email = btn.dataset.email;
+      const password = btn.dataset.pass;
+      if (!email || !password) return;
+
+      const origText = btn.innerHTML;
+      btn.disabled = true;
+      btn.textContent = '切替中…';
+
+      try {
+        const res = await api.login({ email, password });
+        if (res.access_token) {
+          setAuthSession(res.access_token, res.user);
+          await refreshAuthStatus();
+          closeModal(document.getElementById('modal-auth'));
+          toast(`「${res.user.email}」としてログインしました`, 'success');
+          await loadRecentHistory();
+          await renderHistoryDrawerList();
+        } else {
+          throw new Error('アクセストークン取得失敗');
+        }
+      } catch (err) {
+        toast(`ログイン失敗: ${err.message}`, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = origText;
+      }
+    });
+  });
+
+  // 6. アカウント切替ボタン (v2.12.0)
+  const switchBtn = document.getElementById('btn-account-switch');
+  if (switchBtn) {
+    switchBtn.addEventListener('click', () => {
+      closeModal(document.getElementById('modal-account'));
+      openAuthModal('login');
+    });
+  }
+
+  // 7. ログアウトボタン
   const logoutBtn = document.getElementById('btn-account-logout');
   if (logoutBtn) {
     logoutBtn.addEventListener('click', async () => {
@@ -304,6 +351,8 @@ export function initAuth() {
       await refreshAuthStatus();
       closeModal(document.getElementById('modal-account'));
       toast('ログアウトしました', 'info');
+      await loadRecentHistory();
+      await renderHistoryDrawerList();
     });
   }
 

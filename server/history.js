@@ -9,21 +9,37 @@ const MAX_ITEMS = 100;
 const isId = (id) => /^[0-9a-f-]{36}$/i.test(id);
 
 function save(result) {
+  if (!result || !result.id) return;
+  if (!result.userId) {
+    result.userId = 'owner-user';
+  }
   fs.mkdirSync(DIR, { recursive: true });
   fs.writeFileSync(path.join(DIR, `${result.id}.json`), JSON.stringify(result), 'utf8');
   prune();
 }
 
-function list() {
+/**
+ * 履歴一覧の取得（ユーザーごとの分離対応）
+ * @param {string|null} userId ユーザーID（nullまたは管理者は全件）
+ * @param {string} userPlan プラン（'admin'は全件）
+ */
+function list(userId = null, userPlan = 'admin') {
   if (!fs.existsSync(DIR)) return [];
+  const isAdmin = userPlan === 'admin' || !userId;
+
   return fs
     .readdirSync(DIR)
     .filter((f) => f.endsWith('.json') && isId(f.slice(0, -5)))
     .map((f) => {
       try {
         const r = JSON.parse(fs.readFileSync(path.join(DIR, f), 'utf8'));
+        // ユーザーごとのフィルタリング
+        if (!isAdmin && r.userId && r.userId !== userId) {
+          return null;
+        }
         return {
           id: r.id,
+          userId: r.userId || 'owner-user',
           theme: r.theme,
           title: r.title,
           createdAt: r.createdAt,
@@ -49,17 +65,34 @@ function list() {
     });
 }
 
-function get(id) {
+/**
+ * 単一レポートの取得
+ * @param {string} id
+ * @param {string|null} userId 認可チェック用（指定時、他人のレポートは拒否）
+ * @param {string} userPlan
+ */
+function get(id, userId = null, userPlan = 'admin') {
   if (!isId(id)) return null;
   try {
-    return JSON.parse(fs.readFileSync(path.join(DIR, `${id}.json`), 'utf8'));
+    const item = JSON.parse(fs.readFileSync(path.join(DIR, `${id}.json`), 'utf8'));
+    const isAdmin = userPlan === 'admin' || !userId;
+    if (!isAdmin && item.userId && item.userId !== userId) {
+      return null;
+    }
+    return item;
   } catch {
     return null;
   }
 }
 
-function remove(id) {
+/**
+ * レポートの削除
+ */
+function remove(id, userId = null, userPlan = 'admin') {
   if (!isId(id)) return false;
+  const item = get(id, userId, userPlan);
+  if (!item) return false;
+
   try {
     fs.unlinkSync(path.join(DIR, `${id}.json`));
     return true;
@@ -68,16 +101,22 @@ function remove(id) {
   }
 }
 
-function update(id, patch) {
-  const item = get(id);
+/**
+ * レポートの更新
+ */
+function update(id, patch, userId = null, userPlan = 'admin') {
+  const item = get(id, userId, userPlan);
   if (!item) return null;
   const updated = { ...item, ...patch };
   save(updated);
   return updated;
 }
 
-function togglePin(id) {
-  const item = get(id);
+/**
+ * ピン留めトグル
+ */
+function togglePin(id, userId = null, userPlan = 'admin') {
+  const item = get(id, userId, userPlan);
   if (!item) return null;
   item.pinned = !item.pinned;
   fs.writeFileSync(path.join(DIR, `${id}.json`), JSON.stringify(item), 'utf8');
@@ -85,9 +124,8 @@ function togglePin(id) {
 }
 
 function prune() {
-  const items = list();
-  items.slice(MAX_ITEMS).forEach((x) => remove(x.id));
+  const items = list(null, 'admin');
+  items.slice(MAX_ITEMS).forEach((x) => remove(x.id, null, 'admin'));
 }
 
 module.exports = { save, list, get, remove, update, togglePin };
-

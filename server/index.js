@@ -469,12 +469,15 @@ app.post('/api/research', auth.requireAuth, quota.requireQuota, (req, res) => {
   const authoritative = !!b.authoritative;
   if (theme.length < 2) return res.status(400).json({ error: 'テーマを2文字以上で入力してください' });
 
-  const userId = req.user ? req.user.id : 'local-user';
+  const userId = req.user ? req.user.id : 'owner-user';
   const userPlan = req.user ? (req.user.plan || 'free') : 'admin';
   console.log(`[リサーチ受付] テーマ: "${theme}" (スコープ: ${scope}, 深度: ${depth}, スタイル: ${purpose}, ユーザー: ${userId}, プラン: ${userPlan})`);
   const params = { theme, scope, depth, sites, period, customPeriod, purpose, customPurpose, referenceContext, referenceUrls, attachedFiles, focus, authoritative, forceMock: !!b.forceMock, userId };
   const job = createJob(params, (j) => runResearch(j, settings.load()), {
     onResult: (result) => {
+      if (!result.userId && userId) {
+        result.userId = userId;
+      }
       history.save(result);
       if (userId) {
         quota.recordUsage(userId, userPlan).catch((err) => console.warn('[quota] record error:', err.message));
@@ -490,21 +493,23 @@ app.post('/api/research', auth.requireAuth, quota.requireQuota, (req, res) => {
 });
 
 /* ------------------------------------------------ cross-synthesis (v1.17.0) */
-app.post('/api/research/cross-synthesis', (req, res) => {
+app.post('/api/research/cross-synthesis', auth.optionalAuth, (req, res) => {
   const b = req.body || {};
   const reportIds = Array.isArray(b.reportIds) ? b.reportIds : [];
   if (reportIds.length < 2) {
     return res.status(400).json({ error: 'クロス分析には2件以上のレポート選択が必要です' });
   }
 
-  const reports = reportIds.map((id) => history.get(id)).filter(Boolean);
+  const userId = req.user ? req.user.id : 'owner-user';
+  const userPlan = req.user ? (req.user.plan || 'free') : 'admin';
+  const reports = reportIds.map((id) => history.get(id, userId, userPlan)).filter(Boolean);
   if (reports.length < 2) {
     return res.status(404).json({ error: '選択されたレポートが見つかりません（2件以上存在する必要があります）' });
   }
 
   const themes = reports.map((r) => r.theme || '無題');
   const synthesizedTitle = `【統合クロス分析】${themes.join(' × ')}`;
-  console.log(`[クロス統合受付] 対象レポート: ${reports.length}件 ("${themes.join('", "')}")`);
+  console.log(`[クロス統合受付] 対象レポート: ${reports.length}件 ("${themes.join('", "')}") (ユーザー: ${userId})`);
 
   const params = {
     theme: synthesizedTitle,
@@ -515,6 +520,9 @@ app.post('/api/research/cross-synthesis', (req, res) => {
 
   const job = createJob(params, (j) => runCrossSynthesis(j, settings.load()), {
     onResult: (result) => {
+      if (!result.userId && userId) {
+        result.userId = userId;
+      }
       history.save(result);
       try {
         memory.learnFromResearch(result);
@@ -527,14 +535,16 @@ app.post('/api/research/cross-synthesis', (req, res) => {
 });
 
 /* ------------------------------------------------ delta-tracking (v1.18.0) */
-app.post('/api/research/delta', (req, res) => {
+app.post('/api/research/delta', auth.optionalAuth, (req, res) => {
   const b = req.body || {};
   const baseReportId = String(b.baseReportId || '').trim();
   if (!baseReportId) {
     return res.status(400).json({ error: '差分更新元のレポートID（baseReportId）が必要です' });
   }
 
-  const baseReport = history.get(baseReportId);
+  const userId = req.user ? req.user.id : 'owner-user';
+  const userPlan = req.user ? (req.user.plan || 'free') : 'admin';
+  const baseReport = history.get(baseReportId, userId, userPlan);
   if (!baseReport) {
     return res.status(404).json({ error: '差分更新元のレポートが見つかりません' });
   }
@@ -542,7 +552,7 @@ app.post('/api/research/delta', (req, res) => {
   const rawTheme = baseReport.theme || baseReport.title || '調査テーマ';
   const cleanTheme = rawTheme.replace(/^(【定点差分】)+/, '');
   const theme = `【定点差分】${cleanTheme}`;
-  console.log(`[定点差分受付] 元レポート: "${rawTheme}" -> "${theme}" (ID: ${baseReportId})`);
+  console.log(`[定点差分受付] 元レポート: "${rawTheme}" -> "${theme}" (ID: ${baseReportId}, ユーザー: ${userId})`);
 
   const params = {
     theme,
@@ -553,6 +563,9 @@ app.post('/api/research/delta', (req, res) => {
 
   const job = createJob(params, (j) => runDeltaTracking(j, settings.load()), {
     onResult: (result) => {
+      if (!result.userId && userId) {
+        result.userId = userId;
+      }
       history.save(result);
       try {
         memory.learnFromResearch(result);
@@ -748,34 +761,50 @@ app.post('/api/presentation/generate', async (req, res) => {
 });
 
 /* ------------------------------------------------------------ history */
-app.get('/api/history', (req, res) => res.json(history.list()));
-app.get('/api/history/:id', (req, res) => {
-  const r = history.get(req.params.id);
+app.get('/api/history', auth.optionalAuth, (req, res) => {
+  const userId = req.user ? req.user.id : null;
+  const userPlan = req.user ? (req.user.plan || 'free') : 'admin';
+  res.json(history.list(userId, userPlan));
+});
+app.get('/api/history/:id', auth.optionalAuth, (req, res) => {
+  const userId = req.user ? req.user.id : null;
+  const userPlan = req.user ? (req.user.plan || 'free') : 'admin';
+  const r = history.get(req.params.id, userId, userPlan);
   return r ? res.json(r) : res.status(404).json({ error: 'not found' });
 });
 
 /* ------------------------------------------------------ share (v2.10.0) */
 app.get('/api/share/:id', (req, res) => {
-  const r = history.get(req.params.id);
+  const r = history.get(req.params.id, null, 'admin');
   return r ? res.json(r) : res.status(404).json({ error: '指定されたレポートが見つかりません' });
 });
 
 app.get('/share/:id', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'share.html'));
 });
-app.patch('/api/history/:id', (req, res) => {
-  const updated = history.update(req.params.id, req.body || {});
+app.patch('/api/history/:id', auth.optionalAuth, (req, res) => {
+  const userId = req.user ? req.user.id : null;
+  const userPlan = req.user ? (req.user.plan || 'free') : 'admin';
+  const updated = history.update(req.params.id, req.body || {}, userId, userPlan);
   return updated ? res.json(updated) : res.status(404).json({ error: 'not found' });
 });
-app.put('/api/history/:id', (req, res) => {
-  const updated = history.update(req.params.id, req.body || {});
+app.put('/api/history/:id', auth.optionalAuth, (req, res) => {
+  const userId = req.user ? req.user.id : null;
+  const userPlan = req.user ? (req.user.plan || 'free') : 'admin';
+  const updated = history.update(req.params.id, req.body || {}, userId, userPlan);
   return updated ? res.json(updated) : res.status(404).json({ error: 'not found' });
 });
-app.post('/api/history/:id/pin', (req, res) => {
-  const updated = history.togglePin(req.params.id);
+app.post('/api/history/:id/pin', auth.optionalAuth, (req, res) => {
+  const userId = req.user ? req.user.id : null;
+  const userPlan = req.user ? (req.user.plan || 'free') : 'admin';
+  const updated = history.togglePin(req.params.id, userId, userPlan);
   return updated ? res.json(updated) : res.status(404).json({ error: 'not found' });
 });
-app.delete('/api/history/:id', (req, res) => res.json({ ok: history.remove(req.params.id) }));
+app.delete('/api/history/:id', auth.optionalAuth, (req, res) => {
+  const userId = req.user ? req.user.id : null;
+  const userPlan = req.user ? (req.user.plan || 'free') : 'admin';
+  res.json({ ok: history.remove(req.params.id, userId, userPlan) });
+});
 
 /* ------------------------------------------------------------- memory */
 app.get('/api/memory', (req, res) => res.json(memory.load()));
