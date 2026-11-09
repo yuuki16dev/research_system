@@ -173,7 +173,7 @@ export function initAuth() {
   if (userBadge) {
     userBadge.addEventListener('click', () => {
       updateAccountDetailsUI();
-      openModal(document.getElementById('modal-account'));
+      openModal('modal-account');
     });
   }
 
@@ -390,6 +390,11 @@ export function openAuthModal(mode = 'login') {
     if (formSignup) formSignup.hidden = true;
   }
 
-  openModal(modal);
+  openModal('modal-auth');
+}
+
+// グローバルフォールバック用として window に公開
+if (typeof window !== 'undefined') {
+  window.rsOpenAuthModal = openAuthModal;
 }
 

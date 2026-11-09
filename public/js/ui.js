@@ -101,7 +101,7 @@ export function toast(message, type = 'success', ms = 2800) {
 /* ------------------------------------------------------------------ modal */
 let lastFocus = null;
 export function openModal(id) {
-  const m = document.getElementById(id);
+  const m = typeof id === 'string' ? document.getElementById(id) : id;
   if (!m) return;
   lastFocus = document.activeElement;
   m.hidden = false;
