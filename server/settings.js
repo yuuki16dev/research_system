@@ -169,15 +169,14 @@ function getGeminiApiKeys(s = load()) {
 
 function maskSingle(k) {
   if (!k) return '';
-  if (k.length <= 10) return '••••' + k.slice(-2);
-  return k.slice(0, 4) + '••••••' + k.slice(-4);
+  return '••••••••';
 }
 
 function mask(k) {
   if (!k) return '';
   const keys = parseGeminiApiKeys(k);
-  if (keys.length <= 1) return maskSingle(keys[0] || k);
-  return keys.map((key, i) => `キー[${i + 1}]: ${maskSingle(key)}`).join(' / ');
+  if (keys.length <= 1) return '••••••••';
+  return `${keys.length}個のキー (••••••••)`;
 }
 
 function effectiveMode(s = load()) {
@@ -190,11 +189,12 @@ function effectiveSearch(s = load()) {
   return 'duckduckgo';
 }
 
-/** クライアントに返す安全なビュー（キーはマスク） */
+/** クライアントに返す安全なビュー（キーは完全秘匿化） */
 function publicView(s = load()) {
+  const geminiKeys = parseGeminiApiKeys(s.geminiApiKey);
   return {
-    geminiApiKey: { set: !!s.geminiApiKey, masked: mask(s.geminiApiKey) },
-    tavilyApiKey: { set: !!s.tavilyApiKey, masked: mask(s.tavilyApiKey) },
+    geminiApiKey: { set: !!s.geminiApiKey, masked: mask(s.geminiApiKey), count: geminiKeys.length },
+    tavilyApiKey: { set: !!s.tavilyApiKey, masked: maskSingle(s.tavilyApiKey) },
     groqApiKey: { set: !!s.groqApiKey, masked: maskSingle(s.groqApiKey) },
     geminiModel: s.geminiModel,
     geminiAccountTier: s.geminiAccountTier || 'auto',

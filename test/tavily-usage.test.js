@@ -61,9 +61,7 @@ test('tavily-usage: successfully parses standard 200 OK Tavily API response and 
   assert.equal(res.details.search, 120);
   assert.equal(res.details.extract, 20);
   assert.equal(res.details.crawl, 10);
-  assert.ok(res.maskedKey.startsWith('tvly-'));
-  assert.ok(res.maskedKey.endsWith('1234'));
-  assert.ok(!res.maskedKey.includes('secret'));
+  assert.strictEqual(res.maskedKey, '••••••••');
 });
 
 test('tavily-usage: caches response within TTL and supports forceRefresh', async () => {

@@ -200,12 +200,11 @@ function resetTavilyCacheForTest() {
   lastSuccessfulTavilyUsage = null;
 }
 
-/** キーの安全なマスク表示作成 */
+/** キーの安全なマスク表示作成（文字は一切露出させない） */
 function maskApiKey(key) {
   const k = String(key || '').trim();
   if (!k) return '';
-  if (k.length <= 8) return '••••' + k.slice(-2);
-  return k.slice(0, 5) + '••••••' + k.slice(-4);
+  return '••••••••';
 }
 
 /** Tavily 公式 API /usage エンドポイントを問い合わせ（キャッシュ・429レート制限フォールバック対応） */

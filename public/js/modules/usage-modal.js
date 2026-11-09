@@ -316,7 +316,7 @@ function renderUsageDashboard(data, container) {
           <div class="notice" style="margin: 12px 0; border-left: 4px solid #f59e0b;">
             <span data-icon="alert"></span>
             <div>
-              <strong>Tavily APIキーは設定されています（${esc(tavily.maskedKey || '設定済み')}）</strong>
+              <strong>Tavily APIキーは設定されています（設定済）</strong>
               <p style="margin-top: 4px; font-size: 13px; color: var(--text-2);">
                 リアルタイムクォータの取得ステータス: <code style="color: #f59e0b; background: rgba(245,158,11,0.1); padding: 2px 6px; border-radius: 4px;">${esc(tavily.error || '通信エラー')}</code>
               </p>

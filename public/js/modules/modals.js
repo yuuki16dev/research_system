@@ -498,18 +498,23 @@ export function bindSettingsModal() {
 
 export async function loadSettingsIntoForm() {
   const s = await api.getSettings();
-  $('#gemini-status').textContent = s.geminiApiKey.set ? `設定済 (${s.geminiApiKey.masked})` : '未設定';
+  $('#gemini-status').textContent = s.geminiApiKey.set ? (s.geminiApiKey.count > 1 ? `設定済 (${s.geminiApiKey.count}個)` : '設定済') : '未設定';
   $('#gemini-status').className = `chip-status ${s.geminiApiKey.set ? 'set' : ''}`;
-  $('#tavily-status').textContent = s.tavilyApiKey.set ? `設定済 (${s.tavilyApiKey.masked})` : '未設定';
+  $('#tavily-status').textContent = s.tavilyApiKey.set ? '設定済' : '未設定';
   $('#tavily-status').className = `chip-status ${s.tavilyApiKey.set ? 'set' : ''}`;
   if ($('#groq-status') && s.groqApiKey) {
-    $('#groq-status').textContent = s.groqApiKey.set ? `設定済 (${s.groqApiKey.masked})` : '未設定';
+    $('#groq-status').textContent = s.groqApiKey.set ? '設定済' : '未設定';
     $('#groq-status').className = `chip-status ${s.groqApiKey.set ? 'set' : ''}`;
   }
 
   $('#gemini-key').value = '';
+  $('#gemini-key').placeholder = s.geminiApiKey.set ? '設定済（変更する場合のみ入力）' : 'AIza…（複数キーはカンマまたは改行区切りで入力）';
   $('#tavily-key').value = '';
-  if ($('#groq-key')) $('#groq-key').value = '';
+  $('#tavily-key').placeholder = s.tavilyApiKey.set ? '設定済（変更する場合のみ入力）' : 'tvly-…（変更する場合のみ入力）';
+  if ($('#groq-key')) {
+    $('#groq-key').value = '';
+    $('#groq-key').placeholder = (s.groqApiKey && s.groqApiKey.set) ? '設定済（変更する場合のみ入力）' : 'gsk_…（設定するとGemini混雑時に自動リレー）';
+  }
   $('#gemini-model').value = s.geminiModel || 'gemini-3.8-flash';
   if ($('#gemini-tier')) $('#gemini-tier').value = s.geminiAccountTier || 'auto';
   if ($('#groq-model')) $('#groq-model').value = s.groqModel || 'llama-3.3-70b-versatile';

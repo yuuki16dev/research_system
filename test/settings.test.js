@@ -25,10 +25,11 @@ test('settings.publicView masks sensitive API keys without leaking plain text', 
 
   assert.equal(view.geminiApiKey.set, true);
   assert.equal(view.tavilyApiKey.set, true);
-  // Plain text key must NOT be leaked
+  // Plain text key must NOT be leaked; keys are fully masked
   assert.equal(view.geminiApiKey.masked.includes(dummyG), false);
   assert.equal(view.tavilyApiKey.masked.includes(dummyT), false);
-  assert.ok(view.geminiApiKey.masked.includes('••••••'));
+  assert.strictEqual(view.geminiApiKey.masked, '••••••••');
+  assert.strictEqual(view.tavilyApiKey.masked, '••••••••');
   assert.equal(view.publisher, 'Test Publisher');
   assert.equal(view.publisherTagline, 'CUSTOM STRATEGY REPORT');
   assert.equal(view.author, 'Taro Yamada');
