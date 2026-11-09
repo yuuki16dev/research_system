@@ -1178,7 +1178,8 @@ function diagnoseError(msg = '') {
 }
 
 export function finishError(msg) {
-  if (appState.isFinishing) return;
+  // すでにリサーチ結果を受信・描画済みの場合は誤った切断エラーで上書きしない
+  if (appState.currentResult || appState.isFinishing) return;
   appState.isFinishing = true;
 
   clearInterval(appState.timerInterval);

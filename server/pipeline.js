@@ -869,6 +869,11 @@ async function runLive(p, s, ctx) {
     await Promise.all(targets.slice(i, i + 4).map(worker));
   }
 
+  // メモリ最適化: 本文抽出完了後、不要となった巨大な rawContent を解放して V8 ヒープを節約
+  sources.forEach((src) => {
+    if (src.rawContent) delete src.rawContent;
+  });
+
   /* ---- 5. 統合・構造化 */
   ctx.progress(81, 'synthesize');
   if (deep) {

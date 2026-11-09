@@ -43,6 +43,6 @@ EXPOSE 3939
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:3939/api/health || exit 1
 
-# Start production server
-CMD ["node", "server/index.js"]
+# Start production server with memory limit optimized for Render free tier (512MB RAM)
+CMD ["node", "--max-old-space-size=384", "--optimize-for-size", "server/index.js"]
 
