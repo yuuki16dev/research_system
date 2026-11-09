@@ -56,3 +56,10 @@
 - 発行された Render の URL にブラウザでアクセスします。
 - これで、ご自身のPCを立ち上げなくても、外出先やスマートフォンからでもいつでも快適にリサーチを実行できます！
 
+### ステップ 4: GitHub Webhook (Deploy Hook) による完全自動デプロイ
+1. Render の「Settings」画面で「Deploy Hook」の URL をコピーします。
+2. GitHub リポジトリの「Settings ➔ Webhooks」で「Add webhook」をクリックします。
+3. Payload URL に Render の Deploy Hook URL を貼り付け、Content type を `application/json` に設定して登録します。
+4. これにより、今後は `git push origin main` を行うだけで、GitHub から Render へ直接デプロイ命令が送信され、100% 確実に自動デプロイが実行されます。
+
+
