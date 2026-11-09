@@ -105,6 +105,8 @@ test('phase1 UI consistency: public/index.html includes required DOM elements', 
   // テーマ推敲サジェスト
   assert.ok(html.includes('id="theme-polisher-wrap"'), 'theme-polisher-wrap exists');
   assert.ok(html.includes('id="theme-polisher-chips"'), 'theme-polisher-chips exists');
+  // 検索入力欄が押しつぶされないための縦スタック構造
+  assert.ok(html.includes('class="search-input-body"'), 'search-input-body wrapper exists to prevent layout squash');
 
   // 音声サマリー
   assert.ok(html.includes('id="btn-audio-summary"'), 'btn-audio-summary exists');
@@ -118,3 +120,4 @@ test('phase1 UI consistency: public/index.html includes required DOM elements', 
   assert.ok(html.includes('id="eh-card-email"'), 'eh-card-email exists');
   assert.ok(html.includes('id="btn-eh-email"'), 'btn-eh-email exists');
 });
+

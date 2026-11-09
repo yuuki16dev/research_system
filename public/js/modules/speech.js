@@ -139,3 +139,4 @@ export function isAudioPlaying() {
 export function isAudioPaused() {
   return isPaused;
 }
+

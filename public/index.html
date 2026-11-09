@@ -10,8 +10,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/css/styles.css?v=2.14.0" />
-  <link rel="stylesheet" href="/css/print.css?v=2.14.0" />
+  <link rel="stylesheet" href="/css/styles.css?v=2.14.1" />
+  <link rel="stylesheet" href="/css/print.css?v=2.14.1" />
   <script>
     // テーマのちらつき防止
     (function () {
@@ -111,15 +111,17 @@
 
             <div class="search-input-wrap">
               <span class="search-icon-decor" data-icon="search" aria-hidden="true"></span>
-              <textarea id="theme-input" name="theme" rows="2" maxlength="300" placeholder="何について調べますか？（例: 個人開発ツールのマネタイズ事例と価格設定、生成AIの業務活用...、または特定URL）" required></textarea>
-              <div id="url-mode-badge" class="url-mode-badge" style="display: none;">
-                <span data-icon="sparkles"></span>
-                <span>🌐 Webサイト・特定URLダイレクト分析モード（対象サイトの競合・特徴・評判を徹底解剖）</span>
-              </div>
-              <!-- テーマ推敲・プロ調査切り口サジェスト (v2.14.0) -->
-              <div id="theme-polisher-wrap" class="theme-polisher-wrap" style="display: none;">
-                <div class="theme-polisher-label"><span data-icon="sparkles"></span><span>おすすめのプロ調査切り口:</span></div>
-                <div class="theme-polisher-chips" id="theme-polisher-chips"></div>
+              <div class="search-input-body">
+                <textarea id="theme-input" name="theme" rows="2" maxlength="300" placeholder="何について調べますか？（例: 個人開発ツールのマネタイズ事例と価格設定、生成AIの業務活用...、または特定URL）" required></textarea>
+                <div id="url-mode-badge" class="url-mode-badge" style="display: none;">
+                  <span data-icon="sparkles"></span>
+                  <span>🌐 Webサイト・特定URLダイレクト分析モード（対象サイトの競合・特徴・評判を徹底解剖）</span>
+                </div>
+                <!-- テーマ推敲・プロ調査切り口サジェスト (v2.14.0) -->
+                <div id="theme-polisher-wrap" class="theme-polisher-wrap" style="display: none;">
+                  <div class="theme-polisher-label"><span data-icon="sparkles"></span><span>おすすめのプロ調査切り口:</span></div>
+                  <div class="theme-polisher-chips" id="theme-polisher-chips"></div>
+                </div>
               </div>
             </div>
             
@@ -742,7 +744,7 @@
     </main>
 
     <footer class="footer">
-      <span id="footer-version">Research Studio v2.14.0</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span><span class="sep">·</span><a href="https://github.com/yuuki16dev/research_system/issues" target="_blank" rel="noopener" class="footer-link"><span data-icon="github"></span>GitHubでお問い合わせ</a>
+      <span id="footer-version">Research Studio v2.14.1</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span><span class="sep">·</span><a href="https://github.com/yuuki16dev/research_system/issues" target="_blank" rel="noopener" class="footer-link"><span data-icon="github"></span>GitHubでお問い合わせ</a>
     </footer>
   </div>
 
@@ -912,7 +914,7 @@
     <div class="modal-backdrop" data-close></div>
     <div class="modal-card glass">
       <header class="modal-head">
-        <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v2.14.0</small></h2>
+        <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v2.14.1</small></h2>
         <div style="display: flex; gap: 8px; align-items: center; margin-left: auto;">
           <button class="btn btn-ghost btn-sm" type="button" id="btn-settings-changelog" title="アップデート履歴 &amp; リリースノート"><span data-icon="book-open"></span><span class="label">更新履歴</span></button>
           <button class="btn btn-ghost btn-sm" type="button" id="btn-open-guide-from-settings" title="APIキー取得ガイド &amp; GitHubお問い合わせ"><span data-icon="help-circle"></span><span class="label">ガイド・問い合わせ</span></button>
@@ -2073,6 +2075,6 @@
 
   <script src="/vendor/xlsx.full.min.js" defer></script>
   <script src="/vendor/pptxgen.bundle.js" defer></script>
-  <script type="module" src="/js/app.js?v=2.14.0"></script>
+  <script type="module" src="/js/app.js?v=2.14.1"></script>
 </body>
 </html>

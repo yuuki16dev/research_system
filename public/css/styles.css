@@ -813,6 +813,14 @@ svg.i {
   gap: 12px;
 }
 
+.search-input-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+}
+
 .search-icon-decor {
   font-size: 20px;
   color: var(--primary-light);
@@ -824,9 +832,11 @@ svg.i {
   color: var(--primary);
 }
 
+.search-input-body textarea,
 .search-input-wrap textarea {
-  flex: 1;
   width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   resize: none;
   border: none;
   outline: none;
@@ -840,6 +850,7 @@ svg.i {
   min-height: 60px;
 }
 
+.search-input-body textarea::placeholder,
 .search-input-wrap textarea::placeholder {
   color: var(--text-3);
   font-weight: 450;
@@ -10657,6 +10668,8 @@ body.dd-expanded {
    テーマ推敲・サジェストチップ (Query Polisher) v2.14.0
    ========================================================================== */
 .theme-polisher-wrap {
+  width: 100%;
+  box-sizing: border-box;
   margin-top: 8px;
   padding: 8px 12px;
   border-radius: 10px;

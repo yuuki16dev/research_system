@@ -102,3 +102,4 @@ export function buildEmailFormat(result) {
   text += `作成日: ${ymd}\n作成システム: Research Studio AI Automation`;
   return text.trim();
 }
+
