@@ -17,6 +17,16 @@ import {
 } from '../exporters.js';
 import { appState } from './state.js';
 import { exportPowerPoint } from './pptx-export.js';
+import {
+  getAudioSummaryScript,
+  playAudioSummary,
+  pauseAudioSummary,
+  resumeAudioSummary,
+  stopAudioSummary,
+  setPlaybackRate,
+  isAudioPlaying,
+  isAudioPaused,
+} from './speech.js';
 
 let pdfPreviewZoom = 1.0;
 let isSlideEditMode = false;
@@ -162,6 +172,126 @@ export function bindExportActions(onOpenHistory) {
       toast('プレーンテキスト (.txt) を出力・コピーしました', 'success');
     });
   }
+
+  // ハブ内 7. Slack/Teams要約コピー (v2.14.0)
+  const btnEhSlack = $('#btn-eh-slack');
+  if (btnEhSlack) {
+    btnEhSlack.addEventListener('click', async () => {
+      if (!appState.currentResult) return;
+      closeModal('modal-export-hub');
+      const text = buildSlackSummary(appState.currentResult);
+      await copyText(text);
+      toast('Slack / Teams 要約をクリップボードにコピーしました！', 'success');
+    });
+  }
+
+  // ハブ内 8. 報告・稟議メール文面コピー (v2.14.0)
+  const btnEhEmail = $('#btn-eh-email');
+  if (btnEhEmail) {
+    btnEhEmail.addEventListener('click', async () => {
+      if (!appState.currentResult) return;
+      closeModal('modal-export-hub');
+      const text = buildEmailDraft(appState.currentResult);
+      await copyText(text);
+      toast('上長向け報告・稟議メール文面をクリップボードにコピーしました！', 'success');
+    });
+  }
+
+  // 音声サマリー機能のバインド (v2.14.0)
+  const btnAudio = $('#btn-audio-summary');
+  const audioBar = $('#audio-player-bar');
+  const btnAudioToggle = $('#btn-audio-toggle');
+  const btnAudioStop = $('#btn-audio-stop');
+  const btnAudioClose = $('#btn-audio-close');
+  const apStatusText = $('#ap-status-text');
+  const apToggleIcon = $('#ap-toggle-icon');
+
+  function updateAudioUi(state) {
+    if (!apStatusText || !apToggleIcon) return;
+    if (state === 'playing') {
+      apStatusText.textContent = '再生中…';
+      apToggleIcon.textContent = '⏸';
+    } else if (state === 'paused') {
+      apStatusText.textContent = '一時停止中';
+      apToggleIcon.textContent = '▶';
+    } else {
+      apStatusText.textContent = '準備完了';
+      apToggleIcon.textContent = '▶';
+    }
+  }
+
+  if (btnAudio && audioBar) {
+    btnAudio.addEventListener('click', () => {
+      if (!appState.currentResult) return;
+      audioBar.style.display = 'flex';
+      const script = getAudioSummaryScript(appState.currentResult);
+
+      try {
+        playAudioSummary(script, {
+          onStart: () => updateAudioUi('playing'),
+          onEnd: () => updateAudioUi('stopped'),
+          onError: () => updateAudioUi('stopped'),
+        });
+        toast('🎧 1分間エグゼクティブ音声サマリーを再生します', 'info');
+      } catch (err) {
+        toast(`音声再生エラー: ${err.message}`, 'error');
+      }
+    });
+  }
+
+  if (btnAudioToggle) {
+    btnAudioToggle.addEventListener('click', () => {
+      if (isAudioPlaying()) {
+        pauseAudioSummary();
+        updateAudioUi('paused');
+      } else if (isAudioPaused()) {
+        resumeAudioSummary();
+        updateAudioUi('playing');
+      } else if (appState.currentResult) {
+        const script = getAudioSummaryScript(appState.currentResult);
+        playAudioSummary(script, {
+          onStart: () => updateAudioUi('playing'),
+          onEnd: () => updateAudioUi('stopped'),
+          onError: () => updateAudioUi('stopped'),
+        });
+      }
+    });
+  }
+
+  if (btnAudioStop) {
+    btnAudioStop.addEventListener('click', () => {
+      stopAudioSummary();
+      updateAudioUi('stopped');
+    });
+  }
+
+  if (btnAudioClose && audioBar) {
+    btnAudioClose.addEventListener('click', () => {
+      stopAudioSummary();
+      updateAudioUi('stopped');
+      audioBar.style.display = 'none';
+    });
+  }
+
+  const speedBtns = document.querySelectorAll('.btn-ap-speed');
+  speedBtns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      speedBtns.forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      const rate = parseFloat(btn.dataset.speed) || 1.0;
+      setPlaybackRate(rate);
+      if (isAudioPlaying() && appState.currentResult) {
+        // 現在の速度で再開
+        const script = getAudioSummaryScript(appState.currentResult);
+        playAudioSummary(script, {
+          rate,
+          onStart: () => updateAudioUi('playing'),
+          onEnd: () => updateAudioUi('stopped'),
+          onError: () => updateAudioUi('stopped'),
+        });
+      }
+    });
+  });
 
   // Claude用プロンプトのコピー
   const btnPrompt = $('#btn-copy-prompt');

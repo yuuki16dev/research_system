@@ -24,6 +24,7 @@ import { initPresentationModal } from './modules/presentation-modal.js';
 import { initThemeDesigner } from './modules/theme-designer.js';
 import { initSmartHeader } from './modules/smart-header.js';
 import { initEvidenceInspector } from './modules/evidence-inspector.js';
+import { initQueryPolisher } from './modules/query-polisher.js';
 import { initAuth } from './modules/auth.js';
 import { initWelcome, showWelcomeModal } from './modules/welcome.js';
 import { api } from './api.js';
@@ -101,6 +102,7 @@ async function initApp() {
     initThemeDesigner();
     initSmartHeader();
     initEvidenceInspector();
+    initQueryPolisher();
     initAuth();
     initWelcome();
 

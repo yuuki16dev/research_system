@@ -792,7 +792,7 @@ app.get('/api/history/backup', auth.optionalAuth, (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Content-Disposition', `attachment; filename="research_studio_backup_${userId}_${ymd}.json"`);
   res.json({
-    version: '2.13.0',
+    version: pkgVer,
     exportedAt: new Date().toISOString(),
     userId,
     profile: userProf,

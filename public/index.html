@@ -10,8 +10,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/css/styles.css?v=2.13.0" />
-  <link rel="stylesheet" href="/css/print.css?v=2.13.0" />
+  <link rel="stylesheet" href="/css/styles.css?v=2.14.0" />
+  <link rel="stylesheet" href="/css/print.css?v=2.14.0" />
   <script>
     // テーマのちらつき防止
     (function () {
@@ -115,6 +115,11 @@
               <div id="url-mode-badge" class="url-mode-badge" style="display: none;">
                 <span data-icon="sparkles"></span>
                 <span>🌐 Webサイト・特定URLダイレクト分析モード（対象サイトの競合・特徴・評判を徹底解剖）</span>
+              </div>
+              <!-- テーマ推敲・プロ調査切り口サジェスト (v2.14.0) -->
+              <div id="theme-polisher-wrap" class="theme-polisher-wrap" style="display: none;">
+                <div class="theme-polisher-label"><span data-icon="sparkles"></span><span>おすすめのプロ調査切り口:</span></div>
+                <div class="theme-polisher-chips" id="theme-polisher-chips"></div>
               </div>
             </div>
             
@@ -588,6 +593,10 @@
               <button type="button" class="btn btn-secondary btn-sm btn-share-action" id="btn-share-report" title="このレポートの閲覧専用URLを発行して第三者と共有">
                 <span data-icon="link"></span><span>共有リンク</span>
               </button>
+              <!-- 1分間エグゼクティブ音声サマリー (v2.14.0) -->
+              <button type="button" class="btn btn-secondary btn-sm btn-audio-action" id="btn-audio-summary" title="1分間エグゼクティブ音声サマリーを聴く">
+                <span data-icon="volume-2"></span><span>音声要約</span>
+              </button>
               <button type="button" class="btn btn-ghost btn-icon btn-sm btn-collapse-header" id="btn-toggle-bar-compact" title="ヘッダーバーの最小化・展開を切り替え" aria-label="ヘッダー最小化切り替え">
                 <span data-icon="chevron-up" id="icon-toggle-bar"></span>
               </button>
@@ -632,6 +641,33 @@
                 <span data-icon="history"></span><span>履歴</span>
               </button>
             </div>
+          </div>
+        </div>
+
+        <!-- 音声サマリーミニプレイヤー (v2.14.0) -->
+        <div class="audio-player-bar glass" id="audio-player-bar" style="display: none;">
+          <div class="ap-left">
+            <span class="ap-icon">🎧</span>
+            <div class="ap-info">
+              <strong>1分間エグゼクティブ音声サマリー</strong>
+              <small id="ap-status-text">再生準備完了</small>
+            </div>
+          </div>
+          <div class="ap-controls">
+            <button type="button" class="btn btn-primary btn-sm btn-icon" id="btn-audio-toggle" title="再生 / 一時停止">
+              <span id="ap-toggle-icon">▶</span>
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm btn-icon" id="btn-audio-stop" title="停止">
+              <span>⏹</span>
+            </button>
+            <div class="ap-speed-selector">
+              <button type="button" class="btn-ap-speed active" data-speed="1.0">1.0x</button>
+              <button type="button" class="btn-ap-speed" data-speed="1.25">1.25x</button>
+              <button type="button" class="btn-ap-speed" data-speed="1.5">1.5x</button>
+            </div>
+            <button type="button" class="btn btn-ghost btn-icon btn-sm" id="btn-audio-close" title="閉じる">
+              <span data-icon="x"></span>
+            </button>
           </div>
         </div>
 
@@ -706,7 +742,7 @@
     </main>
 
     <footer class="footer">
-      <span id="footer-version">Research Studio v2.13.0</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span><span class="sep">·</span><a href="https://github.com/yuuki16dev/research_system/issues" target="_blank" rel="noopener" class="footer-link"><span data-icon="github"></span>GitHubでお問い合わせ</a>
+      <span id="footer-version">Research Studio v2.14.0</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span><span class="sep">·</span><a href="https://github.com/yuuki16dev/research_system/issues" target="_blank" rel="noopener" class="footer-link"><span data-icon="github"></span>GitHubでお問い合わせ</a>
     </footer>
   </div>
 
@@ -876,7 +912,7 @@
     <div class="modal-backdrop" data-close></div>
     <div class="modal-card glass">
       <header class="modal-head">
-        <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v2.13.0</small></h2>
+        <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v2.14.0</small></h2>
         <div style="display: flex; gap: 8px; align-items: center; margin-left: auto;">
           <button class="btn btn-ghost btn-sm" type="button" id="btn-settings-changelog" title="アップデート履歴 &amp; リリースノート"><span data-icon="book-open"></span><span class="label">更新履歴</span></button>
           <button class="btn btn-ghost btn-sm" type="button" id="btn-open-guide-from-settings" title="APIキー取得ガイド &amp; GitHubお問い合わせ"><span data-icon="help-circle"></span><span class="label">ガイド・問い合わせ</span></button>
@@ -1793,6 +1829,30 @@
               <span data-icon="file-text"></span>テキストで保存
             </button>
           </div>
+
+          <!-- 7. Slack / Teams 形式 (v2.14.0) -->
+          <div class="export-hub-card" id="eh-card-slack">
+            <div class="eh-card-badge">チャット・チーム速報</div>
+            <div class="eh-card-icon">💬</div>
+            <h3>Slack / Teams 報告要約</h3>
+            <p>メンション付き・太字・絵文字・主要数値入りの高インパクト要約。ワンクリックでクリップボードへ。</p>
+            <div class="eh-card-meta"><span>チャット用</span><span>1分要約</span><span>即時コピー</span></div>
+            <button type="button" class="btn btn-secondary btn-block" id="btn-eh-slack">
+              <span data-icon="copy"></span>Slack要約をコピー
+            </button>
+          </div>
+
+          <!-- 8. 上長向け稟議・報告メール形式 (v2.14.0) -->
+          <div class="export-hub-card" id="eh-card-email">
+            <div class="eh-card-badge">上長・役員提出</div>
+            <div class="eh-card-icon">✉️</div>
+            <h3>上長向け稟議・報告メール文面</h3>
+            <p>件名・結論・主要ファクト・重要数値・推奨方針が整った、そのまま送れる完成形ビジネスメール。</p>
+            <div class="eh-card-meta"><span>メール用</span><span>ビジネス文面</span><span>即時コピー</span></div>
+            <button type="button" class="btn btn-secondary btn-block" id="btn-eh-email">
+              <span data-icon="copy"></span>報告メール文面をコピー
+            </button>
+          </div>
         </div>
       </div>
       <footer class="modal-foot" style="display: flex; justify-content: flex-end;">
@@ -2013,6 +2073,6 @@
 
   <script src="/vendor/xlsx.full.min.js" defer></script>
   <script src="/vendor/pptxgen.bundle.js" defer></script>
-  <script type="module" src="/js/app.js?v=2.13.0"></script>
+  <script type="module" src="/js/app.js?v=2.14.0"></script>
 </body>
 </html>
