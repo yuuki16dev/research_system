@@ -14,6 +14,7 @@ export const historyState = {
   view: 'recent', // 'recent' | 'all'
   homeFilter: '',
   drawerFilter: '',
+  selectedTag: 'all', // 'all' | 'pinned' | 'タグ名' (v2.13.0)
   drawerSort: 'desc', // 'desc' | 'asc'
   isCrossMode: false,
   selectedCrossIds: new Set(),
@@ -44,6 +45,34 @@ export function bindHistoryDrawer(onSelectHistory) {
       renderHistoryDrawerList();
     });
   }
+
+  // タグフィルターチップのバインド (v2.13.0)
+  const bindTagChips = (containerSelector) => {
+    const bar = $(containerSelector);
+    if (!bar) return;
+    const chips = bar.querySelectorAll('.drawer-tag-chip');
+    chips.forEach((chip) => {
+      chip.addEventListener('click', () => {
+        chips.forEach((c) => c.classList.remove('active'));
+        chip.classList.add('active');
+        historyState.selectedTag = chip.dataset.tag || 'all';
+
+        // もう一方のバーにもアクティブ状態を同期
+        const otherSelector = containerSelector === '#drawer-tag-filter-bar' ? '#home-tag-filter-bar' : '#drawer-tag-filter-bar';
+        const otherBar = $(otherSelector);
+        if (otherBar) {
+          otherBar.querySelectorAll('.drawer-tag-chip').forEach((c) => {
+            c.classList.toggle('active', c.dataset.tag === historyState.selectedTag);
+          });
+        }
+
+        renderHistoryDrawerList();
+        renderHomeHistory();
+      });
+    });
+  };
+  bindTagChips('#drawer-tag-filter-bar');
+  bindTagChips('#home-tag-filter-bar');
 
   // ドロワー並び順トグル (新しい順 / 古い順)
   const btnSort = $('#btn-history-sort');
@@ -225,9 +254,25 @@ export async function renderHistoryDrawerList() {
     if (countBadge) countBadge.textContent = `${all.length}件`;
 
     let filtered = all.filter((x) => {
-      if (!historyState.drawerFilter) return true;
-      const text = `${x.title || ''} ${x.theme || ''} ${x.scopeLabel || ''}`.toLowerCase();
-      return text.includes(historyState.drawerFilter);
+      // 1. タグフィルター (v2.13.0)
+      if (historyState.selectedTag && historyState.selectedTag !== 'all') {
+        if (historyState.selectedTag === 'pinned') {
+          if (!x.pinned) return false;
+        } else {
+          const tags = Array.isArray(x.tags) ? x.tags : [];
+          if (!tags.includes(historyState.selectedTag)) return false;
+        }
+      }
+
+      // 2. 全文検索（タイトル・テーマ・要約・タグのスペース区切りAND検索）
+      if (historyState.drawerFilter) {
+        const queryWords = historyState.drawerFilter.split(/\s+/).filter(Boolean);
+        const searchable = `${x.title || ''} ${x.theme || ''} ${x.summary || ''} ${(x.tags || []).join(' ')} ${x.scopeLabel || ''}`.toLowerCase();
+        const matchesAll = queryWords.every((w) => searchable.includes(w));
+        if (!matchesAll) return false;
+      }
+
+      return true;
     });
 
     // 並び替え: ピン留め（pinned）を常に最優先し、その中で作成日時順
@@ -275,6 +320,11 @@ export async function renderHistoryDrawerList() {
             <span>· ソース ${item.sourceCount}件</span>
             <span>· ${relTime(item.createdAt)}</span>
           </div>
+          ${Array.isArray(item.tags) && item.tags.length ? `
+            <div class="history-tags-wrap">
+              ${item.tags.map((t) => `<span class="history-tag-pill">#${esc(t)}</span>`).join('')}
+            </div>
+          ` : ''}
         </div>
         <div class="hi-actions">
           <button type="button" class="btn btn-ghost btn-icon btn-sm btn-pin-hi ${item.pinned ? 'active' : ''}" data-pin-id="${item.id}" title="${item.pinned ? 'ピン留め解除' : '上部にピン留め'}" aria-label="ピン留め">
@@ -382,9 +432,25 @@ export function renderHomeHistory() {
   if (totalBadge) totalBadge.textContent = `${all.length}件`;
 
   let filtered = all.filter((x) => {
-    if (!historyState.homeFilter) return true;
-    const text = `${x.title || ''} ${x.theme || ''} ${x.scopeLabel || ''}`.toLowerCase();
-    return text.includes(historyState.homeFilter);
+    // 1. タグフィルター (v2.13.0)
+    if (historyState.selectedTag && historyState.selectedTag !== 'all') {
+      if (historyState.selectedTag === 'pinned') {
+        if (!x.pinned) return false;
+      } else {
+        const tags = Array.isArray(x.tags) ? x.tags : [];
+        if (!tags.includes(historyState.selectedTag)) return false;
+      }
+    }
+
+    // 2. 全文検索（タイトル・テーマ・要約・タグのスペース区切りAND検索）
+    if (historyState.homeFilter) {
+      const queryWords = historyState.homeFilter.split(/\s+/).filter(Boolean);
+      const searchable = `${x.title || ''} ${x.theme || ''} ${x.summary || ''} ${(x.tags || []).join(' ')} ${x.scopeLabel || ''}`.toLowerCase();
+      const matchesAll = queryWords.every((w) => searchable.includes(w));
+      if (!matchesAll) return false;
+    }
+
+    return true;
   });
 
   // ピン留め（pinned）を最優先にして並び替え
@@ -443,6 +509,11 @@ export function renderHomeHistory() {
           <span>·</span>
           <span>ソース ${item.sourceCount}件</span>
         </div>
+        ${Array.isArray(item.tags) && item.tags.length ? `
+          <div class="history-tags-wrap" style="margin-bottom: 6px;">
+            ${item.tags.map((t) => `<span class="history-tag-pill">#${esc(t)}</span>`).join('')}
+          </div>
+        ` : ''}
         <div class="recent-card-foot">
           <span>${fmtDate(item.createdAt, false)}</span>
           <button type="button" class="btn btn-ghost btn-icon btn-sm btn-delete-hi" data-home-delete-id="${item.id}" title="削除" aria-label="削除">

@@ -5099,6 +5099,65 @@ table.matrix {
   border-radius: 8px;
 }
 
+/* 履歴タグフィルターバー (v2.13.0) */
+.drawer-tag-filter-bar {
+  display: flex;
+  gap: 6px;
+  padding: 8px 16px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.drawer-tag-filter-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.drawer-tag-chip {
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-2);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.drawer-tag-chip:hover {
+  background: var(--surface-hover);
+  color: var(--text-1);
+}
+
+.drawer-tag-chip.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.35);
+}
+
+.history-tags-wrap {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 5px;
+}
+
+.history-tag-pill {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(99, 102, 241, 0.12);
+  color: var(--primary-light, #818cf8);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  line-height: 1.2;
+}
+
 .drawer-body {
   padding: 14px 16px 28px;
   overflow-y: auto;

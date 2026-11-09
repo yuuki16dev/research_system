@@ -665,6 +665,15 @@
               <input type="search" class="input" id="home-history-filter" placeholder="過去の調査テーマやキーワードで絞り込む…" />
               <button type="button" class="btn btn-ghost btn-sm" id="btn-clear-home-filter" style="display: none;">クリア</button>
             </div>
+            <div class="drawer-tag-filter-bar" id="home-tag-filter-bar">
+              <button type="button" class="drawer-tag-chip active" data-tag="all">すべて</button>
+              <button type="button" class="drawer-tag-chip" data-tag="pinned">⭐ ピン留め</button>
+              <button type="button" class="drawer-tag-chip" data-tag="ビジネス・戦略">🏢 ビジネス</button>
+              <button type="button" class="drawer-tag-chip" data-tag="技術調査">💻 技術</button>
+              <button type="button" class="drawer-tag-chip" data-tag="意思決定">📊 意思決定</button>
+              <button type="button" class="drawer-tag-chip" data-tag="リスク・課題">⚠️ リスク</button>
+              <button type="button" class="drawer-tag-chip" data-tag="クロス統合">🔄 統合・差分</button>
+            </div>
           </div>
 
           <div class="recent-grid" id="recent-grid"></div>
@@ -1129,6 +1138,15 @@
         <button type="button" class="btn btn-ghost btn-sm" id="btn-history-backup-quick" title="全レポートを一括バックアップ (JSON)">
           <span data-icon="download"></span><span class="label">一括保存</span>
         </button>
+      </div>
+      <div class="drawer-tag-filter-bar" id="drawer-tag-filter-bar">
+        <button type="button" class="drawer-tag-chip active" data-tag="all">すべて</button>
+        <button type="button" class="drawer-tag-chip" data-tag="pinned">⭐ ピン留め</button>
+        <button type="button" class="drawer-tag-chip" data-tag="ビジネス・戦略">🏢 ビジネス</button>
+        <button type="button" class="drawer-tag-chip" data-tag="技術調査">💻 技術</button>
+        <button type="button" class="drawer-tag-chip" data-tag="意思決定">📊 意思決定</button>
+        <button type="button" class="drawer-tag-chip" data-tag="リスク・課題">⚠️ リスク</button>
+        <button type="button" class="drawer-tag-chip" data-tag="クロス統合">🔄 統合・差分</button>
       </div>
       <div class="drawer-body" id="drawer-history-body">
         <ul class="history-list" id="history-list"></ul>

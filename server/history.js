@@ -43,6 +43,8 @@ function list(userId = null, userPlan = 'admin') {
           userId: reportUserId,
           theme: r.theme,
           title: r.title,
+          summary: r.summary || '',
+          tags: Array.isArray(r.tags) ? r.tags : [],
           createdAt: r.createdAt,
           mode: r.mode,
           depth: r.depth,

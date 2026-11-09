@@ -112,6 +112,24 @@ function clamp(n, min, max) {
 const str = (v, d = '') => (typeof v === 'string' ? v.trim() : v == null ? d : String(v).trim());
 const arr = (v) => (Array.isArray(v) ? v : []);
 
+function deriveDefaultTags(meta = {}, raw = {}) {
+  const tags = new Set();
+  const purpose = meta.purpose || 'business';
+  if (purpose === 'tech') tags.add('技術調査');
+  else if (purpose === 'decision') tags.add('意思決定');
+  else if (purpose === 'academic') tags.add('学術・論文');
+  else if (purpose === 'risk') tags.add('リスク・課題');
+  else if (purpose === 'cost') tags.add('コスト・投資');
+  else if (purpose === 'brief') tags.add('クイック要約');
+  else tags.add('ビジネス・戦略');
+
+  if (meta.isCrossSynthesis || raw.isCrossSynthesis) tags.add('クロス統合');
+  if (meta.isDeltaTracking || raw.isDeltaTracking) tags.add('定点差分');
+  if (meta.depth === 'deep' || meta.depth === 'autonomous') tags.add('深層調査');
+
+  return Array.from(tags);
+}
+
 /**
  * AI / モックの生出力を、フロントエンドが期待する統一スキーマへ正規化する。
  */
@@ -327,6 +345,11 @@ function normalizeResult(raw = {}, meta = {}) {
           model: str((raw.tokenUsage || meta.tokenUsage).model) || '',
         }
       : null,
+    tags: Array.isArray(raw.tags) && raw.tags.length
+      ? raw.tags.map(str).filter(Boolean)
+      : Array.isArray(meta.tags) && meta.tags.length
+        ? meta.tags.map(str).filter(Boolean)
+        : deriveDefaultTags(meta, raw),
     sources,
   };
 }

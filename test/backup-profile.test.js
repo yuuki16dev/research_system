@@ -111,5 +111,23 @@ test('profile & backup: DOM consistency in public/index.html', () => {
   assert.ok(html.includes('id="btn-history-backup-quick"'), 'index.html must have #btn-history-backup-quick');
   assert.ok(html.includes('id="user-avatar-badge"'), 'index.html must have #user-avatar-badge');
   assert.ok(html.includes('id="user-name-badge"'), 'index.html must have #user-name-badge');
+  assert.ok(html.includes('id="drawer-tag-filter-bar"'), 'index.html must have #drawer-tag-filter-bar');
+  assert.ok(html.includes('id="home-tag-filter-bar"'), 'index.html must have #home-tag-filter-bar');
 });
+
+test('history tags & search: normalizeResult derives default tags and supports filtering', () => {
+  const util = require('../server/util');
+  const resTech = util.normalizeResult({}, { purpose: 'tech' });
+  assert.ok(resTech.tags.includes('技術調査'));
+
+  const resDecision = util.normalizeResult({}, { purpose: 'decision' });
+  assert.ok(resDecision.tags.includes('意思決定'));
+
+  const resRisk = util.normalizeResult({}, { purpose: 'risk' });
+  assert.ok(resRisk.tags.includes('リスク・課題'));
+
+  const resCross = util.normalizeResult({}, { isCrossSynthesis: true });
+  assert.ok(resCross.tags.includes('クロス統合'));
+});
+
 
