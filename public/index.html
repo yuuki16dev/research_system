@@ -576,6 +576,9 @@
               <button type="button" class="btn btn-secondary btn-sm" id="btn-open-theme-designer" title="レポートのブランド配色やPDF/PowerPoint/Excelのエクスポートテーマを着せ替え">
                 <span data-icon="palette"></span><span>テーマ着せ替え</span>
               </button>
+              <button type="button" class="btn btn-secondary btn-sm btn-share-action" id="btn-share-report" title="このレポートの閲覧専用URLを発行して第三者と共有">
+                <span data-icon="link"></span><span>共有リンク</span>
+              </button>
               <button type="button" class="btn btn-ghost btn-icon btn-sm btn-collapse-header" id="btn-toggle-bar-compact" title="ヘッダーバーの最小化・展開を切り替え" aria-label="ヘッダー最小化切り替え">
                 <span data-icon="chevron-up" id="icon-toggle-bar"></span>
               </button>
@@ -685,7 +688,7 @@
     </main>
 
     <footer class="footer">
-      <span id="footer-version">Research Studio v2.9.2</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span><span class="sep">·</span><a href="https://github.com/yuuki16dev/research_system/issues" target="_blank" rel="noopener" class="footer-link"><span data-icon="github"></span>GitHubでお問い合わせ</a>
+      <span id="footer-version">Research Studio v2.10.0</span><span class="sep">·</span><span>Local Web App</span><span class="sep">·</span><span id="footer-mode">—</span><span class="sep">·</span><a href="https://github.com/yuuki16dev/research_system/issues" target="_blank" rel="noopener" class="footer-link"><span data-icon="github"></span>GitHubでお問い合わせ</a>
     </footer>
   </div>
 
@@ -786,7 +789,7 @@
     <div class="modal-backdrop" data-close></div>
     <div class="modal-card glass">
       <header class="modal-head">
-        <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v2.9.2</small></h2>
+        <h2 id="settings-title"><span data-icon="key"></span>API設定 <small id="settings-version-badge" style="font-size: 11px; opacity: 0.65; font-weight: normal; margin-left: 6px;">v2.10.0</small></h2>
         <div style="display: flex; gap: 8px; align-items: center; margin-left: auto;">
           <button class="btn btn-ghost btn-sm" type="button" id="btn-settings-changelog" title="アップデート履歴 &amp; リリースノート"><span data-icon="book-open"></span><span class="label">更新履歴</span></button>
           <button class="btn btn-ghost btn-sm" type="button" id="btn-open-guide-from-settings" title="APIキー取得ガイド &amp; GitHubお問い合わせ"><span data-icon="help-circle"></span><span class="label">ガイド・問い合わせ</span></button>
@@ -1742,6 +1745,47 @@
         <button type="button" class="btn btn-primary btn-sm" id="btn-close-theme-designer">
           <span>決定して適用</span>
         </button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- ============================================== SHARE REPORT MODAL (v2.10.0) -->
+  <div class="modal" id="modal-share" role="dialog" aria-modal="true" aria-labelledby="share-modal-title" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card glass" style="max-width: 580px;">
+      <header class="modal-head">
+        <h2 class="modal-title" id="share-modal-title"><span data-icon="link"></span>レポートの共有リンク発行</h2>
+        <button class="btn btn-ghost btn-icon" type="button" data-close aria-label="閉じる"><span data-icon="x"></span></button>
+      </header>
+      <div class="modal-body" style="padding: 20px; display: flex; flex-direction: column; gap: 16px;">
+        <div>
+          <label class="field-label sm" for="share-url-input">閲覧専用 共有リンク URL</label>
+          <div class="input-group" style="margin-top: 6px;">
+            <input class="input" type="text" id="share-url-input" readonly spellcheck="false" style="font-family: monospace; font-size: 13px;" />
+            <button class="btn btn-primary" type="button" id="btn-copy-share-url">
+              <span data-icon="copy"></span><span>コピー</span>
+            </button>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 10px; align-items: center; justify-content: flex-end;">
+          <a href="#" target="_blank" rel="noopener" class="btn btn-ghost btn-sm" id="btn-open-share-preview">
+            <span data-icon="external"></span><span>閲覧専用画面を開く</span>
+          </a>
+        </div>
+
+        <div class="api-guide-quick-card" style="border-left: 3px solid #10b981; background: rgba(16, 185, 129, 0.08); margin: 0;">
+          <div class="agq-head">
+            <span class="agq-badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399;">🛡️ 安全な閲覧専用モード</span>
+          </div>
+          <div class="agq-desc" style="font-size: 12px; line-height: 1.6; opacity: 0.9;">
+            ・このリンクを共有された相手は、<strong>APIキー・設定画面・アカウント情報に一切アクセスできません</strong>。<br>
+            ・相手側はログインやキー設定なしで、レポートの閲覧や <strong>PDF / Excel / Markdown / テキスト</strong> のダウンロードが可能です。
+          </div>
+        </div>
+      </div>
+      <footer class="modal-foot" style="display: flex; justify-content: flex-end;">
+        <button type="button" class="btn btn-secondary btn-sm" data-close>閉じる</button>
       </footer>
     </div>
   </div>

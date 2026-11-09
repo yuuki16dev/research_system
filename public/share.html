@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>リサーチレポート — Research Studio</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232563eb' stroke-width='2'><circle cx='11' cy='11' r='8'/><path d='m21 21-4.3-4.3'/></svg>" />
+  <!-- ExcelJS vendor bundle -->
+  <script src="/vendor/exceljs.min.js"></script>
+</head>
+<body class="share-page-body">
+  <div class="app-layout">
+    <!-- 閲覧専用ヘッダーバー -->
+    <header class="topbar share-topbar">
+      <div class="brand-group">
+        <a href="/" class="brand" title="Research Studio トップへ">
+          <span class="brand-icon" data-icon="sparkles"></span>
+          <span class="brand-name">Research Studio</span>
+        </a>
+        <span class="badge badge-share-readonly">
+          <span data-icon="shield"></span><span>閲覧専用レポート</span>
+        </span>
+      </div>
+
+      <div class="topbar-actions">
+        <div class="export-primary-group" id="share-export-group" style="display: none;">
+          <button type="button" class="btn btn-secondary btn-sm" id="btn-share-pdf" title="デザイン済みPDFをプレビュー・出力">
+            <span data-icon="file-text"></span><span>PDF</span>
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm" id="btn-share-xlsx" title="Excel (.xlsx) をダウンロード">
+            <span data-icon="sheet"></span><span>Excel</span>
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm" id="btn-share-md" title="Markdown をダウンロード">
+            <span data-icon="hash"></span><span>MD</span>
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm" id="btn-share-txt" title="テキストをダウンロード">
+            <span data-icon="file-text"></span><span>テキスト</span>
+          </button>
+        </div>
+        <a href="/" class="btn btn-primary btn-sm btn-new-research-link">
+          <span data-icon="plus"></span><span>新規リサーチを作成</span>
+        </a>
+      </div>
+    </header>
+
+    <!-- レポートメインコンテンツ -->
+    <main class="main-content share-main-content">
+      <!-- ローディング表示 -->
+      <div class="share-state-card" id="share-loading">
+        <div class="spinner-sm" style="width: 28px; height: 28px; border-width: 3px; margin: 0 auto 16px;"></div>
+        <h3>レポートを読み込んでいます…</h3>
+        <p style="color: var(--text-2); font-size: 13px;">最新の調査データと分析構造を展開中</p>
+      </div>
+
+      <!-- 404 見つかりません表示 -->
+      <div class="share-state-card" id="share-not-found" style="display: none;">
+        <span data-icon="alert" style="font-size: 32px; color: var(--danger); margin-bottom: 12px; display: inline-block;"></span>
+        <h3>指定されたレポートが見つかりません</h3>
+        <p style="color: var(--text-2); font-size: 14px; margin: 8px 0 20px;">URLが間違っているか、レポートの保存期間が終了した可能性があります。</p>
+        <a href="/" class="btn btn-primary btn-sm">
+          <span data-icon="refresh"></span><span>トップページへ戻る</span>
+        </a>
+      </div>
+
+      <!-- レポート表示コンテナ -->
+      <article class="report-container" id="report" style="display: none;"></article>
+    </main>
+
+    <!-- フッター -->
+    <footer class="app-footer share-footer">
+      <span>Powered by Research Studio</span>
+      <span class="sep">·</span>
+      <span>AIリサーチ＆商用レポート自動化システム</span>
+    </footer>
+  </div>
+
+  <!-- クライアントスクリプト -->
+  <script type="module" src="/js/share.js"></script>
+</body>
+</html>
+

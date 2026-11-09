@@ -35,6 +35,47 @@ function getBrandConfig() {
 
 /** エクスポートボタン類のイベントバインド */
 export function bindExportActions(onOpenHistory) {
+  // 共有リンク発行ボタン (v2.10.0)
+  const btnShareReport = $('#btn-share-report');
+  if (btnShareReport) {
+    btnShareReport.addEventListener('click', async () => {
+      if (!appState.currentResult || !appState.currentResult.id) {
+        toast('レポートデータがありません', 'error');
+        return;
+      }
+      const shareUrl = `${window.location.origin}/share/${appState.currentResult.id}`;
+      const urlInput = $('#share-url-input');
+      const previewLink = $('#btn-open-share-preview');
+
+      if (urlInput) urlInput.value = shareUrl;
+      if (previewLink) previewLink.href = shareUrl;
+
+      openModal('modal-share');
+
+      // クリップボードへ自動コピーを試行
+      try {
+        const ok = await copyText(shareUrl);
+        if (ok) {
+          toast('共有リンクをクリップボードにコピーしました！', 'success');
+        }
+      } catch {}
+    });
+  }
+
+  // 共有モーダル内のコピーボタン
+  const btnCopyShareUrl = $('#btn-copy-share-url');
+  if (btnCopyShareUrl) {
+    btnCopyShareUrl.addEventListener('click', async () => {
+      const urlInput = $('#share-url-input');
+      const url = urlInput ? urlInput.value : '';
+      if (url) {
+        const ok = await copyText(url);
+        if (ok) toast('共有リンクをコピーしました！', 'success');
+        else toast('コピーに失敗しました', 'error');
+      }
+    });
+  }
+
   // エクスポートハブ・モーダル開閉
   const btnExportHub = $('#btn-export-hub');
   if (btnExportHub) {

@@ -753,6 +753,16 @@ app.get('/api/history/:id', (req, res) => {
   const r = history.get(req.params.id);
   return r ? res.json(r) : res.status(404).json({ error: 'not found' });
 });
+
+/* ------------------------------------------------------ share (v2.10.0) */
+app.get('/api/share/:id', (req, res) => {
+  const r = history.get(req.params.id);
+  return r ? res.json(r) : res.status(404).json({ error: '指定されたレポートが見つかりません' });
+});
+
+app.get('/share/:id', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'share.html'));
+});
 app.patch('/api/history/:id', (req, res) => {
   const updated = history.update(req.params.id, req.body || {});
   return updated ? res.json(updated) : res.status(404).json({ error: 'not found' });
