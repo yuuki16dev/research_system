@@ -1,6 +1,7 @@
 'use strict';
 
 const { domainOf } = require('./util');
+const { safeFetch } = require('./security');
 
 // Node.js 18.x 互換用 AbortSignal.any ポリフィル
 if (typeof AbortSignal.any !== 'function') {
@@ -239,22 +240,8 @@ function extractText(html) {
 }
 
 async function fetchPage(url, { signal, maxChars = 6000, timeoutMs = 7000 } = {}) {
-  const res = await fetch(url, {
-    headers: { 'User-Agent': UA, Accept: 'text/html,application/xhtml+xml', 'Accept-Language': 'ja,en;q=0.8' },
-    redirect: 'follow',
-    signal: withTimeout(signal, timeoutMs),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const ct = res.headers.get('content-type') || '';
-  if (ct && !/html|text\/plain|xml/i.test(ct)) throw new Error('HTML以外のコンテンツ');
-  const buf = new Uint8Array(await res.arrayBuffer()).slice(0, 2_000_000);
-  let html;
-  try {
-    html = new TextDecoder(detectCharset(ct, buf.slice(0, 4096))).decode(buf);
-  } catch {
-    html = new TextDecoder('utf-8').decode(buf);
-  }
-  const { title, text } = extractText(html);
+  const { text: rawHtml } = await safeFetch(url, { signal, timeoutMs, maxBytes: 2_000_000 });
+  const { title, text } = extractText(rawHtml);
   return { title, text: text.slice(0, maxChars) };
 }
 

@@ -49,6 +49,7 @@ const { getFullUsageSummary } = require('./usage');
 const { buildMarkdown, buildPlainText } = require('./util');
 const auth = require('./auth');
 const quota = require('./quota');
+const { validateThemeSafety } = require('./security');
 
 
 const PORT = Number(process.env.PORT) || 3939;
@@ -483,10 +484,17 @@ app.post('/api/research', auth.requireAuth, quota.requireQuota, (req, res) => {
   const authoritative = !!b.authoritative;
   if (theme.length < 2) return res.status(400).json({ error: 'テーマを2文字以上で入力してください' });
 
+  // 悪意ある検索・不正攻撃コードの防御 (v2.15.0)
+  const safetyCheck = validateThemeSafety(theme);
+  if (!safetyCheck.safe) {
+    return res.status(400).json({ error: `入力内容が安全基準に抵触しました: ${safetyCheck.reason}` });
+  }
+  const sanitizedTheme = safetyCheck.sanitized;
+
   const userId = req.user ? req.user.id : 'owner-user';
   const userPlan = req.user ? (req.user.plan || 'free') : 'admin';
-  console.log(`[リサーチ受付] テーマ: "${theme}" (スコープ: ${scope}, 深度: ${depth}, スタイル: ${purpose}, ユーザー: ${userId}, プラン: ${userPlan})`);
-  const params = { theme, scope, depth, sites, period, customPeriod, purpose, customPurpose, referenceContext, referenceUrls, attachedFiles, focus, authoritative, forceMock: !!b.forceMock, userId };
+  console.log(`[リサーチ受付] テーマ: "${sanitizedTheme}" (スコープ: ${scope}, 深度: ${depth}, スタイル: ${purpose}, ユーザー: ${userId}, プラン: ${userPlan})`);
+  const params = { theme: sanitizedTheme, scope, depth, sites, period, customPeriod, purpose, customPurpose, referenceContext, referenceUrls, attachedFiles, focus, authoritative, forceMock: !!b.forceMock, userId };
   const job = createJob(params, (j) => runResearch(j, settings.load()), {
     onResult: (result) => {
       if (!result.userId && userId) {

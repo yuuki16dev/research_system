@@ -27,12 +27,20 @@ export function bindFormControls() {
     searchChipsRow.classList.toggle('is-hidden', hasText);
   }
 
-  // URLダイレクト分析モードの検知
-  function syncUrlBadge() {
-    const badge = $('#url-mode-badge');
-    if (!badge) return;
-    const isUrl = /^https?:\/\/[^\s]+$/i.test(themeInput.value.trim());
-    badge.style.display = isUrl ? 'inline-flex' : 'none';
+  // URLダイレクト分析モード ＆ URL vs URL 対決モードの検知 (v2.15.0)
+  function syncUrlBadges() {
+    const singleBadge = $('#url-mode-badge');
+    const dualBadge = $('#dual-url-badge');
+    const val = themeInput.value.trim();
+    const isDual = /^(https?:\/\/[^\s]+)\s+(?:vs|VS|と)\s+(https?:\/\/[^\s]+)$/i.test(val);
+    const isSingle = !isDual && /^https?:\/\/[^\s]+$/i.test(val);
+
+    if (dualBadge) dualBadge.style.display = isDual ? 'inline-flex' : 'none';
+    if (singleBadge) singleBadge.style.display = isSingle ? 'inline-flex' : 'none';
+
+    if (isDual) {
+      selectStyle('decision');
+    }
   }
 
   // 文字数カウント & 自動拡張 & チップ表示連動 & URLモード検知
@@ -40,7 +48,7 @@ export function bindFormControls() {
     const len = themeInput.value.length;
     themeCount.textContent = `${len} / 300`;
     syncChipsVisibility();
-    syncUrlBadge();
+    syncUrlBadges();
   }
   themeInput.addEventListener('input', updateCount);
 

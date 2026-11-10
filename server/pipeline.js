@@ -6,6 +6,7 @@ const search = require('./search');
 const { buildMock, buildDeltaMockRaw } = require('./mock');
 const memory = require('./memory');
 const { normalizeResult, parseSites, domainOf, arr, str, SCOPE_LABELS, SNS_DOMAINS, FOCUS_LABELS } = require('./util');
+const { PROMPT_INJECTION_BARRIER, wrapUntrustedContent } = require('./security');
 
 function sleep(ms, signal) {
   return new Promise((resolve, reject) => {
@@ -565,30 +566,39 @@ async function runLive(p, s, ctx) {
     }
   }
 
-  /* ---- 2.8 指定参考URLの先行解析（BYOD Multi-URL Grounding） ---- */
+  /* ---- 2.8 指定参考URL & URL vs URL 対決モードの先行解析 (v2.15.0) ---- */
   const referenceSources = [];
-  const refUrls = arr(p.referenceUrls).filter((u) => typeof u === 'string' && /^https?:\/\//i.test(u.trim())).slice(0, 5);
-  if (refUrls.length > 0) {
-    ctx.log(`🌐 指定された ${refUrls.length} 件の参考URLを先行解析中…`, 'page');
-    for (const u of refUrls) {
+  const themeUrls = [];
+  const dualMatch = p.theme.trim().match(/^(https?:\/\/[^\s]+)\s+(?:vs|VS|と)\s+(https?:\/\/[^\s]+)$/i);
+  if (dualMatch) {
+    themeUrls.push(dualMatch[1], dualMatch[2]);
+  }
+  const allTargetUrls = Array.from(new Set([
+    ...themeUrls,
+    ...arr(p.referenceUrls).filter((u) => typeof u === 'string' && /^https?:\/\//i.test(u.trim()))
+  ])).slice(0, 5);
+
+  if (allTargetUrls.length > 0) {
+    ctx.log(`⚔️ 指定された ${allTargetUrls.length} 件の対象URLを先行解析中（SSRF安全ガード適用）…`, 'page');
+    for (const u of allTargetUrls) {
       if (signal.aborted) break;
       try {
         const page = await search.fetchPage(u, { signal, maxChars: 5000, timeoutMs: 6000 });
         const d = domainOf(u);
         referenceSources.push({
-          title: `【指定参考】${page.title || d}`,
+          title: `【直接解析】${page.title || d}`,
           url: u,
           domain: d,
-          snippet: `ユーザー指定参考URL「${u}」から直接抽出した本文データ。`,
+          snippet: `対象URL「${u}」から直接抽出したWeb本文データ。`,
           content: page.text.slice(0, 5000),
           type: 'reference',
           isReference: true,
           hop: 1,
         });
-        ctx.log(`参考URL解析完了 (${d}): ${page.text.length.toLocaleString()} 字を抽出`, 'ok');
+        ctx.log(`URL直接解析完了 (${d}): ${page.text.length.toLocaleString()} 字を抽出`, 'ok');
       } catch (e) {
         if (signal.aborted) throw e;
-        ctx.log(`参考URL取得スキップ (${u}): ${e.message}`, 'warn');
+        ctx.log(`URL取得スキップ (${u}): ${e.message}`, 'warn');
       }
     }
   }
@@ -1089,9 +1099,30 @@ ${p.customPurpose || 'ユーザーの自由な指定に沿って構成してく�
     recencyRule = `- 対象期間: 全期間（歴史的経緯や初期の事例、現在までの変遷も含めて網羅的に整理してください）。`;
   }
 
+  const dualMatch = p.theme.trim().match(/^(https?:\/\/[^\s]+)\s+(?:vs|VS|と)\s+(https?:\/\/[^\s]+)$/i);
   const isUrl = /^https?:\/\/[^\s]+$/i.test(p.theme.trim());
   let urlContextBlock = '';
-  if (isUrl) {
+
+  if (dualMatch) {
+    const urlA = dualMatch[1];
+    const urlB = dualMatch[2];
+    urlContextBlock = `
+# 【最重要: URL vs URL 直接対決・競合比較モード (v2.15.0)】
+本リサーチは2つのWebサービス・プロダクトの直接対決比較です：
+【サービスA】: ${urlA}
+【サービスB】: ${urlB}
+
+以下の比較要素を厳密かつ徹底的に構造化してください：
+1. table: サービスA vs サービスB の「機能・料金対照マトリクス」を必ず作成すること。1列目に比較軸（基本コンセプト、主要機能、料金プラン、無料枠の有無・制限、API提供、サポート体制、セキュリティ対応など）、2列目にサービスA、3列目にサービスBを配置すること。各セルには具体的な機能名・金額・仕様を明記すること。
+2. chart: type: "radar"（5軸多角評価レーダーチャート）とし、datasets に必ず2系列（label: サービスAの名称, label: サービスBの名称）を含めて両者の客観的得点（0〜100）を可視化すること。評価軸の例: コスト優位性、機能の豊富さ、導入容易性・操作性、カスタマイズ性、安定性・サポート。
+3. summary: 両サービスの決定的な違いと、「最終的にどちらを選ぶべきか」の結論を冒頭で明快に提示すること。
+4. sections:
+   - 第1章: 両サービスの基本思想・コンセプト・ターゲット層の差異
+   - 第2章: 機能・スペック・使い勝手の詳細比較
+   - 第3章: 料金体系・無料プラン・ランニングコスト・ROI比較
+   - 第4章: タイプ別導入判断基準（「どのような企業・個人ならサービスAを選ぶべきか」「どのような要件ならサービスBを選ぶべきか」の客観的アナリスト選定判定）
+`;
+  } else if (isUrl) {
     urlContextBlock = `
 # 【重要: 特定URLダイレクト分析モード】
 本リサーチは指定URL「${p.theme}」の徹底調査レポートです。
@@ -1139,7 +1170,8 @@ ${p.referenceContext && p.referenceContext.trim() ? `\n【追加前提メモ】:
     ? sources
         .map((s, i) => {
           const bodySnippet = s.content ? String(s.content).trim().slice(0, bodySnippetLen) : '';
-          return `[${i + 1}] ${s.title}${s.hop === 2 ? ' 【第2次ホップ追加深層ソース】' : ''}\nURL: ${s.url}${s.publishedDate ? `\n公開日: ${s.publishedDate}` : ''}\n抜粋: ${s.snippet || '-'}${bodySnippet ? `\n本文抜粋: ${bodySnippet}` : ''}`;
+          const safeBody = bodySnippet ? wrapUntrustedContent(bodySnippet, `src-${i + 1}`, s.title || s.url) : '';
+          return `[${i + 1}] ${s.title}${s.hop === 2 ? ' 【第2次ホップ追加深層ソース】' : ''}\nURL: ${s.url}${s.publishedDate ? `\n公開日: ${s.publishedDate}` : ''}\n抜粋: ${s.snippet || '-'}${safeBody ? `\n${safeBody}` : ''}`;
         })
         .join('\n\n---\n\n')
     : '（収集ソースは0件です。一般的な知識に基づいて作成し、その旨をサマリー冒頭に明記してください。sourceAssessments は空配列にしてください）';
@@ -1218,7 +1250,8 @@ ${multiHop.followUpQueries.map((q, i) => `・第2次ホップ投入クエリ[${i
   },`
     : '';
 
-  return `あなたは一流シンクタンクや戦略コンサルティングファーム（Gartner, McKinsey水準）のシニアリサーチディレクターです。
+  return `${PROMPT_INJECTION_BARRIER}
+あなたは一流シンクタンクや戦略コンサルティングファーム（Gartner, McKinsey水準）のシニアリサーチディレクターです。
 本リサーチは、商用A4レポート・公式報告書（Executive Intelligence Report）として経営陣やクライアントへ直接提出される原本となります。
 Webサイトの簡易スナップショットのような走り書きや抽象的解説を徹底的に排除し、読者がそのまま意思決定・事業戦略・稟議に使用できる、圧倒的な品格・情報密度・論理構造を持つ格調高いレポートを日本語で執筆してください。
 ${purposeFocus}
