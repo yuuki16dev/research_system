@@ -1,5 +1,8 @@
 'use strict';
 
+// A-2: テスト実行環境として明示設定
+process.env.NODE_ENV = 'test';
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -129,6 +132,36 @@ test('user-isolation: unauthenticated token verification returns null', async ()
   assert.equal(noToken, null);
   const nullToken = await auth.verifyToken(null);
   assert.equal(nullToken, null);
+});
+
+test('A-2: production environment disables test users and test-token verification', async () => {
+  const origEnv = process.env.NODE_ENV;
+  const origEnable = process.env.ENABLE_TEST_USERS;
+  try {
+    process.env.NODE_ENV = 'production';
+    delete process.env.ENABLE_TEST_USERS;
+
+    // 1. verifyToken with test-token returns null
+    const res = await auth.verifyToken('test-token-admin-user');
+    assert.equal(res, null, 'test-token must be rejected in production');
+
+    // 2. loginUser with test user fails
+    await assert.rejects(async () => {
+      await auth.loginUser('admin@test.local', 'adminpassword');
+    }, 'test user login must fail in production');
+
+    // 3. signupUser with test user fails
+    await assert.rejects(async () => {
+      await auth.signupUser('new-user@test.local', 'password123');
+    }, 'test user signup must fail in production');
+  } finally {
+    process.env.NODE_ENV = origEnv;
+    if (origEnable !== undefined) {
+      process.env.ENABLE_TEST_USERS = origEnable;
+    } else {
+      delete process.env.ENABLE_TEST_USERS;
+    }
+  }
 });
 
 

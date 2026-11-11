@@ -26,3 +26,6 @@ Thumbs.db
 dist/
 *.exe
 
+# Prompts & instructions
+Claude outputs/
+

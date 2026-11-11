@@ -498,19 +498,23 @@ export function bindSettingsModal() {
 
 export async function loadSettingsIntoForm() {
   const s = await api.getSettings();
-  $('#gemini-status').textContent = s.geminiApiKey.set ? (s.geminiApiKey.count > 1 ? `設定済 (${s.geminiApiKey.count}個)` : '設定済') : '未設定';
-  $('#gemini-status').className = `chip-status ${s.geminiApiKey.set ? 'set' : ''}`;
-  $('#tavily-status').textContent = s.tavilyApiKey.set ? '設定済' : '未設定';
-  $('#tavily-status').className = `chip-status ${s.tavilyApiKey.set ? 'set' : ''}`;
+  if ($('#gemini-status')) {
+    $('#gemini-status').textContent = (s.geminiApiKey && s.geminiApiKey.set) ? (s.geminiApiKey.count > 1 ? `設定済 (${s.geminiApiKey.count}個)` : '設定済') : '未設定';
+    $('#gemini-status').className = `chip-status ${(s.geminiApiKey && s.geminiApiKey.set) ? 'set' : ''}`;
+  }
+  if ($('#tavily-status')) {
+    $('#tavily-status').textContent = (s.tavilyApiKey && s.tavilyApiKey.set) ? '設定済' : '未設定';
+    $('#tavily-status').className = `chip-status ${(s.tavilyApiKey && s.tavilyApiKey.set) ? 'set' : ''}`;
+  }
   if ($('#groq-status') && s.groqApiKey) {
     $('#groq-status').textContent = s.groqApiKey.set ? '設定済' : '未設定';
     $('#groq-status').className = `chip-status ${s.groqApiKey.set ? 'set' : ''}`;
   }
 
   $('#gemini-key').value = '';
-  $('#gemini-key').placeholder = s.geminiApiKey.set ? '設定済（変更する場合のみ入力）' : 'AIza…（複数キーはカンマまたは改行区切りで入力）';
+  $('#gemini-key').placeholder = (s.geminiApiKey && s.geminiApiKey.set) ? '設定済（変更する場合のみ入力）' : 'AIza…（複数キーはカンマまたは改行区切りで入力）';
   $('#tavily-key').value = '';
-  $('#tavily-key').placeholder = s.tavilyApiKey.set ? '設定済（変更する場合のみ入力）' : 'tvly-…（変更する場合のみ入力）';
+  $('#tavily-key').placeholder = (s.tavilyApiKey && s.tavilyApiKey.set) ? '設定済（変更する場合のみ入力）' : 'tvly-…（変更する場合のみ入力）';
   if ($('#groq-key')) {
     $('#groq-key').value = '';
     $('#groq-key').placeholder = (s.groqApiKey && s.groqApiKey.set) ? '設定済（変更する場合のみ入力）' : 'gsk_…（設定するとGemini混雑時に自動リレー）';

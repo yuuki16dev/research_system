@@ -9,6 +9,8 @@
  * 4. ユーザーごとのリサーチ履歴・月間クォータ分離に対応
  */
 
+const env = require('./env');
+
 const SUPABASE_URL = process.env.SUPABASE_URL ? process.env.SUPABASE_URL.replace(/\/+$/, '') : '';
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
 const ENABLE_AUTH = process.env.ENABLE_AUTH === 'true';
@@ -42,6 +44,7 @@ const PRESET_TEST_USERS = [
 const customTestUsers = new Map();
 
 function findTestUserByEmail(email) {
+  if (!env.TEST_USERS_ENABLED) return null;
   const normEmail = String(email || '').trim().toLowerCase();
   const preset = PRESET_TEST_USERS.find((u) => u.email.toLowerCase() === normEmail);
   if (preset) return preset;
@@ -49,6 +52,7 @@ function findTestUserByEmail(email) {
 }
 
 function findTestUserById(id) {
+  if (!env.TEST_USERS_ENABLED) return null;
   const preset = PRESET_TEST_USERS.find((u) => u.id === id);
   if (preset) return preset;
   for (const u of customTestUsers.values()) {
@@ -65,8 +69,8 @@ function findTestUserById(id) {
 async function verifyToken(token) {
   if (!token) return null;
 
-  // テストアカウントのトークン形式: test-token-<userId>
-  if (token.startsWith('test-token-')) {
+  // テストアカウントのトークン形式: test-token-<userId> (TEST_USERS_ENABLED が真のときのみ有効)
+  if (env.TEST_USERS_ENABLED && token.startsWith('test-token-')) {
     const userId = token.slice('test-token-'.length);
     const u = findTestUserById(userId);
     if (u) {
@@ -81,7 +85,7 @@ async function verifyToken(token) {
   }
 
   // Supabase JWT トークンの検証
-  if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+  if (env.IS_CLOUD && SUPABASE_ANON_KEY) {
     try {
       const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
         headers: {
@@ -124,7 +128,7 @@ async function requireAuth(req, res, next) {
   }
 
   // 認証が強制されていない環境で未ログインの場合は、デフォルト管理者として通過
-  if (!ENABLE_AUTH && !SUPABASE_URL) {
+  if (!ENABLE_AUTH && !env.IS_CLOUD) {
     req.user = {
       id: 'owner-user',
       email: 'owner@local',
@@ -158,7 +162,7 @@ async function optionalAuth(req, res, next) {
   }
 
   // トークンがない場合、未強制環境ではローカル管理者
-  if (!ENABLE_AUTH && !SUPABASE_URL) {
+  if (!ENABLE_AUTH && !env.IS_CLOUD) {
     req.user = {
       id: 'owner-user',
       email: 'owner@local',
@@ -185,13 +189,13 @@ async function signupUser(email, password) {
     throw new Error('有効なメールアドレスと6文字以上のパスワードを入力してください');
   }
 
-  // 既存テストアカウントとの重複チェック
-  if (findTestUserByEmail(normEmail)) {
+  // 既存テストアカウントとの重複チェック (TEST_USERS_ENABLED 有効時のみ)
+  if (env.TEST_USERS_ENABLED && findTestUserByEmail(normEmail)) {
     throw new Error('このメールアドレスは既に登録されています');
   }
 
-  // テストアカウント（@test.local）の場合はSupabase未設定でも即時作成
-  if (normEmail.endsWith('@test.local')) {
+  // テストアカウント（@test.local）の場合はSupabase未設定でも即時作成 (TEST_USERS_ENABLED 有効時のみ)
+  if (env.TEST_USERS_ENABLED && normEmail.endsWith('@test.local')) {
     const newId = `user-${Date.now().toString(36)}`;
     const userObj = {
       id: newId,
@@ -215,8 +219,8 @@ async function signupUser(email, password) {
   }
 
   // Supabase が未設定の場合のエラー通知
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    throw new Error('クラウド認証（Supabase）が設定されていません。検証用のテストアカウント（@test.local）をご利用ください。');
+  if (!env.IS_CLOUD || !SUPABASE_ANON_KEY) {
+    throw new Error('クラウド認証（Supabase）が設定されていません。' + (env.TEST_USERS_ENABLED ? '検証用のテストアカウント（@test.local）をご利用ください。' : ''));
   }
 
   // Supabase Auth へプロキシ
@@ -253,28 +257,30 @@ async function loginUser(email, password) {
     throw new Error('メールアドレスとパスワードを入力してください');
   }
 
-  // 1. テストユーザーの照合
-  const testUser = findTestUserByEmail(normEmail);
-  if (testUser) {
-    if (testUser.password === password) {
-      return {
-        access_token: `test-token-${testUser.id}`,
-        token_type: 'bearer',
-        user: {
-          id: testUser.id,
-          email: testUser.email,
-          plan: testUser.plan,
-          role: testUser.role,
-        },
-      };
-    } else {
-      throw new Error('メールアドレスまたはパスワードが正しくありません');
+  // 1. テストユーザーの照合 (TEST_USERS_ENABLED 有効時のみ)
+  if (env.TEST_USERS_ENABLED) {
+    const testUser = findTestUserByEmail(normEmail);
+    if (testUser) {
+      if (testUser.password === password) {
+        return {
+          access_token: `test-token-${testUser.id}`,
+          token_type: 'bearer',
+          user: {
+            id: testUser.id,
+            email: testUser.email,
+            plan: testUser.plan,
+            role: testUser.role,
+          },
+        };
+      } else {
+        throw new Error('メールアドレスまたはパスワードが正しくありません');
+      }
     }
   }
 
   // 2. Supabase Auth での認証
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    throw new Error('クラウド認証（Supabase）が設定されていません。検証用のテストアカウント（@test.local）をご利用ください。');
+  if (!env.IS_CLOUD || !SUPABASE_ANON_KEY) {
+    throw new Error('クラウド認証（Supabase）が設定されていません。' + (env.TEST_USERS_ENABLED ? '検証用のテストアカウント（@test.local）をご利用ください。' : ''));
   }
 
   const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
@@ -302,5 +308,5 @@ module.exports = {
   verifySupabaseToken: verifyToken, // 後方互換性
   signupUser,
   loginUser,
-  isCloudAuthEnabled: () => true, // テストアカウント機能により常に認証UI利用可能
+  isCloudAuthEnabled: () => Boolean(env.IS_CLOUD || env.TEST_USERS_ENABLED),
 };

@@ -10,6 +10,7 @@ export const authState = {
   isCloud: false,
   hasSupabase: false,
   isLocal: true,
+  testUsersEnabled: false,
   authenticated: false,
   user: null,
   quota: null,
@@ -170,6 +171,33 @@ export async function refreshAuthStatus() {
     authState.isCloud = !!config.enabled;
     authState.hasSupabase = !!config.hasSupabase;
     authState.isLocal = !!config.isLocal;
+    authState.testUsersEnabled = !!config.testUsersEnabled;
+
+    // テストユーザーUIの表示制御 (A-2)
+    const quickBox = document.getElementById('auth-test-quick-box');
+    if (quickBox) {
+      quickBox.style.display = config.testUsersEnabled ? 'block' : 'none';
+    }
+
+    // クラウド版の管理系UI非表示制御 (A-3) & 共有リンク一時停止 (A-6)
+    if (!config.isLocal) {
+      const btnSettings = document.getElementById('btn-settings');
+      const btnUsage = document.getElementById('btn-usage');
+      const btnMobile = document.getElementById('btn-mobile');
+      const btnShutdown = document.getElementById('btn-power-shutdown');
+      const btnLogs = document.getElementById('btn-view-logs');
+      const btnShare = document.getElementById('btn-share-report');
+
+      if (btnSettings) btnSettings.style.display = 'none';
+      if (btnUsage) btnUsage.style.display = 'none';
+      if (btnMobile) btnMobile.style.display = 'none';
+      if (btnShutdown) btnShutdown.style.display = 'none';
+      if (btnLogs) btnLogs.style.display = 'none';
+      if (btnShare) btnShare.style.display = 'none';
+      document.querySelectorAll('.btn-share-action').forEach((el) => {
+        el.style.display = 'none';
+      });
+    }
 
     const me = await api.authMe();
     if (me && me.authenticated) {

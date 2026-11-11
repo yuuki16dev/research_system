@@ -107,7 +107,7 @@ test('gemini: auto-rotates to backup API key when 429 quota limit is encountered
 
   globalThis.fetch = async (url, opts) => {
     callCount++;
-    const key = new URL(url).searchParams.get('key');
+    const key = (opts && opts.headers && opts.headers['x-goog-api-key']) || new URL(url).searchParams.get('key');
     usedKeys.push(key);
 
     if (callCount === 1) {

@@ -7,6 +7,8 @@
  * クラウド環境（Supabase連携時）およびローカル環境（無制限管理者）の両方に対応。
  */
 
+const { IS_CLOUD } = require('./env');
+
 const SUPABASE_URL = process.env.SUPABASE_URL ? process.env.SUPABASE_URL.replace(/\/+$/, '') : '';
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '';
 
@@ -53,7 +55,7 @@ async function getMonthlyQuota(userId = 'local-user', plan = 'admin') {
   }
 
   // Supabase 未設定（ローカル/テスト環境）の場合はローカルキャッシュで制限判定
-  if (!SUPABASE_URL) {
+  if (!IS_CLOUD) {
     const key = `${userId}:${ym}`;
     const used = localUsageCache.get(key) || 0;
     const remaining = Math.max(0, limit - used);
@@ -120,7 +122,7 @@ async function recordUsage(userId = 'local-user', plan = 'admin') {
   const currentLocal = (localUsageCache.get(key) || 0) + 1;
   localUsageCache.set(key, currentLocal);
 
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+  if (!IS_CLOUD || !SUPABASE_SERVICE_ROLE_KEY) {
     return currentLocal;
   }
 

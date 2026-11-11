@@ -5,6 +5,7 @@
 import { $, icon, hydrateIcons, toast, openModal, esc } from '../ui.js';
 import { api } from '../api.js';
 import { appState } from './state.js';
+import { authState } from './auth.js';
 
 /** テーマ切替 (Dark / Light) — シルキースムーズ遷移 */
 export function initTheme() {
@@ -83,10 +84,10 @@ export function updateStatusPill(settings) {
   const pill = $('#status-pill');
   const txt = $('#status-text');
   if (!pill || !txt) return;
-  if (settings.effectiveMode === 'live') {
+  if (settings && settings.effectiveMode === 'live') {
     pill.className = 'status-pill live';
     txt.textContent = 'LIVE モード';
-    pill.title = `Gemini (${settings.geminiModel}) 接続中`;
+    pill.title = settings.geminiModel ? `Gemini (${settings.geminiModel}) 接続中` : 'クラウドAI接続中';
   } else {
     pill.className = 'status-pill demo';
     txt.textContent = 'DEMO モード';
@@ -97,14 +98,19 @@ export function updateStatusPill(settings) {
 export function updateModeHint(settings) {
   const hint = $('#mode-hint');
   if (!hint) return;
-  if (settings.effectiveMode === 'live') {
+  if (settings && settings.effectiveMode === 'live') {
     hint.className = 'mode-hint live';
-    hint.innerHTML = `<span data-icon="sparkles"></span><span><strong>LIVEモード</strong>（${esc(settings.geminiModel)} + ${esc(settings.effectiveSearch)}）で実調査を実行します</span>`;
+    const modelLabel = settings.geminiModel ? `${esc(settings.geminiModel)} + ${esc(settings.effectiveSearch || 'Web検索')}` : 'クラウド高精度AI';
+    hint.innerHTML = `<span data-icon="sparkles"></span><span><strong>LIVEモード</strong>（${modelLabel}）で実調査を実行します</span>`;
   } else {
     hint.className = 'mode-hint';
-    hint.innerHTML = `<span data-icon="info"></span><span>現在は<strong>DEMOモード</strong>です。<a id="link-open-settings">APIキーを設定</a>すると本物のWeb調査が可能です</span>`;
-    const a = $('#link-open-settings', hint);
-    if (a) a.addEventListener('click', () => openModal('modal-settings'));
+    if (!authState.isLocal) {
+      hint.innerHTML = `<span data-icon="info"></span><span>現在は<strong>DEMOモード</strong>です。ログインすると本物のWeb実調査を実行できます</span>`;
+    } else {
+      hint.innerHTML = `<span data-icon="info"></span><span>現在は<strong>DEMOモード</strong>です。<a id="link-open-settings">APIキーを設定</a>すると本物のWeb調査が可能です</span>`;
+      const a = $('#link-open-settings', hint);
+      if (a) a.addEventListener('click', () => openModal('modal-settings'));
+    }
   }
   hydrateIcons(hint);
 }

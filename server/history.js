@@ -19,13 +19,15 @@ function save(result) {
 }
 
 /**
- * 履歴一覧の取得（ユーザーごとの分離対応）
- * @param {string|null} userId ユーザーID（nullまたは管理者は全件）
+ * 履歴一覧の取得（ユーザーごとの分離対応 / A-4: 未ログインは管理者扱いしない）
+ * @param {string|null} userId ユーザーID
  * @param {string} userPlan プラン（'admin'は全件）
+ * @param {object} options オプション（{ all: true } で明示的全件指定）
  */
-function list(userId = null, userPlan = 'admin') {
+function list(userId = null, userPlan = 'admin', options = {}) {
   if (!fs.existsSync(DIR)) return [];
-  const isAdmin = userPlan === 'admin' || !userId;
+  const isAdmin = userPlan === 'admin' || Boolean(options && options.all);
+  if (!isAdmin && !userId) return [];
 
   return fs
     .readdirSync(DIR)
@@ -73,12 +75,15 @@ function list(userId = null, userPlan = 'admin') {
  * @param {string} id
  * @param {string|null} userId 認可チェック用（指定時、他人のレポートは拒否）
  * @param {string} userPlan
+ * @param {object} options
  */
-function get(id, userId = null, userPlan = 'admin') {
+function get(id, userId = null, userPlan = 'admin', options = {}) {
   if (!isId(id)) return null;
+  const isAdmin = userPlan === 'admin' || Boolean(options && options.all);
+  if (!isAdmin && !userId) return null;
+
   try {
     const item = JSON.parse(fs.readFileSync(path.join(DIR, `${id}.json`), 'utf8'));
-    const isAdmin = userPlan === 'admin' || !userId;
     const reportUserId = item.userId || 'owner-user';
     if (!isAdmin && reportUserId !== userId) {
       return null;
@@ -92,9 +97,9 @@ function get(id, userId = null, userPlan = 'admin') {
 /**
  * レポートの削除
  */
-function remove(id, userId = null, userPlan = 'admin') {
+function remove(id, userId = null, userPlan = 'admin', options = {}) {
   if (!isId(id)) return false;
-  const item = get(id, userId, userPlan);
+  const item = get(id, userId, userPlan, options);
   if (!item) return false;
 
   try {
@@ -108,8 +113,8 @@ function remove(id, userId = null, userPlan = 'admin') {
 /**
  * レポートの更新
  */
-function update(id, patch, userId = null, userPlan = 'admin') {
-  const item = get(id, userId, userPlan);
+function update(id, patch, userId = null, userPlan = 'admin', options = {}) {
+  const item = get(id, userId, userPlan, options);
   if (!item) return null;
   const updated = { ...item, ...patch };
   save(updated);
@@ -119,8 +124,8 @@ function update(id, patch, userId = null, userPlan = 'admin') {
 /**
  * ピン留めトグル
  */
-function togglePin(id, userId = null, userPlan = 'admin') {
-  const item = get(id, userId, userPlan);
+function togglePin(id, userId = null, userPlan = 'admin', options = {}) {
+  const item = get(id, userId, userPlan, options);
   if (!item) return null;
   item.pinned = !item.pinned;
   fs.writeFileSync(path.join(DIR, `${id}.json`), JSON.stringify(item), 'utf8');
@@ -128,18 +133,20 @@ function togglePin(id, userId = null, userPlan = 'admin') {
 }
 
 function prune() {
-  const items = list(null, 'admin');
-  items.slice(MAX_ITEMS).forEach((x) => remove(x.id, null, 'admin'));
+  const items = list(null, 'admin', { all: true });
+  items.slice(MAX_ITEMS).forEach((x) => remove(x.id, null, 'admin', { all: true }));
 }
 
 /**
  * ユーザーの全レポートを完全データで取得（一括バックアップ用）
  * @param {string|null} userId
  * @param {string} userPlan
+ * @param {object} options
  */
-function getAllForUser(userId = null, userPlan = 'admin') {
+function getAllForUser(userId = null, userPlan = 'admin', options = {}) {
   if (!fs.existsSync(DIR)) return [];
-  const isAdmin = userPlan === 'admin' || !userId;
+  const isAdmin = userPlan === 'admin' || Boolean(options && options.all);
+  if (!isAdmin && !userId) return [];
 
   return fs
     .readdirSync(DIR)

@@ -575,8 +575,8 @@ async function generate({
     if (signal && signal.aborted) throw new Error('キャンセルされました');
 
     const activeKey = keys[currentKeyIdx];
-    // クエリパラメータ ?key= とヘッダー x-goog-api-key の両方を送信し、プロキシや企業FWでのヘッダ脱落を完全防止
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(currentModel)}:generateContent?key=${encodeURIComponent(activeKey)}`;
+    // A-7: URLログやプロキシでのAPIキー漏洩を防ぐため ?key= は含めず、x-goog-api-key ヘッダーのみで送信
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(currentModel)}:generateContent`;
 
     try {
       // 1回あたりのタイムアウト（デフォルト180秒 = 3分）

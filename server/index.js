@@ -50,6 +50,7 @@ const { buildMarkdown, buildPlainText } = require('./util');
 const auth = require('./auth');
 const quota = require('./quota');
 const { validateThemeSafety } = require('./security');
+const env = require('./env');
 
 
 const PORT = Number(process.env.PORT) || 3939;
@@ -63,9 +64,9 @@ app.use(express.json({ limit: '10mb' }));
 // 自動シャットダウン用タイマー（全ブラウザ切断時）
 let autoShutdownTimer = null;
 
-// 通常のアクセスがあった場合は自動終了タイマーをキャンセル
+// 通常のアクセスがあった場合は自動終了タイマーをキャンセル（クラウド版では無効）
 app.use((req, res, next) => {
-  if (req.path !== '/api/lifecycle/leave' && autoShutdownTimer) {
+  if (!env.IS_CLOUD && req.path !== '/api/lifecycle/leave' && autoShutdownTimer) {
     clearTimeout(autoShutdownTimer);
     autoShutdownTimer = null;
   }
@@ -139,8 +140,9 @@ app.get('/api/health', (req, res) => {
 app.get('/api/auth/config', (req, res) => {
   res.json({
     enabled: auth.isCloudAuthEnabled(),
-    hasSupabase: !!process.env.SUPABASE_URL,
-    isLocal: !process.env.SUPABASE_URL,
+    hasSupabase: env.IS_CLOUD,
+    isLocal: !env.IS_CLOUD,
+    testUsersEnabled: env.TEST_USERS_ENABLED,
   });
 });
 
@@ -206,8 +208,36 @@ app.get('/api/auth/me', async (req, res) => {
   });
 });
 
+function getCloudSettingsView(s = settings.load()) {
+  return {
+    publisher: s.publisher,
+    publisherTagline: s.publisherTagline,
+    author: s.author,
+    confidentiality: s.confidentiality,
+    disclaimer: s.disclaimer,
+    themePreset: s.themePreset || 'corporate-blue',
+    themePrimaryColor: s.themePrimaryColor || '',
+    themeAccentColor: s.themeAccentColor || '',
+    effectiveMode: settings.effectiveMode(s),
+  };
+}
+
 app.get('/api/info', (req, res) => {
-  res.json({ app: 'Research Studio', version: pkgVer, port: currentPort, lan: lanAddresses(currentPort), settings: settings.publicView() });
+  if (env.IS_CLOUD) {
+    return res.json({
+      app: 'Research Studio',
+      version: pkgVer,
+      port: currentPort,
+      settings: getCloudSettingsView(),
+    });
+  }
+  res.json({
+    app: 'Research Studio',
+    version: pkgVer,
+    port: currentPort,
+    lan: lanAddresses(currentPort),
+    settings: settings.publicView(),
+  });
 });
 
 app.get('/api/version/check', async (req, res) => {
@@ -318,152 +348,163 @@ app.get('/api/changelog', (req, res) => {
   }
 });
 
-app.get('/api/qr', async (req, res) => {
-  const text = String(req.query.text || '').slice(0, 500);
-  if (!text) return res.status(400).json({ error: 'text is required' });
-  try {
-    const svg = await QRCode.toString(text, { type: 'svg', margin: 1, errorCorrectionLevel: 'M', color: { dark: '#0b0f1e', light: '#ffffff' } });
-    res.type('image/svg+xml').send(svg);
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
+if (!env.IS_CLOUD) {
+  app.get('/api/qr', async (req, res) => {
+    const text = String(req.query.text || '').slice(0, 500);
+    if (!text) return res.status(400).json({ error: 'text is required' });
+    try {
+      const svg = await QRCode.toString(text, { type: 'svg', margin: 1, errorCorrectionLevel: 'M', color: { dark: '#0b0f1e', light: '#ffffff' } });
+      res.type('image/svg+xml').send(svg);
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
 
-/* -------------------------------------------------------- lifecycle & shutdown */
-app.all('/api/lifecycle/leave', (req, res) => {
-  // ブラウザが閉じられた瞬間の通知。5秒の猶予期間をおいて他タブ・再読み込みがなければ自動終了
-  if (!autoShutdownTimer && process.env.NODE_ENV !== 'test') {
-    autoShutdownTimer = setTimeout(() => {
-      console.log('\n[自動終了] すべてのブラウザ画面が閉じられたため、Research Studio を安全に終了します...');
-      process.exit(0);
-    }, 5000);
-  }
-  res.json({ ok: true });
-});
+  /* -------------------------------------------------------- lifecycle & shutdown */
+  app.all('/api/lifecycle/leave', (req, res) => {
+    // ブラウザが閉じられた瞬間の通知。5秒の猶予期間をおいて他タブ・再読み込みがなければ自動終了
+    if (!autoShutdownTimer && process.env.NODE_ENV !== 'test') {
+      autoShutdownTimer = setTimeout(() => {
+        console.log('\n[自動終了] すべてのブラウザ画面が閉じられたため、Research Studio を安全に終了します...');
+        process.exit(0);
+      }, 5000);
+    }
+    res.json({ ok: true });
+  });
 
-app.post('/api/shutdown', (req, res) => {
-  console.log('\n[手動終了] WebUI よりシャットダウン指示を受信しました。サーバーを正常停止します...');
-  res.json({ ok: true, message: 'Research Studio is shutting down' });
-  if (process.env.NODE_ENV !== 'test') {
-    setTimeout(() => {
-      process.exit(0);
-    }, 400);
-  }
-});
+  app.post('/api/shutdown', (req, res) => {
+    console.log('\n[手動終了] WebUI よりシャットダウン指示を受信しました。サーバーを正常停止します...');
+    res.json({ ok: true, message: 'Research Studio is shutting down' });
+    if (process.env.NODE_ENV !== 'test') {
+      setTimeout(() => {
+        process.exit(0);
+      }, 400);
+    }
+  });
+}
 
 /* ----------------------------------------------------------- settings */
-app.get('/api/settings', (req, res) => res.json(settings.publicView()));
-
-app.put('/api/settings', (req, res) => {
-  const s = settings.save(req.body || {});
-  res.json(settings.publicView(s));
+app.get('/api/settings', (req, res) => {
+  if (env.IS_CLOUD) {
+    return res.json(getCloudSettingsView());
+  }
+  res.json(settings.publicView());
 });
 
-/** 接続テスト。body にキーが含まれていればそれを、なければ保存済みのキーを使う */
-app.post('/api/settings/test', async (req, res) => {
-  const cur = settings.load();
-  const body = req.body || {};
-  const geminiKey = String(body.geminiApiKey || cur.geminiApiKey || '').trim();
-  const tavilyKey = String(body.tavilyApiKey || cur.tavilyApiKey || '').trim();
-  const groqKey = String(body.groqApiKey || cur.groqApiKey || '').trim();
-  const model = body.geminiModel || cur.geminiModel || 'gemini-3.8-flash';
-  const groqModel = body.groqModel || cur.groqModel || 'llama-3.3-70b-versatile';
-  const out = {};
+if (!env.IS_CLOUD) {
+  app.put('/api/settings', (req, res) => {
+    const s = settings.save(req.body || {});
+    res.json(settings.publicView(s));
+  });
 
-  if (geminiKey) {
-    try {
-      const t0 = Date.now();
-      await generate({
-        apiKey: geminiKey,
-        model,
-        prompt: 'Reply with the single word: OK',
-        json: false,
-        temperature: 0,
-        maxRetries: 2,
-        signal: AbortSignal.timeout(15000),
-      });
-      const tierMode = body.geminiAccountTier || cur.geminiAccountTier || 'auto';
-      const tierLabel = tierMode === 'tier1' ? '有料枠 (Tier 1モード)' : '無料枠 (トークン圧縮＆混雑回避ON)';
-      out.gemini = { ok: true, message: `接続OK（${model} / ${Date.now() - t0}ms / ${tierLabel}）` };
-    } catch (e) {
-      // 最初のモデルで失敗した場合、Google公式の安定モデル（gemini-3.7-flash）で即座に代替診断
-      let altTested = null;
-      if (model !== 'gemini-3.7-flash') {
-        try {
-          const t1 = Date.now();
-          await generate({
-            apiKey: geminiKey,
-            model: 'gemini-3.7-flash',
-            prompt: 'Reply with the single word: OK',
-            json: false,
-            temperature: 0,
-            maxRetries: 1,
-            signal: AbortSignal.timeout(10000),
-          });
-          altTested = `gemini-3.7-flash（${Date.now() - t1}msで接続成功）`;
-        } catch {
-          // ignore
+  /** 接続テスト。body にキーが含まれていればそれを、なければ保存済みのキーを使う */
+  app.post('/api/settings/test', async (req, res) => {
+    const cur = settings.load();
+    const body = req.body || {};
+    const geminiKey = String(body.geminiApiKey || cur.geminiApiKey || '').trim();
+    const tavilyKey = String(body.tavilyApiKey || cur.tavilyApiKey || '').trim();
+    const groqKey = String(body.groqApiKey || cur.groqApiKey || '').trim();
+    const model = body.geminiModel || cur.geminiModel || 'gemini-3.8-flash';
+    const groqModel = body.groqModel || cur.groqModel || 'llama-3.3-70b-versatile';
+    const out = {};
+
+    if (geminiKey) {
+      try {
+        const t0 = Date.now();
+        await generate({
+          apiKey: geminiKey,
+          model,
+          prompt: 'Reply with the single word: OK',
+          json: false,
+          temperature: 0,
+          maxRetries: 2,
+          signal: AbortSignal.timeout(15000),
+        });
+        const tierMode = body.geminiAccountTier || cur.geminiAccountTier || 'auto';
+        const tierLabel = tierMode === 'tier1' ? '有料枠 (Tier 1モード)' : '無料枠 (トークン圧縮＆混雑回避ON)';
+        out.gemini = { ok: true, message: `接続OK（${model} / ${Date.now() - t0}ms / ${tierLabel}）` };
+      } catch (e) {
+        // 最初のモデルで失敗した場合、Google公式の安定モデル（gemini-3.7-flash）で即座に代替診断
+        let altTested = null;
+        if (model !== 'gemini-3.7-flash') {
+          try {
+            const t1 = Date.now();
+            await generate({
+              apiKey: geminiKey,
+              model: 'gemini-3.7-flash',
+              prompt: 'Reply with the single word: OK',
+              json: false,
+              temperature: 0,
+              maxRetries: 1,
+              signal: AbortSignal.timeout(10000),
+            });
+            altTested = `gemini-3.7-flash（${Date.now() - t1}msで接続成功）`;
+          } catch {
+            // ignore
+          }
+        }
+
+        if (altTested) {
+          out.gemini = {
+            ok: false,
+            message: `${model} でエラー [${e.message}] ➔ 【解決策】${altTested} は正常に利用可能です！モデル欄に「gemini-3.7-flash」と入力して保存してください。`,
+          };
+        } else {
+          out.gemini = {
+            ok: false,
+            message: `接続失敗: ${e.message}`,
+          };
         }
       }
+    } else {
+      out.gemini = { ok: false, message: 'APIキー未設定' };
+    }
 
-      if (altTested) {
-        out.gemini = {
-          ok: false,
-          message: `${model} でエラー [${e.message}] ➔ 【解決策】${altTested} は正常に利用可能です！モデル欄に「gemini-3.7-flash」と入力して保存してください。`,
-        };
-      } else {
-        out.gemini = {
-          ok: false,
-          message: `接続失敗: ${e.message}`,
-        };
+    if (tavilyKey) {
+      try {
+        const r = await tavilySearch({ apiKey: tavilyKey, query: 'Research Studio test', maxResults: 1, signal: AbortSignal.timeout(15000) });
+        out.tavily = { ok: true, message: `接続OK（${r.length}件取得）` };
+      } catch (e) {
+        out.tavily = { ok: false, message: e.message };
       }
+    } else {
+      out.tavily = { ok: false, message: 'APIキー未設定（DuckDuckGoを使用）' };
     }
-  } else {
-    out.gemini = { ok: false, message: 'APIキー未設定' };
-  }
 
-  if (tavilyKey) {
-    try {
-      const r = await tavilySearch({ apiKey: tavilyKey, query: 'Research Studio test', maxResults: 1, signal: AbortSignal.timeout(15000) });
-      out.tavily = { ok: true, message: `接続OK（${r.length}件取得）` };
-    } catch (e) {
-      out.tavily = { ok: false, message: e.message };
+    if (groqKey) {
+      try {
+        const t0 = Date.now();
+        await generateGroq({
+          apiKey: groqKey,
+          model: groqModel,
+          prompt: 'Reply with the single word: OK',
+          json: false,
+          timeoutMs: 10000,
+        });
+        out.groq = { ok: true, message: `接続OK（${groqModel} / ${Date.now() - t0}ms / 補欠スタンバイ中）` };
+      } catch (e) {
+        out.groq = { ok: false, message: `Groq接続失敗: ${e.message}` };
+      }
+    } else {
+      out.groq = { ok: false, message: '未設定（Gemini単体で稼働）' };
     }
-  } else {
-    out.tavily = { ok: false, message: 'APIキー未設定（DuckDuckGoを使用）' };
-  }
 
-  if (groqKey) {
-    try {
-      const t0 = Date.now();
-      await generateGroq({
-        apiKey: groqKey,
-        model: groqModel,
-        prompt: 'Reply with the single word: OK',
-        json: false,
-        timeoutMs: 10000,
-      });
-      out.groq = { ok: true, message: `接続OK（${groqModel} / ${Date.now() - t0}ms / 補欠スタンバイ中）` };
-    } catch (e) {
-      out.groq = { ok: false, message: `Groq接続失敗: ${e.message}` };
-    }
-  } else {
-    out.groq = { ok: false, message: '未設定（Gemini単体で稼働）' };
-  }
-
-  res.json(out);
-});
+    res.json(out);
+  });
+}
 
 /* ------------------------------------------------------------- usage */
-app.get('/api/usage', async (req, res) => {
-  try {
-    const force = req.query.refresh === '1' || req.query.force === 'true' || req.query.force === '1';
-    const data = await getFullUsageSummary(settings.load(), { forceRefresh: force });
-    res.json(data);
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
+if (!env.IS_CLOUD) {
+  app.get('/api/usage', async (req, res) => {
+    try {
+      const force = req.query.refresh === '1' || req.query.force === 'true' || req.query.force === '1';
+      const data = await getFullUsageSummary(settings.load(), { forceRefresh: force });
+      res.json(data);
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+}
 
 /* ----------------------------------------------------------- research */
 app.post('/api/research', auth.requireAuth, quota.requireQuota, (req, res) => {
@@ -515,15 +556,15 @@ app.post('/api/research', auth.requireAuth, quota.requireQuota, (req, res) => {
 });
 
 /* ------------------------------------------------ cross-synthesis (v1.17.0) */
-app.post('/api/research/cross-synthesis', auth.optionalAuth, (req, res) => {
+app.post('/api/research/cross-synthesis', auth.requireAuth, (req, res) => {
   const b = req.body || {};
   const reportIds = Array.isArray(b.reportIds) ? b.reportIds : [];
   if (reportIds.length < 2) {
     return res.status(400).json({ error: 'クロス分析には2件以上のレポート選択が必要です' });
   }
 
-  const userId = req.user ? req.user.id : 'owner-user';
-  const userPlan = req.user ? (req.user.plan || 'free') : 'admin';
+  const userId = req.user.id;
+  const userPlan = req.user.plan || 'free';
   const reports = reportIds.map((id) => history.get(id, userId, userPlan)).filter(Boolean);
   if (reports.length < 2) {
     return res.status(404).json({ error: '選択されたレポートが見つかりません（2件以上存在する必要があります）' });
@@ -557,15 +598,15 @@ app.post('/api/research/cross-synthesis', auth.optionalAuth, (req, res) => {
 });
 
 /* ------------------------------------------------ delta-tracking (v1.18.0) */
-app.post('/api/research/delta', auth.optionalAuth, (req, res) => {
+app.post('/api/research/delta', auth.requireAuth, (req, res) => {
   const b = req.body || {};
   const baseReportId = String(b.baseReportId || '').trim();
   if (!baseReportId) {
     return res.status(400).json({ error: '差分更新元のレポートID（baseReportId）が必要です' });
   }
 
-  const userId = req.user ? req.user.id : 'owner-user';
-  const userPlan = req.user ? (req.user.plan || 'free') : 'admin';
+  const userId = req.user.id;
+  const userPlan = req.user.plan || 'free';
   const baseReport = history.get(baseReportId, userId, userPlan);
   if (!baseReport) {
     return res.status(404).json({ error: '差分更新元のレポートが見つかりません' });
@@ -637,7 +678,7 @@ app.post('/api/research/:id/cancel', (req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/api/research/deep-dive', async (req, res) => {
+app.post('/api/research/deep-dive', auth.requireAuth, async (req, res) => {
   const { theme, question, reportContext, period, quote, chatHistory } = req.body || {};
   if (!theme || !question) return res.status(400).json({ error: 'theme と question は必須です' });
   console.log(`[深掘り対話] 質問: "${question.slice(0, 35)}..." を受信 (履歴: ${Array.isArray(chatHistory) ? chatHistory.length : 0}件)`);
@@ -650,7 +691,7 @@ app.post('/api/research/deep-dive', async (req, res) => {
 });
 
 /* ------------------------------------------------------------- PDF HTML preview */
-app.post('/api/export/pdf/html', (req, res) => {
+app.post('/api/export/pdf/html', auth.requireAuth, (req, res) => {
   const { data, brand, template } = req.body || {};
   if (!data) return res.status(400).json({ error: 'data は必須です' });
   try {
@@ -664,7 +705,7 @@ app.post('/api/export/pdf/html', (req, res) => {
 });
 
 /* ------------------------------------------------------------- PDF export */
-app.post('/api/export/pdf', async (req, res) => {
+app.post('/api/export/pdf', auth.requireAuth, async (req, res) => {
   let { html, data, brand, template, filename, orientation } = req.body || {};
 
   // data と template がある場合はサーバー側で新テンプレートからHTMLを直接レンダリング
@@ -703,7 +744,7 @@ app.post('/api/export/pdf', async (req, res) => {
 });
 
 /* ----------------------------------------------------------- Excel export */
-app.post('/api/export/excel', async (req, res) => {
+app.post('/api/export/excel', auth.requireAuth, async (req, res) => {
   const { data, brand, filename } = req.body || {};
   if (!data) return res.status(400).json({ error: 'data は必須です' });
 
@@ -720,7 +761,7 @@ app.post('/api/export/excel', async (req, res) => {
 });
 
 /* -------------------------------------------------------- Markdown export */
-app.post('/api/export/markdown', (req, res) => {
+app.post('/api/export/markdown', auth.requireAuth, (req, res) => {
   const { data, filename } = req.body || {};
   if (!data) return res.status(400).json({ error: 'data は必須です' });
 
@@ -737,7 +778,7 @@ app.post('/api/export/markdown', (req, res) => {
 });
 
 /* ------------------------------------------------------ Plain text export */
-app.post('/api/export/text', (req, res) => {
+app.post('/api/export/text', auth.requireAuth, (req, res) => {
   const { data, filename } = req.body || {};
   if (!data) return res.status(400).json({ error: 'data は必須です' });
 
@@ -754,7 +795,7 @@ app.post('/api/export/text', (req, res) => {
 });
 
 /* ---------------------------------------------------- presentation studio */
-app.post('/api/presentation/prompt', (req, res) => {
+app.post('/api/presentation/prompt', auth.requireAuth, (req, res) => {
   const { document, audience, goal, files } = req.body || {};
   try {
     const prompt = presentation.generatePrompt({ document, audience, goal, files });
@@ -764,7 +805,7 @@ app.post('/api/presentation/prompt', (req, res) => {
   }
 });
 
-app.post('/api/presentation/generate', async (req, res) => {
+app.post('/api/presentation/generate', auth.requireAuth, async (req, res) => {
   const { document, audience, goal, files } = req.body || {};
   const hasDoc = document && document.trim();
   const hasFiles = Array.isArray(files) && files.length > 0;
@@ -783,16 +824,16 @@ app.post('/api/presentation/generate', async (req, res) => {
 });
 
 /* ------------------------------------------------------------ history */
-app.get('/api/history', auth.optionalAuth, (req, res) => {
-  const userId = req.user ? req.user.id : null;
-  const userPlan = req.user ? (req.user.plan || 'free') : 'admin';
+app.get('/api/history', auth.requireAuth, (req, res) => {
+  const userId = req.user.id;
+  const userPlan = req.user.plan || 'free';
   res.json(history.list(userId, userPlan));
 });
 
 // 全履歴の一括バックアップダウンロード (v2.13.0)
-app.get('/api/history/backup', auth.optionalAuth, (req, res) => {
-  const userId = req.user ? req.user.id : 'owner-user';
-  const userPlan = req.user ? (req.user.plan || 'free') : 'admin';
+app.get('/api/history/backup', auth.requireAuth, (req, res) => {
+  const userId = req.user.id;
+  const userPlan = req.user.plan || 'free';
   const reports = history.getAllForUser(userId, userPlan);
   const userProf = profile.getProfile(userId);
   const ymd = new Date().toISOString().slice(0, 10).replace(/-/g, '');
@@ -810,8 +851,8 @@ app.get('/api/history/backup', auth.optionalAuth, (req, res) => {
 });
 
 // バックアップからの全履歴復元・インポート (v2.13.0)
-app.post('/api/history/restore', auth.optionalAuth, (req, res) => {
-  const userId = req.user ? req.user.id : 'owner-user';
+app.post('/api/history/restore', auth.requireAuth, (req, res) => {
+  const userId = req.user.id;
   const { reports, profile: incomingProfile } = req.body || {};
   if (!Array.isArray(reports)) {
     return res.status(400).json({ error: 'reports は配列である必要があります' });
@@ -832,70 +873,78 @@ app.post('/api/history/restore', auth.optionalAuth, (req, res) => {
 });
 
 /* ------------------------------------------------------------ profile (v2.13.0) */
-app.get('/api/user/profile', auth.optionalAuth, (req, res) => {
-  const userId = req.user ? req.user.id : 'owner-user';
+app.get('/api/user/profile', auth.requireAuth, (req, res) => {
+  const userId = req.user.id;
   res.json({ ok: true, profile: profile.getProfile(userId) });
 });
 
-app.put('/api/user/profile', auth.optionalAuth, (req, res) => {
-  const userId = req.user ? req.user.id : 'owner-user';
+app.put('/api/user/profile', auth.requireAuth, (req, res) => {
+  const userId = req.user.id;
   const updated = profile.updateProfile(userId, req.body || {});
   res.json({ ok: true, profile: updated });
 });
-app.get('/api/history/:id', auth.optionalAuth, (req, res) => {
-  const userId = req.user ? req.user.id : null;
-  const userPlan = req.user ? (req.user.plan || 'free') : 'admin';
+app.get('/api/history/:id', auth.requireAuth, (req, res) => {
+  const userId = req.user.id;
+  const userPlan = req.user.plan || 'free';
   const r = history.get(req.params.id, userId, userPlan);
   return r ? res.json(r) : res.status(404).json({ error: 'not found' });
 });
 
 /* ------------------------------------------------------ share (v2.10.0) */
-app.get('/api/share/:id', (req, res) => {
-  const r = history.get(req.params.id, null, 'admin');
-  return r ? res.json(r) : res.status(404).json({ error: '指定されたレポートが見つかりません' });
-});
+if (!env.IS_CLOUD) {
+  app.get('/api/share/:id', (req, res) => {
+    const r = history.get(req.params.id, null, 'admin');
+    return r ? res.json(r) : res.status(404).json({ error: '指定されたレポートが見つかりません' });
+  });
 
-app.get('/share/:id', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'public', 'share.html'));
-});
-app.patch('/api/history/:id', auth.optionalAuth, (req, res) => {
-  const userId = req.user ? req.user.id : null;
-  const userPlan = req.user ? (req.user.plan || 'free') : 'admin';
+  app.get('/share/:id', (req, res) => {
+    res.sendFile(path.join(__dirname, '..', 'public', 'share.html'), { dotfiles: 'allow' });
+  });
+}
+app.patch('/api/history/:id', auth.requireAuth, (req, res) => {
+  const userId = req.user.id;
+  const userPlan = req.user.plan || 'free';
   const updated = history.update(req.params.id, req.body || {}, userId, userPlan);
   return updated ? res.json(updated) : res.status(404).json({ error: 'not found' });
 });
-app.put('/api/history/:id', auth.optionalAuth, (req, res) => {
-  const userId = req.user ? req.user.id : null;
-  const userPlan = req.user ? (req.user.plan || 'free') : 'admin';
+app.put('/api/history/:id', auth.requireAuth, (req, res) => {
+  const userId = req.user.id;
+  const userPlan = req.user.plan || 'free';
   const updated = history.update(req.params.id, req.body || {}, userId, userPlan);
   return updated ? res.json(updated) : res.status(404).json({ error: 'not found' });
 });
-app.post('/api/history/:id/pin', auth.optionalAuth, (req, res) => {
-  const userId = req.user ? req.user.id : null;
-  const userPlan = req.user ? (req.user.plan || 'free') : 'admin';
+app.post('/api/history/:id/pin', auth.requireAuth, (req, res) => {
+  const userId = req.user.id;
+  const userPlan = req.user.plan || 'free';
   const updated = history.togglePin(req.params.id, userId, userPlan);
   return updated ? res.json(updated) : res.status(404).json({ error: 'not found' });
 });
-app.delete('/api/history/:id', auth.optionalAuth, (req, res) => {
-  const userId = req.user ? req.user.id : null;
-  const userPlan = req.user ? (req.user.plan || 'free') : 'admin';
-  res.json({ ok: history.remove(req.params.id, userId, userPlan) });
+app.delete('/api/history/:id', auth.requireAuth, (req, res) => {
+  const userId = req.user.id;
+  const userPlan = req.user.plan || 'free';
+  const ok = history.remove(req.params.id, userId, userPlan);
+  if (!ok) {
+    return res.status(404).json({ error: 'not found' });
+  }
+  res.json({ ok: true });
 });
 
 /* ------------------------------------------------------------- memory */
-app.get('/api/memory', (req, res) => res.json(memory.load()));
-app.delete('/api/memory/:domain', (req, res) => res.json({ ok: memory.remove(req.params.domain) }));
-app.post('/api/memory/clear', (req, res) => res.json({ ok: memory.clear() }));
+if (!env.IS_CLOUD) {
+  app.get('/api/memory', (req, res) => res.json(memory.load()));
+  app.delete('/api/memory/:domain', (req, res) => res.json({ ok: memory.remove(req.params.domain) }));
+  app.post('/api/memory/clear', (req, res) => res.json({ ok: memory.clear() }));
 
-/* --------------------------------------------------------------- logs */
-app.get('/api/logs', (req, res) => {
-  res.json({
-    logsDir: logger.LOGS_DIR,
-    errorLogFile: logger.ERROR_LOG,
-    recentErrors: logger.getRecentErrorLog(100),
-    liveLogs: logger.getRecentLiveLogs(50),
+  /* --------------------------------------------------------------- logs */
+  app.get('/api/logs', (req, res) => {
+    res.json({
+      logsDir: logger.LOGS_DIR,
+      errorLogFile: logger.ERROR_LOG,
+      recentErrors: logger.getRecentErrorLog(100),
+      liveLogs: logger.getRecentLiveLogs(50),
+    });
   });
-});
+}
 
 /* -------------------------------------------------------------- errors */
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not Found' }));

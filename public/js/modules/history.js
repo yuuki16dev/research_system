@@ -395,7 +395,12 @@ export async function renderHistoryDrawerList() {
       });
     });
   } catch (err) {
-    listEl.innerHTML = `<li class="history-empty">履歴の読み込みに失敗しました: ${esc(err.message)}</li>`;
+    if (err && (err.status === 401 || String(err.message).includes('401') || String(err.message).includes('認証'))) {
+      listEl.innerHTML = `<li class="history-empty" style="padding: 24px 16px; text-align: center;"><span data-icon="lock" style="display: block; margin: 0 auto 8px; font-size: 20px; opacity: 0.6;"></span><strong>ログインすると履歴が表示されます</strong></li>`;
+      hydrateIcons(listEl);
+    } else {
+      listEl.innerHTML = `<li class="history-empty">履歴の読み込みに失敗しました: ${esc(err.message)}</li>`;
+    }
   }
 }
 
@@ -582,8 +587,24 @@ export async function loadRecentHistory() {
   try {
     historyState.items = await api.history();
     renderHomeHistory();
-  } catch {
+  } catch (err) {
     const container = $('#home-recent');
-    if (container) container.hidden = true;
+    if (err && (err.status === 401 || String(err.message).includes('401') || String(err.message).includes('認証'))) {
+      if (container) {
+        container.hidden = false;
+        const grid = $('#home-history-grid');
+        if (grid) {
+          grid.innerHTML = `
+            <div class="home-history-empty" style="grid-column: 1 / -1; padding: 28px 16px; text-align: center; color: var(--text-2); background: var(--surface); border-radius: 12px; border: 1px dashed var(--border);">
+              <span data-icon="lock" style="display: block; margin: 0 auto 8px; font-size: 22px; opacity: 0.6;"></span>
+              <strong>ログインすると履歴が表示されます</strong>
+            </div>
+          `;
+          hydrateIcons(grid);
+        }
+      }
+    } else {
+      if (container) container.hidden = true;
+    }
   }
 }

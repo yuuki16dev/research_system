@@ -6,6 +6,7 @@ import { $, openModal, closeModal, toast } from '../ui.js';
 import { api } from '../api.js';
 import { appState, isResearchActive } from './state.js';
 import { deepDiveState } from './deep-dive.js';
+import { authState } from './auth.js';
 
 let isShuttingDown = false;
 
@@ -26,6 +27,7 @@ export function bindShutdownHandlers() {
   // 1. タブ・ウィンドウが閉じられる瞬間にサーバーへ離脱を通知 (負荷ゼロの sendBeacon)
   window.addEventListener('pagehide', () => {
     try {
+      if (!authState.isLocal) return; // クラウド版では自動終了通知を行わない
       if (navigator.sendBeacon) {
         navigator.sendBeacon('/api/lifecycle/leave');
       } else {
@@ -33,6 +35,11 @@ export function bindShutdownHandlers() {
       }
     } catch {}
   });
+
+  // クラウド版の場合、電源シャットダウンボタンを非表示
+  if (btnPower && !authState.isLocal) {
+    btnPower.style.display = 'none';
+  }
 
   // 2. 電源ボタンのクリック（誤タップガード付き）
   if (btnPower) {

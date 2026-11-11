@@ -1,5 +1,8 @@
 'use strict';
 
+// A-2: テスト実行環境として明示設定
+process.env.NODE_ENV = 'test';
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
