@@ -101,6 +101,13 @@ const PRESET_TEST_USERS = [
     role: 'authenticated',
   },
   {
+    id: 'user-std',
+    email: 'standard@test.local',
+    password: 'standardpass',
+    plan: 'standard',
+    role: 'authenticated',
+  },
+  {
     id: 'admin-user',
     email: 'admin@test.local',
     password: 'adminpassword',

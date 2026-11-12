@@ -35,4 +35,6 @@ services:
         value: 100
       - key: HISTORY_RETENTION_DAYS
         value: 0
+      - key: ENABLE_TEST_USERS
+        value: "true" # 検証用テストアカウントを配置・有効化
 

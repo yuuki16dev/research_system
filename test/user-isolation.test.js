@@ -13,7 +13,7 @@ const history = require('../server/history');
 test('user-isolation: auth provides preset test users and validates tokens', async () => {
   // 1. Preset test user accounts
   assert.ok(Array.isArray(auth.PRESET_TEST_USERS), 'PRESET_TEST_USERS must be an array');
-  assert.equal(auth.PRESET_TEST_USERS.length, 3);
+  assert.equal(auth.PRESET_TEST_USERS.length, 4);
 
   // 2. Login User A
   const resA = await auth.loginUser('user-a@test.local', 'password123');
@@ -27,7 +27,13 @@ test('user-isolation: auth provides preset test users and validates tokens', asy
   assert.equal(resB.user.id, 'user-b');
   assert.equal(resB.user.plan, 'free');
 
-  // 4. Login Admin
+  // 4. Login Standard User
+  const resStd = await auth.loginUser('standard@test.local', 'standardpass');
+  assert.ok(resStd.access_token);
+  assert.equal(resStd.user.id, 'user-std');
+  assert.equal(resStd.user.plan, 'standard');
+
+  // 5. Login Admin
   const resAdmin = await auth.loginUser('admin@test.local', 'adminpassword');
   assert.ok(resAdmin.access_token);
   assert.equal(resAdmin.user.id, 'admin-user');
@@ -154,6 +160,32 @@ test('A-2: production environment disables test users and test-token verificatio
     await assert.rejects(async () => {
       await auth.signupUser('new-user@test.local', 'password123');
     }, 'test user signup must fail in production');
+  } finally {
+    process.env.NODE_ENV = origEnv;
+    if (origEnable !== undefined) {
+      process.env.ENABLE_TEST_USERS = origEnable;
+    } else {
+      delete process.env.ENABLE_TEST_USERS;
+    }
+  }
+});
+
+test('A-2: production environment allows test users when ENABLE_TEST_USERS=true is explicitly set', async () => {
+  const origEnv = process.env.NODE_ENV;
+  const origEnable = process.env.ENABLE_TEST_USERS;
+  try {
+    process.env.NODE_ENV = 'production';
+    process.env.ENABLE_TEST_USERS = 'true';
+
+    // 1. verifyToken with test-token succeeds when explicitly enabled
+    const res = await auth.verifyToken('test-token-admin-user');
+    assert.ok(res, 'test-token must be accepted when ENABLE_TEST_USERS=true');
+    assert.equal(res.id, 'admin-user');
+
+    // 2. loginUser with test user succeeds
+    const loginRes = await auth.loginUser('user-a@test.local', 'password123');
+    assert.ok(loginRes.access_token);
+    assert.equal(loginRes.user.id, 'user-a');
   } finally {
     process.env.NODE_ENV = origEnv;
     if (origEnable !== undefined) {

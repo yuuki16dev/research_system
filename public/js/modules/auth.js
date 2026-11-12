@@ -178,6 +178,10 @@ export async function refreshAuthStatus() {
     if (quickBox) {
       quickBox.style.display = config.testUsersEnabled ? 'block' : 'none';
     }
+    const accountQuickBox = document.getElementById('account-test-quick-box');
+    if (accountQuickBox) {
+      accountQuickBox.style.display = config.testUsersEnabled ? 'block' : 'none';
+    }
 
     // クラウド版の管理系UI非表示制御 (A-3) & 共有リンク一時停止 (A-6)
     if (!config.isLocal) {
@@ -298,6 +302,7 @@ export function initAuth() {
           setAuthSession(res.access_token, res.user);
           await refreshAuthStatus();
           closeModal(document.getElementById('modal-auth'));
+          closeModal(document.getElementById('modal-account'));
           toast(`ログインしました（ようこそ、${(res.user && res.user.email) || ''}さん！）`, 'success');
           await loadRecentHistory();
           await renderHistoryDrawerList();
@@ -350,12 +355,14 @@ export function initAuth() {
           setAuthSession(res.access_token, res.user);
           await refreshAuthStatus();
           closeModal(document.getElementById('modal-auth'));
+          closeModal(document.getElementById('modal-account'));
           toast('アカウント作成が完了しました！月3回まで無料でお使いいただけます。', 'success', 5000);
           await loadRecentHistory();
           await renderHistoryDrawerList();
         } else {
           // メール確認が必要な設定の場合
           closeModal(document.getElementById('modal-auth'));
+          closeModal(document.getElementById('modal-account'));
           toast('登録確認メールを送信しました。メール内のリンクをクリックして登録を完了してください。', 'info', 7000);
         }
       } catch (err) {
@@ -387,6 +394,7 @@ export function initAuth() {
           setAuthSession(res.access_token, res.user);
           await refreshAuthStatus();
           closeModal(document.getElementById('modal-auth'));
+          closeModal(document.getElementById('modal-account'));
           toast(`「${res.user.email}」としてログインしました`, 'success');
           await loadRecentHistory();
           await renderHistoryDrawerList();
