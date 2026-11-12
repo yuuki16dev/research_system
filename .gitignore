@@ -29,3 +29,10 @@ dist/
 # Prompts & instructions
 Claude outputs/
 
+# Local private notes & credentials (NEVER commit to GitHub)
+TEST_ACCOUNTS.md
+*.local.md
+*.private.md
+secrets/
+.local/
+
