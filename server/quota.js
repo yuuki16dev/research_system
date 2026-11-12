@@ -1,13 +1,16 @@
 'use strict';
 
 /**
- * リサーチ回数制限＆クォータ管理モジュール
+ * リサーチクレジット＆クォータ管理モジュール (C-4: レビュー H6)
  *
- * プランごとの月間リサーチ回数を追跡し、上限超過を防止します。
- * クラウド環境（Supabase連携時）およびローカル環境（無制限管理者）の両方に対応。
+ * 1. プランごとの月間クレジット数を追跡（free: 3, standard: 30, admin: 無制限）
+ * 2. アクションごとの消費クレジット（通常: 1, 深掘り: 3, クロス: 2, 差分: 2, スライド: 1, 対話: 0）を減算
+ * 3. free プランでの通常リサーチ以外の実行を 403 (PLAN_FORBIDDEN) で拒否
+ * 4. クラウド環境（Supabase連携）およびローカル環境（無制限管理者）の両方に対応
  */
 
 const { IS_CLOUD } = require('./env');
+const planConfig = require('./plan-config');
 
 function getSupabaseUrl() {
   return process.env.SUPABASE_URL ? process.env.SUPABASE_URL.replace(/\/+$/, '') : '';
@@ -16,11 +19,12 @@ function getSupabaseServiceRoleKey() {
   return process.env.SUPABASE_SERVICE_ROLE_KEY ? process.env.SUPABASE_SERVICE_ROLE_KEY.trim() : '';
 }
 
+// 既存テスト互換用 PLAN_LIMITS（plan-config.js の PLAN_CREDITS を参照）
 const PLAN_LIMITS = {
-  free: 3,      // お試し無料枠: 月3回
-  light: 40,    // ライトプラン（1,000円）: 月40回
-  pro: 80,      // プロプラン（3,000円）: 月80回
-  admin: Infinity, // 管理者・ローカル利用: 無制限
+  ...planConfig.PLAN_CREDITS,
+  light: 40,
+  pro: 80,
+  admin: Infinity,
 };
 
 // メモリキャッシュ（ローカル環境および高速キャッシュ用）
@@ -42,7 +46,8 @@ function getCurrentYearMonth() {
  */
 async function getMonthlyQuota(userId = 'local-user', plan = 'admin') {
   const ym = getCurrentYearMonth();
-  const limit = PLAN_LIMITS[plan] !== undefined ? PLAN_LIMITS[plan] : PLAN_LIMITS.free;
+  const normPlan = String(plan || 'free').toLowerCase();
+  const limit = PLAN_LIMITS[normPlan] !== undefined ? PLAN_LIMITS[normPlan] : (planConfig.PLAN_CREDITS[normPlan] || PLAN_LIMITS.free);
 
   // 無制限プラン（admin）の場合
   if (limit === Infinity) {
@@ -77,7 +82,7 @@ async function getMonthlyQuota(userId = 'local-user', plan = 'admin') {
       used,
       limit,
       remaining,
-      plan,
+      plan: normPlan,
       canResearch: remaining > 0,
       yearMonth: ym,
     };
@@ -94,7 +99,7 @@ async function getMonthlyQuota(userId = 'local-user', plan = 'admin') {
       used,
       limit,
       remaining,
-      plan,
+      plan: normPlan,
       canResearch: remaining > 0,
       yearMonth: ym,
     };
@@ -117,7 +122,7 @@ async function getMonthlyQuota(userId = 'local-user', plan = 'admin') {
         used,
         limit,
         remaining,
-        plan,
+        plan: normPlan,
         canResearch: remaining > 0,
         yearMonth: ym,
       };
@@ -134,22 +139,24 @@ async function getMonthlyQuota(userId = 'local-user', plan = 'admin') {
     used,
     limit,
     remaining,
-    plan,
+    plan: normPlan,
     canResearch: remaining > 0,
     yearMonth: ym,
   };
 }
 
 /**
- * クォータを1回消費（カウントインクリメント）
+ * クォータを指定量消費（カウント・クレジット加算）
  * @param {string} userId
  * @param {string} plan
- * @returns {Promise<number>} 更新後の消費回数
+ * @param {number} [amount=1]
+ * @returns {Promise<number>} 更新後の消費クレジット数
  */
-async function recordUsage(userId = 'local-user', plan = 'admin') {
+async function recordUsage(userId = 'local-user', plan = 'admin', amount = 1) {
   const ym = getCurrentYearMonth();
   const key = `${userId}:${ym}`;
-  const currentLocal = (localUsageCache.get(key) || 0) + 1;
+  const addCount = Math.max(0, parseInt(amount, 10) || 1);
+  const currentLocal = (localUsageCache.get(key) || 0) + addCount;
   localUsageCache.set(key, currentLocal);
 
   const supabaseUrl = getSupabaseUrl();
@@ -184,33 +191,105 @@ async function recordUsage(userId = 'local-user', plan = 'admin') {
 }
 
 /**
- * リサーチ実行前のクォータ検査ミドルウェア
+ * 特定アクションの実行可否と必要クレジット数を検査 (C-4)
+ * @param {string} userId
+ * @param {string} plan
+ * @param {string} action
+ * @returns {Promise<{ allowed: boolean, reason?: string, message?: string, cost: number, quota?: object }>}
  */
-function requireQuota(req, res, next) {
-  const user = req.user || { id: 'local-user', plan: 'admin' };
-  const plan = user.plan || 'free';
+async function checkActionQuota(userId, plan = 'free', action = 'research_quick') {
+  const cost = planConfig.getActionCost(action);
+  const isAllowed = planConfig.isActionAllowedForPlan(plan, action);
 
-  getMonthlyQuota(user.id, plan).then((quota) => {
-    if (!quota.canResearch) {
-      return res.status(403).json({
-        error: `今月のリサーチ上限回数（${quota.limit}回）に達しました。プランをアップグレードするか、来月1日のリセットをお待ちください。`,
-        code: 'QUOTA_EXCEEDED',
-        quota,
-      });
-    }
-    req.quota = quota;
-    next();
-  }).catch((err) => {
-    console.error('[quota] Quota check error:', err);
-    // クォータ判定エラー時はサービス停止を避けて通過させる
-    next();
-  });
+  // 1. プラン権限チェック (free は通常リサーチ以外不可)
+  if (!isAllowed) {
+    return {
+      allowed: false,
+      reason: 'PLAN_FORBIDDEN',
+      cost,
+      message: `無料（Free）プランではこの機能（${action}）をご利用いただけません。Standardプランへアップグレードしてください。`,
+    };
+  }
+
+  // 2. クォータ残量チェック
+  const quota = await getMonthlyQuota(userId, plan);
+  if (quota.plan === 'admin') {
+    return { allowed: true, cost, quota };
+  }
+
+  if (quota.remaining < cost) {
+    return {
+      allowed: false,
+      reason: 'QUOTA_EXCEEDED',
+      code: 'QUOTA_EXCEEDED',
+      cost,
+      quota,
+      message: `今月のリサーチ上限回数（クレジット不足: 必要 ${cost}、残り ${quota.remaining}）に達しました。プランをアップグレードするか来月1日のリセットをお待ちください。`,
+    };
+  }
+
+  return { allowed: true, cost, quota };
 }
+
+/**
+ * 特定アクションのクレジットを消費 (C-4)
+ * @param {string} userId
+ * @param {string} plan
+ * @param {string} action
+ * @returns {Promise<number>}
+ */
+async function consumeActionCredits(userId, plan = 'free', action = 'research_quick') {
+  const cost = planConfig.getActionCost(action);
+  if (cost <= 0) return 0;
+  return recordUsage(userId, plan, cost);
+}
+
+/**
+ * アクションごとのクォータ検査ミドルウェア (C-4)
+ * @param {string|((req: object) => string)} actionOrResolver
+ */
+function requireActionQuota(actionOrResolver) {
+  return async (req, res, next) => {
+    const user = req.user || { id: 'owner-user', plan: 'admin' };
+    const plan = user.plan || 'free';
+    const action = typeof actionOrResolver === 'function' ? actionOrResolver(req) : actionOrResolver;
+
+    try {
+      const check = await checkActionQuota(user.id, plan, action);
+      if (!check.allowed) {
+        return res.status(403).json({
+          error: check.message,
+          code: check.reason,
+          requiredCredits: check.cost,
+          quota: check.quota,
+        });
+      }
+      req.quota = check.quota;
+      req.actionCost = check.cost;
+      req.actionName = action;
+      next();
+    } catch (err) {
+      console.error('[quota] requireActionQuota error:', err);
+      next();
+    }
+  };
+}
+
+/**
+ * 既存互換ミドルウェア（通常リサーチ用）
+ */
+const requireQuota = requireActionQuota((req) => {
+  const body = req.body || {};
+  return body.depth === 'deep' ? 'research_deep' : 'research_quick';
+});
 
 module.exports = {
   PLAN_LIMITS,
   getCurrentYearMonth,
   getMonthlyQuota,
   recordUsage,
+  checkActionQuota,
+  consumeActionCredits,
+  requireActionQuota,
   requireQuota,
 };

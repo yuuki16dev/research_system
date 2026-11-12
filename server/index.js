@@ -31,6 +31,7 @@ const path = require('path');
 const os = require('os');
 const fs = require('fs');
 const QRCode = require('qrcode');
+const { DEFAULT_GEMINI_MODEL, DEFAULT_FALLBACK_MODELS } = require('./model-config');
 
 const settings = require('./settings');
 const history = require('./history');
@@ -57,6 +58,12 @@ const rateLimit = require('express-rate-limit');
 
 if (env.IS_CLOUD && (!process.env.SUPABASE_SERVICE_ROLE_KEY || !process.env.SUPABASE_SERVICE_ROLE_KEY.trim())) {
   console.error('[FATAL] クラウド環境（SUPABASE_URL設定時）では SUPABASE_SERVICE_ROLE_KEY が必須です');
+  process.exit(1);
+}
+
+// C-1: クラウド環境では TAVILY_API_KEY が必須（DuckDuckGo へのフォールバック不可）
+if (env.IS_CLOUD && process.env.NODE_ENV !== 'test' && (!process.env.TAVILY_API_KEY || !process.env.TAVILY_API_KEY.trim())) {
+  console.error('[FATAL] クラウド環境では TAVILY_API_KEY が必須です');
   process.exit(1);
 }
 
@@ -279,10 +286,29 @@ app.get('/api/auth/me', async (req, res) => {
     }
   }
 
-  // トークンがない場合、または無効なトークンの場合は未ログイン（ゲスト）
+  // 認証が不要な場合（ローカル環境、およびサービス公開前の公開・クラウド環境）:
+  // 常に admin 仕様（owner-user）として自動認証し、ログイン不要・回数無制限で快適に利用可能
+  if (!auth.isAuthRequired()) {
+    const q = await quota.getMonthlyQuota('owner-user', 'admin');
+    return res.json({
+      authenticated: true,
+      isCloud: Boolean(env.IS_CLOUD),
+      isLocal: !env.IS_CLOUD,
+      user: {
+        id: 'owner-user',
+        email: 'owner@local',
+        plan: 'admin',
+        role: 'admin',
+        isLocal: !env.IS_CLOUD,
+      },
+      quota: q,
+    });
+  }
+
+  // クラウド環境でトークンがない場合、または無効なトークンの場合は未ログイン（ゲスト）
   res.json({
     authenticated: false,
-    isCloud: auth.isCloudAuthEnabled(),
+    isCloud: true,
     user: null,
     quota: null,
   });
@@ -485,7 +511,7 @@ if (!env.IS_CLOUD) {
     const geminiKey = String(body.geminiApiKey || cur.geminiApiKey || '').trim();
     const tavilyKey = String(body.tavilyApiKey || cur.tavilyApiKey || '').trim();
     const groqKey = String(body.groqApiKey || cur.groqApiKey || '').trim();
-    const model = body.geminiModel || cur.geminiModel || 'gemini-3.8-flash';
+    const model = body.geminiModel || cur.geminiModel || DEFAULT_GEMINI_MODEL;
     const groqModel = body.groqModel || cur.groqModel || 'llama-3.3-70b-versatile';
     const out = {};
 
@@ -505,21 +531,22 @@ if (!env.IS_CLOUD) {
         const tierLabel = tierMode === 'tier1' ? '有料枠 (Tier 1モード)' : '無料枠 (トークン圧縮＆混雑回避ON)';
         out.gemini = { ok: true, message: `接続OK（${model} / ${Date.now() - t0}ms / ${tierLabel}）` };
       } catch (e) {
-        // 最初のモデルで失敗した場合、Google公式の安定モデル（gemini-3.7-flash）で即座に代替診断
+        // 最初のモデルで失敗した場合、Google公式の安定モデル（フォールバック先）で即座に代替診断
         let altTested = null;
-        if (model !== 'gemini-3.7-flash') {
+        const altModel = DEFAULT_FALLBACK_MODELS[0];
+        if (model !== altModel) {
           try {
             const t1 = Date.now();
             await generate({
               apiKey: geminiKey,
-              model: 'gemini-3.7-flash',
+              model: altModel,
               prompt: 'Reply with the single word: OK',
               json: false,
               temperature: 0,
               maxRetries: 1,
               signal: AbortSignal.timeout(10000),
             });
-            altTested = `gemini-3.7-flash（${Date.now() - t1}msで接続成功）`;
+            altTested = `${altModel}（${Date.now() - t1}msで接続成功）`;
           } catch {
             // ignore
           }
@@ -528,7 +555,7 @@ if (!env.IS_CLOUD) {
         if (altTested) {
           out.gemini = {
             ok: false,
-            message: `${model} でエラー [${e.message}] ➔ 【解決策】${altTested} は正常に利用可能です！モデル欄に「gemini-3.7-flash」と入力して保存してください。`,
+            message: `${model} でエラー [${e.message}] ➔ 【解決策】${altTested} は正常に利用可能です！モデル欄に「${altModel}」と入力して保存してください。`,
           };
         } else {
           out.gemini = {
@@ -636,7 +663,7 @@ app.post('/api/research', auth.requireAuth, aiLimiter, quota.requireQuota, (req,
         console.error('[history] save error:', err.message);
       }
       if (userId) {
-        quota.recordUsage(userId, userPlan).catch((err) => console.warn('[quota] record error:', err.message));
+        quota.consumeActionCredits(userId, userPlan, depth === 'deep' ? 'research_deep' : 'research_quick').catch((err) => console.warn('[quota] record error:', err.message));
       }
       if (!env.IS_CLOUD) {
         try {
@@ -651,7 +678,7 @@ app.post('/api/research', auth.requireAuth, aiLimiter, quota.requireQuota, (req,
 });
 
 /* ------------------------------------------------ cross-synthesis (v1.17.0) */
-app.post('/api/research/cross-synthesis', auth.requireAuth, aiLimiter, async (req, res) => {
+app.post('/api/research/cross-synthesis', auth.requireAuth, aiLimiter, quota.requireActionQuota('cross'), async (req, res) => {
   const b = req.body || {};
   const reportIds = Array.isArray(b.reportIds) ? b.reportIds : [];
   if (reportIds.length < 2) {
@@ -695,6 +722,9 @@ app.post('/api/research/cross-synthesis', auth.requireAuth, aiLimiter, async (re
       } catch (err) {
         console.error('[history] save error:', err.message);
       }
+      if (userId) {
+        quota.consumeActionCredits(userId, userPlan, 'cross').catch((err) => console.warn('[quota] record error:', err.message));
+      }
       if (!env.IS_CLOUD) {
         try {
           memory.learnFromResearch(result);
@@ -708,7 +738,7 @@ app.post('/api/research/cross-synthesis', auth.requireAuth, aiLimiter, async (re
 });
 
 /* ------------------------------------------------ delta-tracking (v1.18.0) */
-app.post('/api/research/delta', auth.requireAuth, aiLimiter, async (req, res) => {
+app.post('/api/research/delta', auth.requireAuth, aiLimiter, quota.requireActionQuota('delta'), async (req, res) => {
   const b = req.body || {};
   const baseReportId = String(b.baseReportId || '').trim();
   if (!baseReportId) {
@@ -751,6 +781,9 @@ app.post('/api/research/delta', auth.requireAuth, aiLimiter, async (req, res) =>
         await history.save(result);
       } catch (err) {
         console.error('[history] save error:', err.message);
+      }
+      if (userId) {
+        quota.consumeActionCredits(userId, userPlan, 'delta').catch((err) => console.warn('[quota] record error:', err.message));
       }
       if (!env.IS_CLOUD) {
         try {
@@ -819,7 +852,7 @@ app.post('/api/research/:id/cancel', auth.requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/api/research/deep-dive', auth.requireAuth, aiLimiter, async (req, res) => {
+app.post('/api/research/deep-dive', auth.requireAuth, aiLimiter, quota.requireActionQuota('deepdive'), async (req, res) => {
   const { theme, question, reportContext, period, quote, chatHistory } = req.body || {};
   if (!theme || !question) return res.status(400).json({ error: 'theme と question は必須です' });
 
@@ -863,7 +896,8 @@ app.post('/api/research/deep-dive', auth.requireAuth, aiLimiter, async (req, res
 
   console.log(`[深掘り対話] 質問: "${question.slice(0, 35)}..." を受信 (履歴: ${Array.isArray(chatHistory) ? chatHistory.length : 0}件)`);
   try {
-    const result = await deepdive.runDeepDive({ theme, question, reportContext, period, quote, chatHistory });
+    const userId = req.user ? req.user.id : 'owner-user';
+    const result = await deepdive.runDeepDive({ theme, question, reportContext, period, quote, chatHistory, userId });
     res.json(result);
   } catch (err) {
     console.error('Deep dive execution error:', err);
@@ -997,7 +1031,7 @@ app.post('/api/presentation/prompt', auth.requireAuth, (req, res) => {
   }
 });
 
-app.post('/api/presentation/generate', auth.requireAuth, aiLimiter, async (req, res) => {
+app.post('/api/presentation/generate', auth.requireAuth, aiLimiter, quota.requireActionQuota('slides'), async (req, res) => {
   const { document, audience, goal, files } = req.body || {};
   const hasDoc = document && document.trim();
   const hasFiles = Array.isArray(files) && files.length > 0;
@@ -1007,7 +1041,10 @@ app.post('/api/presentation/generate', auth.requireAuth, aiLimiter, async (req, 
   }
 
   try {
-    const slidesData = await presentation.generateSlides({ document, audience, goal, files });
+    const userId = req.user ? req.user.id : 'owner-user';
+    const userPlan = req.user ? (req.user.plan || 'free') : 'admin';
+    const slidesData = await presentation.generateSlides({ document, audience, goal, files, userId });
+    quota.consumeActionCredits(userId, userPlan, 'slides').catch((err) => console.warn('[quota] record error:', err.message));
     res.json(slidesData);
   } catch (err) {
     console.error('Presentation generate error:', err);

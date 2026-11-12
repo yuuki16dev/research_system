@@ -1,5 +1,6 @@
 'use strict';
 
+const env = require('./env');
 const { domainOf } = require('./util');
 const { safeFetch } = require('./security');
 const { assertPublicUrl } = require('./url-guard');
@@ -105,6 +106,11 @@ function unwrapDdgUrl(href) {
 }
 
 async function ddgSearch({ query, maxResults = 5, df, signal }) {
+  // C-1: クラウド環境では DuckDuckGo の経路を通さない
+  if (env.IS_CLOUD) {
+    throw new Error('クラウド環境では DuckDuckGo 検索は許可されていません（Tavily をご利用ください）');
+  }
+
   const params = new URLSearchParams({ q: query, kl: 'jp-jp' });
   if (df) params.append('df', df);
 
@@ -192,8 +198,10 @@ async function ddgSearch({ query, maxResults = 5, df, signal }) {
  * @param {string} [o.df]          DuckDuckGo用日付フィルタ ('y'|'m'|'w'|'d'|'YYYY-MM-DD..YYYY-MM-DD')
  */
 async function run({ provider, apiKey, query, site, sns, maxResults, deep, timeRange, startDate, endDate, df, signal }) {
+  // C-1: クラウド環境では検索は Tavily だけを使う
+  const effectiveProvider = env.IS_CLOUD ? 'tavily' : provider;
   let results;
-  if (provider === 'tavily') {
+  if (effectiveProvider === 'tavily') {
     const includeDomains = site ? [site] : sns || undefined;
     results = await tavilySearch({ apiKey, query, maxResults, includeDomains, deep, timeRange, startDate, endDate, signal });
   } else {

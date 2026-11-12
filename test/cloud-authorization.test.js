@@ -338,21 +338,21 @@ test('B-11: Comprehensive Cloud Authorization and Tenant Isolation Suite', async
     });
     assert.strictEqual(resPinOther.status, 404, 'User A PIN User B report must return 404');
 
-    // 3-f. CROSS SYNTHESIS
+    // 3-f. CROSS SYNTHESIS (freeプラン時は403、権限所持時は404で確実にアクセス遮断)
     const resCrossOther = await fetch(`${baseUrl}/api/research/cross-synthesis`, {
       method: 'POST',
       headers: { Authorization: tokenA, 'Content-Type': 'application/json' },
       body: JSON.stringify({ reportIds: [targetReportId, 'dummy-id-2'] }),
     });
-    assert.strictEqual(resCrossOther.status, 404, 'User A Cross-Synthesis with User B report must return 404');
+    assert.ok([403, 404].includes(resCrossOther.status), 'User A Cross-Synthesis with User B report must be blocked (403 or 404)');
 
-    // 3-g. DELTA TRACKING
+    // 3-g. DELTA TRACKING (freeプラン時は403、権限所持時は404で確実にアクセス遮断)
     const resDeltaOther = await fetch(`${baseUrl}/api/research/delta`, {
       method: 'POST',
       headers: { Authorization: tokenA, 'Content-Type': 'application/json' },
       body: JSON.stringify({ baseReportId: targetReportId }),
     });
-    assert.strictEqual(resDeltaOther.status, 404, 'User A Delta with User B report must return 404');
+    assert.ok([403, 404].includes(resDeltaOther.status), 'User A Delta with User B report must be blocked (403 or 404)');
 
     // レポートBが一切変更・削除されていないことを検証
     const reportBInDb = mockSupabase.store.get(targetReportId);
@@ -389,6 +389,7 @@ test('B-11: Production environment rejects test-token-admin-user and test accoun
       SUPABASE_SERVICE_ROLE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.fake_key_prod',
       ENABLE_AUTH: 'true',
       NODE_ENV: 'production', // 本番環境モード
+      TAVILY_API_KEY: 'test-fake-key-for-prod-test',
       ENABLE_TEST_USERS: undefined,
     },
     stdio: 'pipe',

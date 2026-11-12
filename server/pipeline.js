@@ -1,5 +1,8 @@
 'use strict';
 
+const env = require('./env');
+const { DEFAULT_GEMINI_MODEL } = require('./model-config');
+const usageEvents = require('./usage-events');
 const { generateJSON } = require('./gemini');
 const { generateGroq } = require('./groq');
 const search = require('./search');
@@ -9,9 +12,11 @@ const { normalizeResult, parseSites, domainOf, arr, str, SCOPE_LABELS, SNS_DOMAI
 const { PROMPT_INJECTION_BARRIER, wrapUntrustedContent } = require('./security');
 
 function sleep(ms, signal) {
+  // テスト実行時は不要な待機時間を短縮して高速化（非同期ジョブの状態検証が維持できるよう適度な長さを確保）
+  const actualMs = process.env.NODE_ENV === 'test' ? Math.min(ms, 250) : ms;
   return new Promise((resolve, reject) => {
     if (signal && signal.aborted) return reject(new Error('キャンセルされました'));
-    const t = setTimeout(resolve, ms);
+    const t = setTimeout(resolve, actualMs);
     signal && signal.addEventListener('abort', () => {
       clearTimeout(t);
       reject(new Error('キャンセルされました'));
@@ -297,7 +302,8 @@ async function runLive(p, s, ctx) {
   const deep = p.depth === 'deep';
   const { signal } = ctx;
   const notices = [];
-  const isFreeTier = s.geminiAccountTier === 'free' || (s.geminiAccountTier !== 'tier1');
+  // C-1: クラウド版では isFreeTier は常に偽（有料Tier前提）
+  const isFreeTier = env.IS_CLOUD ? false : (s.geminiAccountTier === 'free' || (s.geminiAccountTier !== 'tier1'));
 
   const jobTokenUsage = {
     promptTokens: 0,
@@ -305,7 +311,7 @@ async function runLive(p, s, ctx) {
     totalTokens: 0,
     calls: 0,
     provider: 'gemini',
-    model: s.geminiModel || 'gemini-3.8-flash',
+    model: s.geminiModel || DEFAULT_GEMINI_MODEL,
   };
 
   const recordJobUsage = (usageInfo) => {
@@ -355,9 +361,14 @@ async function runLive(p, s, ctx) {
       ...opts,
     });
 
+  // C-1: クラウド版では検索は Tavily だけを使う
   let provider = 'duckduckgo';
-  if (s.searchProvider !== 'duckduckgo' && s.tavilyApiKey) provider = 'tavily';
-  if (s.searchProvider === 'tavily' && !s.tavilyApiKey) notices.push('Tavily APIキーが未設定のため DuckDuckGo で検索しました');
+  if (env.IS_CLOUD) {
+    provider = 'tavily';
+  } else {
+    if (s.searchProvider !== 'duckduckgo' && s.tavilyApiKey) provider = 'tavily';
+    if (s.searchProvider === 'tavily' && !s.tavilyApiKey) notices.push('Tavily APIキーが未設定のため DuckDuckGo で検索しました');
+  }
   const providerLabel = provider === 'tavily' ? 'Tavily' : 'DuckDuckGo';
 
   /* ---- 1. 計画 */
@@ -489,7 +500,8 @@ async function runLive(p, s, ctx) {
     );
   } catch (errPlan) {
     if (signal && signal.aborted) throw errPlan;
-    if (s.groqApiKey) {
+    // C-1: クラウド版では Groq へのフォールバックを行わない
+    if (!env.IS_CLOUD && s.groqApiKey) {
       try {
         ctx.log(`🚀 Google混雑検知。補欠の Groq (${s.groqModel || 'Llama 3.3 70B'}) で検索クエリを展開中…`, 'ai');
         plan = await generateGroq({
@@ -923,7 +935,8 @@ async function runLive(p, s, ctx) {
       } catch (e2) {
         if (signal && signal.aborted) throw e2;
         let groqSuccess = false;
-        if (s.groqApiKey) {
+        // C-1: クラウド版では Groq へのフォールバックを行わない
+        if (!env.IS_CLOUD && s.groqApiKey) {
           try {
             ctx.log(`🚀 Google混雑検知。補欠の Groq (${s.groqModel || 'Llama 3.3 70B'}) へ自動リレーしてレポートを爆速生成中…`, 'ai');
             const groqPrompt = synthPrompt(p, sources, sites, deep, framework, multiHop, true);
@@ -1436,8 +1449,38 @@ async function runResearch(job, settings) {
     },
   };
 
-  ctx.log(live ? 'LIVE モードで調査を開始します（Gemini + Web検索）' : 'DEMO モードで調査を開始します（モックデータ）', 'info', `テーマ: ${p.theme}`);
-  const out = live ? await runLive(p, settings, ctx) : await runMock(p, ctx);
+  const kind = p.depth === 'deep' ? 'research_deep' : 'research_quick';
+  let out;
+  try {
+    ctx.log(live ? 'LIVE モードで調査を開始します（Gemini + Web検索）' : 'DEMO モードで調査を開始します（モックデータ）', 'info', `テーマ: ${p.theme}`);
+    out = live ? await runLive(p, settings, ctx) : await runMock(p, ctx);
+  } catch (err) {
+    const isCancelled = (job.controller && job.controller.signal && job.controller.signal.aborted) || (ctx.signal && ctx.signal.aborted);
+    await usageEvents.recordUsageEvent({
+      userId: job.userId || 'owner-user',
+      kind,
+      jobId: job.id,
+      model: settings.geminiModel,
+      status: isCancelled ? 'cancelled' : 'error',
+    });
+    throw err;
+  }
+
+  // C-3: 正常完了時の利用イベント記録
+  const tavilyCredits = out.provider === 'tavily'
+    ? usageEvents.calculateTavilyCredits((out.queries || []).length, p.depth === 'deep')
+    : 0;
+  await usageEvents.recordUsageEvent({
+    userId: job.userId || 'owner-user',
+    kind,
+    jobId: job.id,
+    model: (out.raw && out.raw.tokenUsage && out.raw.tokenUsage.model) || settings.geminiModel,
+    promptTokens: (out.raw && out.raw.tokenUsage && out.raw.tokenUsage.promptTokens) || 0,
+    outputTokens: (out.raw && out.raw.tokenUsage && out.raw.tokenUsage.candidatesTokens) || 0,
+    geminiCalls: (out.raw && out.raw.tokenUsage && out.raw.tokenUsage.calls) || 0,
+    tavilyCredits,
+    status: 'done',
+  });
 
   const result = normalizeResult(out.raw, {
     id: job.id,
@@ -1621,7 +1664,7 @@ async function runCrossSynthesis(job, settings) {
       totalTokens: 0,
       calls: 0,
       provider: 'gemini',
-      model: settings.geminiModel || 'gemini-3.8-flash',
+      model: settings.geminiModel || DEFAULT_GEMINI_MODEL,
     };
     const ai = (prompt, opts = {}) =>
       generateJSON({
@@ -1732,6 +1775,20 @@ ${reportsDigest}
 
   ctx.progress(100, 'done');
   ctx.log(`複数レポートの横断統合が完了しました（${(result.durationMs / 1000).toFixed(1)}秒 / ${themes.length}件統合）`, 'done');
+
+  // C-3: 正常完了時の利用イベント記録
+  await usageEvents.recordUsageEvent({
+    userId: job.userId || 'owner-user',
+    kind: 'cross',
+    jobId: job.id,
+    model: (raw.tokenUsage && raw.tokenUsage.model) || settings.geminiModel,
+    promptTokens: (raw.tokenUsage && raw.tokenUsage.promptTokens) || 0,
+    outputTokens: (raw.tokenUsage && raw.tokenUsage.candidatesTokens) || 0,
+    geminiCalls: (raw.tokenUsage && raw.tokenUsage.calls) || 0,
+    tavilyCredits: 0,
+    status: 'done',
+  });
+
   return result;
 }
 
@@ -1785,7 +1842,7 @@ async function runDeltaTracking(job, settings) {
       totalTokens: 0,
       calls: 0,
       provider: 'gemini',
-      model: settings.geminiModel || 'gemini-3.8-flash',
+      model: settings.geminiModel || DEFAULT_GEMINI_MODEL,
     };
     const ai = (prompt, opts = {}) =>
       generateJSON({
@@ -2020,6 +2077,23 @@ ${sourcesContext}
 
   ctx.progress(100, 'done');
   ctx.log(`定点観測・新着差分リサーチが完了しました（${(result.durationMs / 1000).toFixed(1)}秒）`, 'done');
+
+  // C-3: 正常完了時の利用イベント記録
+  const tavilyCredits = live && (settings.searchProvider === 'tavily' || settings.tavilyApiKey)
+    ? usageEvents.calculateTavilyCredits(queries.length, false)
+    : 0;
+  await usageEvents.recordUsageEvent({
+    userId: job.userId || 'owner-user',
+    kind: 'delta',
+    jobId: job.id,
+    model: (raw.tokenUsage && raw.tokenUsage.model) || settings.geminiModel,
+    promptTokens: (raw.tokenUsage && raw.tokenUsage.promptTokens) || 0,
+    outputTokens: (raw.tokenUsage && raw.tokenUsage.candidatesTokens) || 0,
+    geminiCalls: (raw.tokenUsage && raw.tokenUsage.calls) || 0,
+    tavilyCredits,
+    status: 'done',
+  });
+
   return result;
 }
 

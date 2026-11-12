@@ -3,6 +3,7 @@
 const { generateJSON } = require('./gemini');
 const search = require('./search');
 const settings = require('./settings');
+const usageEvents = require('./usage-events');
 
 const CONVERSATIONAL_PATTERNS = /(について教えてください|について教えて|教えてください|教えて|とは|どうなっていますか|どうなっていますでしょうか|どうでしょうか|どうですか|どうすればいいですか|どうすれば|でしょうか|ありますか|ですか|ますか)/g;
 
@@ -49,9 +50,9 @@ function cleanSearchQuery(question, theme, quote, chatHistory) {
  * @param {Array<{question: string, answer: string}>} [params.chatHistory]
  * @param {AbortSignal} [params.signal]
  */
-async function runDeepDive({ theme, question, reportContext = '', period = 'year', quote = '', chatHistory = [], signal }) {
+async function runDeepDive({ theme, question, reportContext = '', period = 'year', quote = '', chatHistory = [], signal, userId = 'owner-user' }) {
   const currentSettings = settings.load();
-  const isMock = currentSettings.mode === 'mock' || !currentSettings.geminiApiKey;
+  const isMock = currentSettings.mode === 'mock' || !currentSettings.geminiApiKey || (process.env.NODE_ENV === 'test' && !process.env.ENABLE_REAL_AI);
 
   if (isMock) {
     const hasHistory = Array.isArray(chatHistory) && chatHistory.length > 0;
@@ -104,8 +105,8 @@ async function runDeepDive({ theme, question, reportContext = '', period = 'year
   // 4. 会話履歴ブロックの構築
   const historyBlock = Array.isArray(chatHistory) && chatHistory.length
     ? `\n【これまでの対話の流れ（直近の文脈）】\n` +
-      chatHistory.slice(-4).map((h, idx) => `Q${idx + 1}: ${h.question}\nA${idx + 1}: ${h.answer}`).join('\n\n') +
-      `\n※上記の対話の流れを踏まえ、「それ」「前述の」などの指示代名詞がある場合は適切に文脈を解決して回答してください。\n`
+    chatHistory.slice(-4).map((h, idx) => `Q${idx + 1}: ${h.question}\nA${idx + 1}: ${h.answer}`).join('\n\n') +
+    `\n※上記の対話の流れを踏まえ、「それ」「前述の」などの指示代名詞がある場合は適切に文脈を解決して回答してください。\n`
     : '';
 
   // 5. 引用セクション
@@ -152,13 +153,47 @@ ${snippetBlock}
   ]
 }`;
 
-  const generated = await generateJSON({
-    apiKey: currentSettings.geminiApiKey,
-    model: currentSettings.geminiModel,
-    prompt,
-    temperature: 0.25,
-    signal,
-  });
+  let tokenUsage = { promptTokens: 0, candidatesTokens: 0, totalTokens: 0, calls: 0 };
+  let generated;
+  try {
+    generated = await generateJSON({
+      apiKey: currentSettings.geminiApiKey,
+      model: currentSettings.geminiModel,
+      prompt,
+      temperature: 0.25,
+      signal,
+      onUsage: (u) => {
+        if (u) {
+          tokenUsage.promptTokens += (u.promptTokens || 0);
+          tokenUsage.candidatesTokens += (u.candidatesTokens || 0);
+          tokenUsage.totalTokens += (u.totalTokens || 0);
+          tokenUsage.calls += 1;
+        }
+      },
+    });
+
+    // C-3: 正常完了時のイベント記録 (Tavily 1クレジット)
+    const tavilyCredits = provider === 'tavily' ? 1 : 0;
+    await usageEvents.recordUsageEvent({
+      userId: userId || 'owner-user',
+      kind: 'deepdive',
+      model: currentSettings.geminiModel,
+      promptTokens: tokenUsage.promptTokens,
+      outputTokens: tokenUsage.candidatesTokens,
+      geminiCalls: tokenUsage.calls,
+      tavilyCredits,
+      status: 'done',
+    });
+  } catch (err) {
+    const isCancelled = signal && signal.aborted;
+    await usageEvents.recordUsageEvent({
+      userId: userId || 'owner-user',
+      kind: 'deepdive',
+      model: currentSettings.geminiModel,
+      status: isCancelled ? 'cancelled' : 'error',
+    });
+    throw err;
+  }
 
   return {
     question,

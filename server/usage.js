@@ -3,17 +3,14 @@
 const fs = require('fs');
 const path = require('path');
 const env = require('./env');
+const modelConfig = require('./model-config');
+const { getModelPricing, USD_JPY_RATE, DEFAULT_GEMINI_MODEL } = modelConfig;
 const { DATA_DIR } = require('./settings');
 
 const FILE = path.join(DATA_DIR, 'usage.json');
 
-
-// Gemini 3.8 Flash / 2.5 Flash 参考価格 ($ per 1,000,000 tokens)
-const GEMINI_PRICING = {
-  inputPerMillion: 0.075,
-  outputPerMillion: 0.30,
-};
-const USD_JPY_RATE = 150; // 参考レート
+// 参考価格・レート（C-2: server/model-config.js から参照）
+const GEMINI_PRICING = getModelPricing(DEFAULT_GEMINI_MODEL);
 
 let cloudMemoryUsage = null;
 
@@ -379,7 +376,7 @@ async function getFullUsageSummary(settingsObj = {}, options = {}) {
   return {
     gemini: {
       configured: !!settingsObj.geminiApiKey,
-      model: settingsObj.geminiModel || 'gemini-3.8-flash',
+      model: settingsObj.geminiModel || DEFAULT_GEMINI_MODEL,
       totalRequests: local.gemini.totalRequests,
       todayRequests: local.gemini.todayRequests,
       totalPromptTokens: local.gemini.totalPromptTokens,
@@ -393,7 +390,7 @@ async function getFullUsageSummary(settingsObj = {}, options = {}) {
         rpd: '1,500 回 / 日（無料枠・Flash系）',
         rpm: '15 回 / 分（Flash系）',
         tpm: '1,000,000 トークン / 分',
-        pricing: '入力: $0.075 / 100万tok (~¥0.011/千tok) / 出力: $0.30 / 100万tok (~¥0.045/千tok)',
+        pricing: `入力: $${GEMINI_PRICING.inputPerMillion} / 100万tok (~¥${(GEMINI_PRICING.inputPerMillion * USD_JPY_RATE / 1000).toFixed(3)}/千tok) / 出力: $${GEMINI_PRICING.outputPerMillion} / 100万tok (~¥${(GEMINI_PRICING.outputPerMillion * USD_JPY_RATE / 1000).toFixed(3)}/千tok)`,
       },
       resetInfo,
       officialUrls: {

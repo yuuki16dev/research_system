@@ -2,6 +2,8 @@
 
 const gemini = require('./gemini');
 const settings = require('./settings');
+const { DEFAULT_GEMINI_MODEL } = require('./model-config');
+const usageEvents = require('./usage-events');
 
 /**
  * 発表対象（オーディエンス）のプロファイル定義
@@ -123,7 +125,7 @@ ${cleanDoc || (fileNames ? '（上記添付ファイルの内容に基づいて�
 /**
  * 2. システム内で直接A4横スライドを自動生成する（Gemini API呼び出し）
  */
-async function generateSlides({ document, audience, goal, apiKey, model, files = [] }) {
+async function generateSlides({ document, audience, goal, apiKey, model, files = [], userId }) {
   const profile = resolveAudienceProfile(audience);
   const cleanDoc = String(document || '').trim();
   const cleanGoal = String(goal || '').trim();
@@ -139,7 +141,7 @@ async function generateSlides({ document, audience, goal, apiKey, model, files =
     throw new Error('Gemini APIキーが設定されていません。ヘッダーの「設定」からAPIキーを入力してください。');
   }
 
-  const effectiveModel = model || currentSettings.geminiModel || 'gemini-3.8-flash';
+  const effectiveModel = model || currentSettings.geminiModel || DEFAULT_GEMINI_MODEL;
 
   const systemInstruction = `あなたは戦略コンサルタントおよびエグゼクティブ・スライド作成のプロフェッショナルです。
 入力された企画書・資料（テキストおよび添付ファイル）をもとに、指定された発表対象（${profile.name}）に向けて最適なA4横型商用レポートスライドを構成するJSONを出力してください。
@@ -284,14 +286,46 @@ ${validFiles.length > 0 ? `\n【添付ファイル数】: ${validFiles.length}�
     },
   }));
 
-  const result = await gemini.generateJSON({
-    apiKey: effectiveKey,
-    model: effectiveModel,
-    prompt,
-    parts,
-    systemInstruction,
-    temperature: 0.3,
-  });
+  let tokenUsage = { promptTokens: 0, candidatesTokens: 0, totalTokens: 0, calls: 0 };
+  let result;
+  try {
+    result = await gemini.generateJSON({
+      apiKey: effectiveKey,
+      model: effectiveModel,
+      prompt,
+      parts,
+      systemInstruction,
+      temperature: 0.3,
+      onUsage: (u) => {
+        if (u) {
+          tokenUsage.promptTokens += (u.promptTokens || 0);
+          tokenUsage.candidatesTokens += (u.candidatesTokens || 0);
+          tokenUsage.totalTokens += (u.totalTokens || 0);
+          tokenUsage.calls += 1;
+        }
+      },
+    });
+
+    // C-3: 正常完了時のイベント記録
+    await usageEvents.recordUsageEvent({
+      userId: userId || 'owner-user',
+      kind: 'slides',
+      model: effectiveModel,
+      promptTokens: tokenUsage.promptTokens,
+      outputTokens: tokenUsage.candidatesTokens,
+      geminiCalls: tokenUsage.calls,
+      tavilyCredits: 0,
+      status: 'done',
+    });
+  } catch (err) {
+    await usageEvents.recordUsageEvent({
+      userId: userId || 'owner-user',
+      kind: 'slides',
+      model: effectiveModel,
+      status: 'error',
+    });
+    throw err;
+  }
 
   return result;
 }

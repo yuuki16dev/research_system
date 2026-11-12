@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const env = require('./env');
+const { OBSOLETE_GEMINI_MODELS, DEFAULT_GEMINI_MODEL, normalizeModel } = require('./model-config');
 
 function resolveDataDir() {
   if (process.env.RESEARCH_DATA_DIR) {
@@ -28,7 +29,7 @@ const FILE = path.join(DATA_DIR, 'settings.json');
 const DEFAULTS = {
   geminiApiKey: '',
   tavilyApiKey: '',
-  geminiModel: 'gemini-3.8-flash',
+  geminiModel: DEFAULT_GEMINI_MODEL,
   geminiAccountTier: 'auto', // auto | free (完全無料枠・トークン圧縮&過負荷回避) | tier1 (クレカ登録済・フルパワー)
   groqApiKey: '', // 補欠バックアップLLM（完全無料・クレカ不要）
   groqModel: 'llama-3.3-70b-versatile',
@@ -83,21 +84,8 @@ function ensureDir() {
   migrateOldDataIfNeeded();
 }
 
-const OBSOLETE_GEMINI_MODELS = [
-  'gemini-1.5-flash',
-  'gemini-1.5-pro',
-  'gemini-2.0-flash',
-  'gemini-2.0-flash-exp',
-  'gemini-2.5-flash',
-  'gemini-2.5-pro',
-];
-
 function sanitizeGeminiModel(m) {
-  const norm = String(m || '').toLowerCase().trim();
-  if (!norm || OBSOLETE_GEMINI_MODELS.includes(norm)) {
-    return 'gemini-3.8-flash';
-  }
-  return norm;
+  return normalizeModel(m);
 }
 
 function readFile() {
@@ -113,10 +101,19 @@ function load() {
   if (env.IS_CLOUD) {
     const s = { ...DEFAULTS };
     s.geminiModel = sanitizeGeminiModel(process.env.GEMINI_MODEL || s.geminiModel);
-    if (process.env.GEMINI_API_KEY) s.geminiApiKey = process.env.GEMINI_API_KEY;
+    // C-1: Gemini APIキーは環境変数 GEMINI_API_KEY の先頭1本だけを使う
+    if (process.env.GEMINI_API_KEY) {
+      const raw = String(process.env.GEMINI_API_KEY).trim();
+      const first = raw.split(/[\r\n,;]+/)[0]?.trim() || '';
+      s.geminiApiKey = first;
+    }
     if (process.env.TAVILY_API_KEY) s.tavilyApiKey = process.env.TAVILY_API_KEY;
-    if (process.env.GROQ_API_KEY) s.groqApiKey = process.env.GROQ_API_KEY;
-    if (process.env.GROQ_MODEL) s.groqModel = process.env.GROQ_MODEL;
+    // C-1: Groq への切り替えを行わない
+    s.groqApiKey = '';
+    // C-1: isFreeTier は常に偽
+    s.geminiAccountTier = 'tier1';
+    // C-1: 検索は Tavily だけを使う
+    s.searchProvider = 'tavily';
     if (process.env.MODE) s.mode = process.env.MODE;
     return s;
   }
@@ -125,7 +122,7 @@ function load() {
   let needsPersist = false;
   // 他PCや過去バージョンで廃止モデルが保存されていた場合は自動修復して即時永続化
   if (raw.geminiModel && OBSOLETE_GEMINI_MODELS.includes(String(raw.geminiModel).toLowerCase().trim())) {
-    raw.geminiModel = 'gemini-3.8-flash';
+    raw.geminiModel = DEFAULT_GEMINI_MODEL;
     needsPersist = true;
   }
   const s = { ...DEFAULTS, ...raw };
@@ -170,13 +167,20 @@ function save(patch = {}) {
 
 function parseGeminiApiKeys(raw) {
   if (!raw) return [];
+  let list = [];
   if (Array.isArray(raw)) {
-    return raw.map((k) => String(k || '').trim()).filter(Boolean);
+    list = raw.map((k) => String(k || '').trim()).filter(Boolean);
+  } else {
+    list = String(raw)
+      .split(/[\r\n,;]+/)
+      .map((k) => k.trim())
+      .filter(Boolean);
   }
-  return String(raw)
-    .split(/[\r\n,;]+/)
-    .map((k) => k.trim())
-    .filter(Boolean);
+  // C-1: クラウドでは先頭1本だけを使用
+  if (env.IS_CLOUD) {
+    return list.slice(0, 1);
+  }
+  return list;
 }
 
 function getGeminiApiKeys(s = load()) {
@@ -200,6 +204,7 @@ function effectiveMode(s = load()) {
 }
 
 function effectiveSearch(s = load()) {
+  if (env.IS_CLOUD) return 'tavily';
   if (s.searchProvider === 'duckduckgo') return 'duckduckgo';
   if (s.tavilyApiKey) return 'tavily';
   return 'duckduckgo';

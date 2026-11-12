@@ -1,5 +1,8 @@
 'use strict';
 
+const env = require('./env');
+const modelConfig = require('./model-config');
+const { OBSOLETE_GEMINI_MODELS, normalizeModel, getFallbackModels } = modelConfig;
 const dns = require('dns');
 if (typeof dns.setDefaultResultOrder === 'function') {
   dns.setDefaultResultOrder('ipv4first');
@@ -23,9 +26,10 @@ if (typeof AbortSignal.any !== 'function') {
 
 
 function delay(ms, signal) {
+  const actualMs = process.env.NODE_ENV === 'test' ? Math.min(ms, 10) : ms;
   return new Promise((resolve, reject) => {
     if (signal && signal.aborted) return reject(new Error('キャンセルされました'));
-    const t = setTimeout(resolve, ms);
+    const t = setTimeout(resolve, actualMs);
     if (signal) {
       signal.addEventListener('abort', () => {
         clearTimeout(t);
@@ -82,35 +86,7 @@ function humanizeError(err) {
   return msg;
 }
 
-const OBSOLETE_GEMINI_MODELS = [
-  'gemini-1.5-flash',
-  'gemini-1.5-pro',
-  'gemini-2.0-flash',
-  'gemini-2.0-flash-exp',
-  'gemini-2.5-flash',
-  'gemini-2.5-pro',
-];
 
-function normalizeModel(m) {
-  const norm = String(m || '').toLowerCase().trim();
-  if (!norm || OBSOLETE_GEMINI_MODELS.includes(norm)) {
-    return 'gemini-3.8-flash';
-  }
-  return norm;
-}
-
-/** Google公式現行の安定モデルリスト（2026年現行: 3.7 / 3.5 / flash-latest / 3.1-lite） */
-function getFallbackModels(currentModel) {
-  const norm = normalizeModel(currentModel);
-  const candidates = [
-    'gemini-3.7-flash',
-    'gemini-3.5-flash',
-    'gemini-flash-latest',
-    'gemini-3.1-flash-lite',
-    'gemini-3.8-flash',
-  ];
-  return candidates.filter((m) => m !== norm);
-}
 
 /**
  * Google Gemini REST API クライアント（依存なし / Node 18+ の fetch を使用）
@@ -199,7 +175,7 @@ function repairJSON(text) {
 
   try {
     return JSON.parse(s);
-  } catch (_) {}
+  } catch (_) { }
 
   // 3. コメント行の除去
   s = s.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
@@ -213,7 +189,7 @@ function repairJSON(text) {
 
   try {
     return JSON.parse(s);
-  } catch (_) {}
+  } catch (_) { }
 
   // 6. 出力途中切れ（途中でトークン制限等により閉じていない括弧）の自動補完
   let balance = [];
@@ -251,7 +227,7 @@ function repairJSON(text) {
 
   try {
     return JSON.parse(closed);
-  } catch (_) {}
+  } catch (_) { }
 
   // 7. 最終フォールバック: 正規表現による個別フィールドのサルベージ
   return fallbackExtract(s);
@@ -540,16 +516,21 @@ async function generate({
   onUsage = null,
   isFreeTier = false,
 }) {
+  // C-1: IS_CLOUD が真のとき、Gemini APIキーは先頭1本だけを使用（キー切り替えを行わない）、isFreeTier は常に false
+  const effectiveIsFreeTier = env.IS_CLOUD ? false : isFreeTier;
+
   // 複数キー（カンマ・改行・セミコロン区切りまたは配列）を自動解析
-  const keys = Array.isArray(apiKey)
+  const rawKeys = Array.isArray(apiKey)
     ? apiKey.map((k) => String(k || '').trim()).filter(Boolean)
     : String(apiKey || '')
-        .split(/[\r\n,;]+/)
-        .map((k) => k.trim())
-        .filter(Boolean);
+      .split(/[\r\n,;]+/)
+      .map((k) => k.trim())
+      .filter(Boolean);
+
+  const keys = env.IS_CLOUD ? rawKeys.slice(0, 1) : rawKeys;
 
   if (keys.length === 0) throw new Error('Gemini APIキーが設定されていません');
-  
+
   let currentKeyIdx = 0;
   let currentModel = normalizeModel(model);
   const fallbackModels = getFallbackModels(currentModel);
@@ -570,8 +551,10 @@ async function generate({
   };
 
   let lastError = null;
+  // C-2: クラウド版では再試行上限を3回にする
+  const effectiveMaxRetries = env.IS_CLOUD ? Math.min(maxRetries, 3) : maxRetries;
 
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+  for (let attempt = 1; attempt <= effectiveMaxRetries; attempt++) {
     if (signal && signal.aborted) throw new Error('キャンセルされました');
 
     const activeKey = keys[currentKeyIdx];
@@ -605,7 +588,7 @@ async function generate({
         const err = new Error(`Gemini API エラー (${status})${msg ? ': ' + msg.slice(0, 200) : ''}`);
         err.status = status;
 
-        if (attempt < maxRetries && isRetryableError(err, status)) {
+        if (attempt < effectiveMaxRetries && isRetryableError(err, status)) {
           lastError = err;
           let isFallback = false;
           let isKeyRotated = false;
@@ -616,8 +599,8 @@ async function generate({
           const isModelUnavailable = status === 404 || msg.toLowerCase().includes('no longer available');
           const isOverloadOrQuota = status === 503 || msg.toLowerCase().includes('high demand') || status === 429 || msg.toLowerCase().includes('resource_exhausted');
 
-          // 【プランA: 複数キー自動ローテーション】429/503検知時、予備キーがあれば即座に次キーへ切り替え
-          if (isOverloadOrQuota && keys.length > 1 && currentKeyIdx + 1 < keys.length) {
+          // 【プランA: 複数キー自動ローテーション】429/503検知時、予備キーがあれば即座に次キーへ切り替え（C-1: クラウドでは行わない）
+          if (!env.IS_CLOUD && isOverloadOrQuota && keys.length > 1 && currentKeyIdx + 1 < keys.length) {
             currentKeyIdx++;
             isKeyRotated = true;
           } else if ((isModelUnavailable || isOverloadOrQuota) && fallbackIdx < fallbackModels.length) {
@@ -631,18 +614,18 @@ async function generate({
           // 待機時間の計算: キー切替時は600ms、モデル切替時は1200ms〜3500ms、全枯渇時は冷却カウントダウン待機
           let waitMs = 1200;
           if (isKeyRotated) {
-            waitMs = isFreeTier ? 1200 : 600;
+            waitMs = effectiveIsFreeTier ? 1200 : 600;
           } else if (isFallback) {
             // 無料枠の別モデル迂回時は、共通の無料枠クラスタの混雑が引くようジッター付きで待機
-            waitMs = isFreeTier ? (2500 + Math.floor(Math.random() * 1500)) : 1200;
+            waitMs = effectiveIsFreeTier ? (2500 + Math.floor(Math.random() * 1500)) : 1200;
           } else if (attempt >= 2 && isOverloadOrQuota) {
             // 【プランB/C: 自動冷却知的待機】全キー・全モデルで制限持続時はGoogle過負荷が抜けるのを待つ
-            waitMs = isFreeTier
+            waitMs = effectiveIsFreeTier
               ? Math.min(22000, (attempt * 5000) + Math.floor(Math.random() * 2000))
               : (attempt === 3 ? 18000 : 25000);
             isCooldown = true;
           } else {
-            waitMs = isFreeTier ? (3000 + Math.floor(Math.random() * 1500)) : (attempt === 1 ? 2500 : 5000);
+            waitMs = effectiveIsFreeTier ? (3000 + Math.floor(Math.random() * 1500)) : (attempt === 1 ? 2500 : 5000);
           }
 
           if (typeof onRetry === 'function') {
@@ -660,7 +643,7 @@ async function generate({
                 keyIndex: currentKeyIdx + 1,
                 totalKeys: keys.length,
               });
-            } catch (_) {}
+            } catch (_) { }
           }
           await delay(waitMs, signal);
           continue;
@@ -744,7 +727,7 @@ async function generate({
               currentModel,
               isFallback,
             });
-          } catch (_) {}
+          } catch (_) { }
         }
         await delay(waitMs, signal);
         continue;

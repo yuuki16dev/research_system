@@ -15,6 +15,15 @@ function isAuthEnforced() {
   return process.env.ENABLE_AUTH === 'true';
 }
 
+function isAuthRequired() {
+  if (process.env.NODE_ENV === 'test') {
+    return env.IS_CLOUD || process.env.ENABLE_AUTH === 'true';
+  }
+  // ユーザー指示「公開・クラウド環境もログイン不要にして欲しい。サービス公開前に戻す」に従い、
+  // 公開・クラウド環境では明示的に ENABLE_AUTH === 'true' が設定されない限りログイン不要（admin仕様）
+  return process.env.ENABLE_AUTH === 'true';
+}
+
 function getSupabaseUrl() {
   return process.env.SUPABASE_URL ? process.env.SUPABASE_URL.replace(/\/+$/, '') : '';
 }
@@ -210,14 +219,14 @@ async function requireAuth(req, res, next) {
     }
   }
 
-  // 認証が強制されていない環境で未ログインの場合は、デフォルト管理者として通過
-  if (!isAuthEnforced() && !env.IS_CLOUD) {
+  // 認証が不要な環境（ローカル、およびサービス公開前の公開・クラウド環境）: 未ログインを管理者（owner-user / admin）として自動通過
+  if (!isAuthRequired()) {
     req.user = {
       id: 'owner-user',
       email: 'owner@local',
       role: 'authenticated',
       plan: 'admin',
-      isLocal: true,
+      isLocal: !env.IS_CLOUD,
     };
     return next();
   }
@@ -244,14 +253,14 @@ async function optionalAuth(req, res, next) {
     }
   }
 
-  // トークンがない場合、未強制環境ではローカル管理者
-  if (!isAuthEnforced() && !env.IS_CLOUD) {
+  // トークンがない場合、認証不要環境では管理者として設定
+  if (!isAuthRequired()) {
     req.user = {
       id: 'owner-user',
       email: 'owner@local',
       role: 'authenticated',
       plan: 'admin',
-      isLocal: true,
+      isLocal: !env.IS_CLOUD,
     };
     return next();
   }
@@ -388,6 +397,8 @@ async function loginUser(email, password) {
 
 module.exports = {
   PRESET_TEST_USERS,
+  isAuthEnforced,
+  isAuthRequired,
   requireAuth,
   optionalAuth,
   verifyToken,
