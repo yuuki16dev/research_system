@@ -500,7 +500,13 @@ function buildMock(p) {
   }
 
   if (p.referenceUrls) raw.referenceUrls = p.referenceUrls;
-  if (p.attachedFiles) raw.attachedFiles = p.attachedFiles;
+  if (p.attachedFiles) {
+    raw.attachedFiles = p.attachedFiles.map((f) => ({
+      name: String((f && f.name) || ''),
+      size: Number(f && f.size) || 0,
+      type: String((f && f.type) || ''),
+    })).filter((f) => f.name);
+  }
 
   return {
     raw,
@@ -509,7 +515,11 @@ function buildMock(p) {
     sites: p.scope === 'sites' ? sites : p.scope === 'sns' ? SNS_DOMAINS.slice(0, 3) : [],
     discovered,
     referenceUrls: p.referenceUrls || [],
-    attachedFiles: p.attachedFiles || [],
+    attachedFiles: (p.attachedFiles || []).map((f) => ({
+      name: String((f && f.name) || ''),
+      size: Number(f && f.size) || 0,
+      type: String((f && f.type) || ''),
+    })).filter((f) => f.name),
   };
 }
 

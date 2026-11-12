@@ -26,6 +26,7 @@ if (typeof AbortSignal.any !== 'function') {
 
 
 const express = require('express');
+const http = require('http');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
@@ -34,7 +35,7 @@ const QRCode = require('qrcode');
 const settings = require('./settings');
 const history = require('./history');
 const memory = require('./memory');
-const { createJob, getJob } = require('./jobs');
+const { createJob, getJob, checkJobCapacity } = require('./jobs');
 const { runResearch, runCrossSynthesis, runDeltaTracking } = require('./pipeline');
 const { generate } = require('./gemini');
 const { generateGroq } = require('./groq');
@@ -51,6 +52,13 @@ const auth = require('./auth');
 const quota = require('./quota');
 const { validateThemeSafety } = require('./security');
 const env = require('./env');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+
+if (env.IS_CLOUD && (!process.env.SUPABASE_SERVICE_ROLE_KEY || !process.env.SUPABASE_SERVICE_ROLE_KEY.trim())) {
+  console.error('[FATAL] クラウド環境（SUPABASE_URL設定時）では SUPABASE_SERVICE_ROLE_KEY が必須です');
+  process.exit(1);
+}
 
 
 const PORT = Number(process.env.PORT) || 3939;
@@ -59,7 +67,79 @@ const ROOT = path.join(__dirname, '..');
 
 const app = express();
 app.disable('x-powered-by');
-app.use(express.json({ limit: '10mb' }));
+
+// B-8: クラウド環境下でのリバースプロキシ信頼設定
+if (env.IS_CLOUD) {
+  app.set('trust proxy', 1);
+}
+
+// B-8: セキュリティヘッダー (Helmet + CSP)
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+        imgSrc: ["'self'", "data:", "blob:", "https:"],
+        connectSrc: ["'self'", "https:"],
+        frameSrc: ["'none'"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+      },
+    },
+    crossOriginEmbedderPolicy: false,
+  })
+);
+
+// B-8: レート制限 (express-rate-limit)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15分
+  max: 10, // 10回
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: false,
+  message: { error: 'ログイン・登録試行回数の上限に達しました。15分後に再試行してください。', code: 'TOO_MANY_REQUESTS' },
+});
+
+const aiLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1分
+  max: 10, // 10回
+  keyGenerator: (req) => (req.user && req.user.id) || req.ip,
+  validate: false,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'AIリクエストの回数上限に達しました（1分間に最大10回）。しばらく待ってから再試行してください。', code: 'RATE_LIMIT_EXCEEDED' },
+});
+
+const isTest = process.env.NODE_ENV === 'test';
+const generalApiLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1分
+  max: isTest ? 5000 : 120, // テスト環境ではテスト全体の並行連続呼び出しを阻害しないよう緩和
+  validate: false,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'リクエスト頻度が高すぎます。しばらく時間をおいて再試行してください。', code: 'RATE_LIMIT_EXCEEDED' },
+});
+
+// 全体 API に一般レートリミッターを適用
+app.use('/api', generalApiLimiter);
+
+// B-8: express.json の上限設定 (通常 1MB、ファイル添付・復元受付ルートのみ 10MB)
+const json1mb = express.json({ limit: '1mb' });
+const json10mb = express.json({ limit: '10mb' });
+app.use((req, res, next) => {
+  if (
+    req.path === '/api/research' ||
+    req.path === '/api/presentation/generate' ||
+    req.path === '/api/history/restore'
+  ) {
+    return json10mb(req, res, next);
+  }
+  return json1mb(req, res, next);
+});
 
 // 自動シャットダウン用タイマー（全ブラウザ切断時）
 let autoShutdownTimer = null;
@@ -146,13 +226,13 @@ app.get('/api/auth/config', (req, res) => {
   });
 });
 
-app.post('/api/auth/signup', async (req, res) => {
+app.post('/api/auth/signup', authLimiter, async (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password) {
     return res.status(400).json({ error: 'メールアドレスとパスワードを入力してください' });
   }
-  if (password.length < 6) {
-    return res.status(400).json({ error: 'パスワードは6文字以上で設定してください' });
+  if (password.length < 8) {
+    return res.status(400).json({ error: 'パスワードは8文字以上で設定してください' });
   }
   try {
     const data = await auth.signupUser(email, password);
@@ -162,7 +242,7 @@ app.post('/api/auth/signup', async (req, res) => {
   }
 });
 
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', authLimiter, async (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password) {
     return res.status(400).json({ error: 'メールアドレスとパスワードを入力してください' });
@@ -183,7 +263,7 @@ app.get('/api/auth/me', async (req, res) => {
   if (match) {
     const user = await auth.verifyToken(match[1]);
     if (user) {
-      const userPlan = user.plan || (user.user_metadata && user.user_metadata.plan) || 'free';
+      const userPlan = user.plan || 'free';
       const q = await quota.getMonthlyQuota(user.id, userPlan);
       return res.json({
         authenticated: true,
@@ -344,7 +424,7 @@ app.get('/api/changelog', (req, res) => {
     });
   } catch (err) {
     logger.error('Failed to parse CHANGELOG.md', err);
-    res.status(500).json({ error: 'Failed to read changelog', message: err.message });
+    res.status(500).json({ error: '更新履歴の取得に失敗しました' });
   }
 });
 
@@ -356,7 +436,8 @@ if (!env.IS_CLOUD) {
       const svg = await QRCode.toString(text, { type: 'svg', margin: 1, errorCorrectionLevel: 'M', color: { dark: '#0b0f1e', light: '#ffffff' } });
       res.type('image/svg+xml').send(svg);
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      logger.error('QR code generation error', e);
+      res.status(500).json({ error: 'QRコードの生成に失敗しました' });
     }
   });
 
@@ -507,7 +588,7 @@ if (!env.IS_CLOUD) {
 }
 
 /* ----------------------------------------------------------- research */
-app.post('/api/research', auth.requireAuth, quota.requireQuota, (req, res) => {
+app.post('/api/research', auth.requireAuth, aiLimiter, quota.requireQuota, (req, res) => {
   const b = req.body || {};
   const theme = String(b.theme || '').trim().slice(0, 300);
   const scope = ['web', 'sns', 'sites'].includes(b.scope) ? b.scope : 'web';
@@ -534,29 +615,43 @@ app.post('/api/research', auth.requireAuth, quota.requireQuota, (req, res) => {
 
   const userId = req.user ? req.user.id : 'owner-user';
   const userPlan = req.user ? (req.user.plan || 'free') : 'admin';
+
+  // B-9: 同時実行数および同一ユーザーの実行中ジョブ制限
+  const capacity = checkJobCapacity(userId);
+  if (!capacity.ok) {
+    return res.status(capacity.status).json({ error: capacity.error, code: capacity.code });
+  }
+
   console.log(`[リサーチ受付] テーマ: "${sanitizedTheme}" (スコープ: ${scope}, 深度: ${depth}, スタイル: ${purpose}, ユーザー: ${userId}, プラン: ${userPlan})`);
   const params = { theme: sanitizedTheme, scope, depth, sites, period, customPeriod, purpose, customPurpose, referenceContext, referenceUrls, attachedFiles, focus, authoritative, forceMock: !!b.forceMock, userId };
   const job = createJob(params, (j) => runResearch(j, settings.load()), {
-    onResult: (result) => {
+    userId,
+    onResult: async (result) => {
       if (!result.userId && userId) {
         result.userId = userId;
       }
-      history.save(result);
+      try {
+        await history.save(result);
+      } catch (err) {
+        console.error('[history] save error:', err.message);
+      }
       if (userId) {
         quota.recordUsage(userId, userPlan).catch((err) => console.warn('[quota] record error:', err.message));
       }
-      try {
-        memory.learnFromResearch(result);
-      } catch (err) {
-        console.error('[memory] learn error:', err.message);
+      if (!env.IS_CLOUD) {
+        try {
+          memory.learnFromResearch(result);
+        } catch (err) {
+          console.error('[memory] learn error:', err.message);
+        }
       }
     },
   });
-  res.status(202).json({ jobId: job.id });
+  res.status(202).json({ jobId: job.id, token: job.token, subscriptionToken: job.token });
 });
 
 /* ------------------------------------------------ cross-synthesis (v1.17.0) */
-app.post('/api/research/cross-synthesis', auth.requireAuth, (req, res) => {
+app.post('/api/research/cross-synthesis', auth.requireAuth, aiLimiter, async (req, res) => {
   const b = req.body || {};
   const reportIds = Array.isArray(b.reportIds) ? b.reportIds : [];
   if (reportIds.length < 2) {
@@ -565,7 +660,15 @@ app.post('/api/research/cross-synthesis', auth.requireAuth, (req, res) => {
 
   const userId = req.user.id;
   const userPlan = req.user.plan || 'free';
-  const reports = reportIds.map((id) => history.get(id, userId, userPlan)).filter(Boolean);
+
+  // B-9: 同時実行数および同一ユーザーの実行中ジョブ制限
+  const capacity = checkJobCapacity(userId);
+  if (!capacity.ok) {
+    return res.status(capacity.status).json({ error: capacity.error, code: capacity.code });
+  }
+
+  const reportPromises = reportIds.map((id) => history.get(id, userId, userPlan));
+  const reports = (await Promise.all(reportPromises)).filter(Boolean);
   if (reports.length < 2) {
     return res.status(404).json({ error: '選択されたレポートが見つかりません（2件以上存在する必要があります）' });
   }
@@ -582,23 +685,30 @@ app.post('/api/research/cross-synthesis', auth.requireAuth, (req, res) => {
   };
 
   const job = createJob(params, (j) => runCrossSynthesis(j, settings.load()), {
-    onResult: (result) => {
+    userId,
+    onResult: async (result) => {
       if (!result.userId && userId) {
         result.userId = userId;
       }
-      history.save(result);
       try {
-        memory.learnFromResearch(result);
+        await history.save(result);
       } catch (err) {
-        console.error('[memory] learn error:', err.message);
+        console.error('[history] save error:', err.message);
+      }
+      if (!env.IS_CLOUD) {
+        try {
+          memory.learnFromResearch(result);
+        } catch (err) {
+          console.error('[memory] learn error:', err.message);
+        }
       }
     },
   });
-  res.status(202).json({ jobId: job.id });
+  res.status(202).json({ jobId: job.id, token: job.token, subscriptionToken: job.token });
 });
 
 /* ------------------------------------------------ delta-tracking (v1.18.0) */
-app.post('/api/research/delta', auth.requireAuth, (req, res) => {
+app.post('/api/research/delta', auth.requireAuth, aiLimiter, async (req, res) => {
   const b = req.body || {};
   const baseReportId = String(b.baseReportId || '').trim();
   if (!baseReportId) {
@@ -607,7 +717,14 @@ app.post('/api/research/delta', auth.requireAuth, (req, res) => {
 
   const userId = req.user.id;
   const userPlan = req.user.plan || 'free';
-  const baseReport = history.get(baseReportId, userId, userPlan);
+
+  // B-9: 同時実行数および同一ユーザーの実行中ジョブ制限
+  const capacity = checkJobCapacity(userId);
+  if (!capacity.ok) {
+    return res.status(capacity.status).json({ error: capacity.error, code: capacity.code });
+  }
+
+  const baseReport = await history.get(baseReportId, userId, userPlan);
   if (!baseReport) {
     return res.status(404).json({ error: '差分更新元のレポートが見つかりません' });
   }
@@ -625,24 +742,40 @@ app.post('/api/research/delta', auth.requireAuth, (req, res) => {
   };
 
   const job = createJob(params, (j) => runDeltaTracking(j, settings.load()), {
-    onResult: (result) => {
+    userId,
+    onResult: async (result) => {
       if (!result.userId && userId) {
         result.userId = userId;
       }
-      history.save(result);
       try {
-        memory.learnFromResearch(result);
+        await history.save(result);
       } catch (err) {
-        console.error('[memory] learn error:', err.message);
+        console.error('[history] save error:', err.message);
+      }
+      if (!env.IS_CLOUD) {
+        try {
+          memory.learnFromResearch(result);
+        } catch (err) {
+          console.error('[memory] learn error:', err.message);
+        }
       }
     },
   });
-  res.status(202).json({ jobId: job.id });
+  res.status(202).json({ jobId: job.id, token: job.token, subscriptionToken: job.token });
 });
 
-app.get('/api/research/:id/events', (req, res) => {
+app.get('/api/research/:id/events', auth.optionalAuth, (req, res) => {
   const job = getJob(req.params.id);
   if (!job) return res.status(404).json({ error: 'ジョブが見つかりません（期限切れの可能性があります）' });
+
+  // B-9: 持ち主（または有効な購読トークン）の検証
+  const queryToken = typeof req.query.token === 'string' ? req.query.token.trim() : '';
+  const isTokenValid = Boolean(queryToken && job.token && queryToken === job.token);
+  const isOwnerByAuth = Boolean(req.user && job.userId && req.user.id === job.userId);
+
+  if (!isTokenValid && !isOwnerByAuth) {
+    return res.status(404).json({ error: 'ジョブが見つかりません（期限切れまたはアクセス権がありません）' });
+  }
 
   res.writeHead(200, {
     'Content-Type': 'text/event-stream; charset=utf-8',
@@ -671,22 +804,70 @@ app.get('/api/research/:id/events', (req, res) => {
   req.on('close', () => cleanup(false));
 });
 
-app.post('/api/research/:id/cancel', (req, res) => {
+app.post('/api/research/:id/cancel', auth.requireAuth, (req, res) => {
   const job = getJob(req.params.id);
   if (!job) return res.status(404).json({ error: 'not found' });
+
+  // B-9: 持ち主検証（持ち主以外には 404 を返す）
+  const userId = req.user ? req.user.id : null;
+  if (job.userId && userId !== job.userId) {
+    return res.status(404).json({ error: 'not found' });
+  }
+
   job.controller.abort();
+  job.status = 'cancelled';
   res.json({ ok: true });
 });
 
-app.post('/api/research/deep-dive', auth.requireAuth, async (req, res) => {
+app.post('/api/research/deep-dive', auth.requireAuth, aiLimiter, async (req, res) => {
   const { theme, question, reportContext, period, quote, chatHistory } = req.body || {};
   if (!theme || !question) return res.status(400).json({ error: 'theme と question は必須です' });
+
+  // B-8: 入力文字数・件数の厳格な検証
+  if (typeof theme !== 'string' || theme.length > 500) {
+    return res.status(400).json({ error: 'theme は500文字以内の文字列である必要があります' });
+  }
+  if (typeof question !== 'string' || question.length > 500) {
+    return res.status(400).json({ error: 'question は500文字以内の文字列である必要があります' });
+  }
+  if (quote !== undefined && quote !== null) {
+    if (typeof quote !== 'string' || quote.length > 1000) {
+      return res.status(400).json({ error: 'quote は1,000文字以内の文字列である必要があります' });
+    }
+  }
+  if (reportContext !== undefined && reportContext !== null) {
+    if (typeof reportContext !== 'string' || reportContext.length > 8000) {
+      return res.status(400).json({ error: 'reportContext は8,000文字以内の文字列である必要があります' });
+    }
+  }
+  if (chatHistory !== undefined && chatHistory !== null) {
+    if (!Array.isArray(chatHistory)) {
+      return res.status(400).json({ error: 'chatHistory は配列である必要があります' });
+    }
+    if (chatHistory.length > 10) {
+      return res.status(400).json({ error: 'chatHistory は最大10件までです' });
+    }
+    for (let i = 0; i < chatHistory.length; i++) {
+      const item = chatHistory[i];
+      let itemLen = 0;
+      if (typeof item === 'string') {
+        itemLen = item.length;
+      } else if (item && typeof item === 'object') {
+        itemLen = (String(item.question || '') + String(item.answer || '')).length;
+      }
+      if (itemLen > 2000) {
+        return res.status(400).json({ error: `chatHistory[${i}] は2,000文字以内である必要があります` });
+      }
+    }
+  }
+
   console.log(`[深掘り対話] 質問: "${question.slice(0, 35)}..." を受信 (履歴: ${Array.isArray(chatHistory) ? chatHistory.length : 0}件)`);
   try {
     const result = await deepdive.runDeepDive({ theme, question, reportContext, period, quote, chatHistory });
     res.json(result);
   } catch (err) {
-    res.status(500).json({ error: err.message || '深掘り調査に失敗しました' });
+    console.error('Deep dive execution error:', err);
+    res.status(500).json({ error: '深掘り調査の実行に失敗しました' });
   }
 });
 
@@ -700,13 +881,21 @@ app.post('/api/export/pdf/html', auth.requireAuth, (req, res) => {
     res.send(html);
   } catch (err) {
     console.error('PDF HTML generation error:', err);
-    res.status(500).json({ error: err.message || 'HTMLの生成に失敗しました' });
+    res.status(500).json({ error: 'HTMLの生成に失敗しました' });
   }
 });
 
 /* ------------------------------------------------------------- PDF export */
 app.post('/api/export/pdf', auth.requireAuth, async (req, res) => {
   let { html, data, brand, template, filename, orientation } = req.body || {};
+
+  // B-7: クラウド版では任意のHTMLパラメータ受取を拒絶し 400 を返す
+  if (env.IS_CLOUD && typeof html === 'string' && html.trim().length > 0) {
+    return res.status(400).json({
+      error: 'クラウド版では直接のHTML指定によるPDF生成は許可されていません。data と template を指定してください。',
+      code: 'HTML_PAYLOAD_FORBIDDEN',
+    });
+  }
 
   // data と template がある場合はサーバー側で新テンプレートからHTMLを直接レンダリング
   if (!html && data) {
@@ -719,11 +908,12 @@ app.post('/api/export/pdf', auth.requireAuth, async (req, res) => {
           : 'landscape';
       }
     } catch (e) {
-      return res.status(500).json({ error: `テンプレートレンダリングエラー: ${e.message}` });
+      console.error('Template render error:', e);
+      return res.status(500).json({ error: 'テンプレートの生成に失敗しました' });
     }
   }
 
-  if (!html) return res.status(400).json({ error: 'html または data は必須です' });
+  if (!html) return res.status(400).json({ error: 'data は必須です（ローカル版では html も可）' });
   console.log(`[PDF出力] ファイル名: "${filename || 'Research_Report.pdf'}" (${orientation || 'auto'}) の生成開始`);
 
   try {
@@ -739,7 +929,9 @@ app.post('/api/export/pdf', auth.requireAuth, async (req, res) => {
     });
   } catch (err) {
     console.error('PDF export error:', err);
-    res.status(500).json({ error: err.message || 'PDFの生成に失敗しました' });
+    const statusCode = err.status || 500;
+    const msg = statusCode === 503 ? err.message : 'PDFの生成に失敗しました';
+    res.status(statusCode).json({ error: msg });
   }
 });
 
@@ -805,7 +997,7 @@ app.post('/api/presentation/prompt', auth.requireAuth, (req, res) => {
   }
 });
 
-app.post('/api/presentation/generate', auth.requireAuth, async (req, res) => {
+app.post('/api/presentation/generate', auth.requireAuth, aiLimiter, async (req, res) => {
   const { document, audience, goal, files } = req.body || {};
   const hasDoc = document && document.trim();
   const hasFiles = Array.isArray(files) && files.length > 0;
@@ -819,57 +1011,76 @@ app.post('/api/presentation/generate', auth.requireAuth, async (req, res) => {
     res.json(slidesData);
   } catch (err) {
     console.error('Presentation generate error:', err);
-    res.status(500).json({ error: err.message || 'スライドの生成に失敗しました' });
+    res.status(500).json({ error: 'スライドの生成に失敗しました' });
   }
 });
 
 /* ------------------------------------------------------------ history */
-app.get('/api/history', auth.requireAuth, (req, res) => {
+app.get('/api/history', auth.requireAuth, async (req, res) => {
   const userId = req.user.id;
   const userPlan = req.user.plan || 'free';
-  res.json(history.list(userId, userPlan));
+  try {
+    const list = await history.list(userId, userPlan);
+    res.json(list);
+  } catch (err) {
+    console.error('[history] list error:', err.message);
+    res.status(500).json({ error: '履歴一覧の取得に失敗しました' });
+  }
 });
 
 // 全履歴の一括バックアップダウンロード (v2.13.0)
-app.get('/api/history/backup', auth.requireAuth, (req, res) => {
+app.get('/api/history/backup', auth.requireAuth, async (req, res) => {
   const userId = req.user.id;
   const userPlan = req.user.plan || 'free';
-  const reports = history.getAllForUser(userId, userPlan);
-  const userProf = profile.getProfile(userId);
-  const ymd = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-  
-  res.setHeader('Content-Type', 'application/json');
-  res.setHeader('Content-Disposition', `attachment; filename="research_studio_backup_${userId}_${ymd}.json"`);
-  res.json({
-    version: pkgVer,
-    exportedAt: new Date().toISOString(),
-    userId,
-    profile: userProf,
-    count: reports.length,
-    reports,
-  });
+  try {
+    const reports = await history.getAllForUser(userId, userPlan);
+    const userProf = profile.getProfile(userId);
+    const ymd = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="research_studio_backup_${userId}_${ymd}.json"`);
+    res.json({
+      version: pkgVer,
+      exportedAt: new Date().toISOString(),
+      userId,
+      profile: userProf,
+      count: reports.length,
+      reports,
+    });
+  } catch (err) {
+    console.error('[history] backup error:', err.message);
+    res.status(500).json({ error: 'バックアップの生成に失敗しました' });
+  }
 });
 
 // バックアップからの全履歴復元・インポート (v2.13.0)
-app.post('/api/history/restore', auth.requireAuth, (req, res) => {
+app.post('/api/history/restore', auth.requireAuth, async (req, res) => {
   const userId = req.user.id;
   const { reports, profile: incomingProfile } = req.body || {};
   if (!Array.isArray(reports)) {
     return res.status(400).json({ error: 'reports は配列である必要があります' });
   }
-
-  const result = history.restoreReports(reports, userId);
-  if (incomingProfile && typeof incomingProfile === 'object') {
-    profile.updateProfile(userId, incomingProfile);
+  if (reports.length > 50) {
+    return res.status(400).json({ error: '一度に復元できる件数は最大50件です' });
   }
 
-  res.json({
-    ok: true,
-    userId,
-    restored: result.restored,
-    skipped: result.skipped,
-    totalInPayload: reports.length,
-  });
+  try {
+    const result = await history.restoreReports(reports, userId);
+    if (incomingProfile && typeof incomingProfile === 'object') {
+      profile.updateProfile(userId, incomingProfile);
+    }
+
+    res.json({
+      ok: true,
+      userId,
+      restored: result.restored,
+      skipped: result.skipped,
+      totalInPayload: reports.length,
+    });
+  } catch (err) {
+    console.error('[history] restore error:', err.message);
+    res.status(500).json({ error: '履歴の復元に失敗しました' });
+  }
 });
 
 /* ------------------------------------------------------------ profile (v2.13.0) */
@@ -883,50 +1094,80 @@ app.put('/api/user/profile', auth.requireAuth, (req, res) => {
   const updated = profile.updateProfile(userId, req.body || {});
   res.json({ ok: true, profile: updated });
 });
-app.get('/api/history/:id', auth.requireAuth, (req, res) => {
+app.get('/api/history/:id', auth.requireAuth, async (req, res) => {
   const userId = req.user.id;
   const userPlan = req.user.plan || 'free';
-  const r = history.get(req.params.id, userId, userPlan);
-  return r ? res.json(r) : res.status(404).json({ error: 'not found' });
+  try {
+    const r = await history.get(req.params.id, userId, userPlan);
+    return r ? res.json(r) : res.status(404).json({ error: 'not found' });
+  } catch (err) {
+    console.error('[history] get error:', err.message);
+    res.status(500).json({ error: '履歴の取得に失敗しました' });
+  }
 });
 
 /* ------------------------------------------------------ share (v2.10.0) */
 if (!env.IS_CLOUD) {
-  app.get('/api/share/:id', (req, res) => {
-    const r = history.get(req.params.id, null, 'admin');
-    return r ? res.json(r) : res.status(404).json({ error: '指定されたレポートが見つかりません' });
+  app.get('/api/share/:id', async (req, res) => {
+    try {
+      const r = await history.get(req.params.id, null, 'admin');
+      return r ? res.json(r) : res.status(404).json({ error: '指定されたレポートが見つかりません' });
+    } catch (err) {
+      console.error('[share] get error:', err.message);
+      res.status(500).json({ error: 'レポートの取得に失敗しました' });
+    }
   });
 
   app.get('/share/:id', (req, res) => {
     res.sendFile(path.join(__dirname, '..', 'public', 'share.html'), { dotfiles: 'allow' });
   });
 }
-app.patch('/api/history/:id', auth.requireAuth, (req, res) => {
+app.patch('/api/history/:id', auth.requireAuth, async (req, res) => {
   const userId = req.user.id;
   const userPlan = req.user.plan || 'free';
-  const updated = history.update(req.params.id, req.body || {}, userId, userPlan);
-  return updated ? res.json(updated) : res.status(404).json({ error: 'not found' });
-});
-app.put('/api/history/:id', auth.requireAuth, (req, res) => {
-  const userId = req.user.id;
-  const userPlan = req.user.plan || 'free';
-  const updated = history.update(req.params.id, req.body || {}, userId, userPlan);
-  return updated ? res.json(updated) : res.status(404).json({ error: 'not found' });
-});
-app.post('/api/history/:id/pin', auth.requireAuth, (req, res) => {
-  const userId = req.user.id;
-  const userPlan = req.user.plan || 'free';
-  const updated = history.togglePin(req.params.id, userId, userPlan);
-  return updated ? res.json(updated) : res.status(404).json({ error: 'not found' });
-});
-app.delete('/api/history/:id', auth.requireAuth, (req, res) => {
-  const userId = req.user.id;
-  const userPlan = req.user.plan || 'free';
-  const ok = history.remove(req.params.id, userId, userPlan);
-  if (!ok) {
-    return res.status(404).json({ error: 'not found' });
+  try {
+    const updated = await history.update(req.params.id, req.body || {}, userId, userPlan);
+    return updated ? res.json(updated) : res.status(404).json({ error: 'not found' });
+  } catch (err) {
+    console.error('[history] update error:', err.message);
+    res.status(500).json({ error: '更新に失敗しました' });
   }
-  res.json({ ok: true });
+});
+app.put('/api/history/:id', auth.requireAuth, async (req, res) => {
+  const userId = req.user.id;
+  const userPlan = req.user.plan || 'free';
+  try {
+    const updated = await history.update(req.params.id, req.body || {}, userId, userPlan);
+    return updated ? res.json(updated) : res.status(404).json({ error: 'not found' });
+  } catch (err) {
+    console.error('[history] update error:', err.message);
+    res.status(500).json({ error: '更新に失敗しました' });
+  }
+});
+app.post('/api/history/:id/pin', auth.requireAuth, async (req, res) => {
+  const userId = req.user.id;
+  const userPlan = req.user.plan || 'free';
+  try {
+    const updated = await history.togglePin(req.params.id, userId, userPlan);
+    return updated ? res.json(updated) : res.status(404).json({ error: 'not found' });
+  } catch (err) {
+    console.error('[history] pin error:', err.message);
+    res.status(500).json({ error: 'ピン留めの切り替えに失敗しました' });
+  }
+});
+app.delete('/api/history/:id', auth.requireAuth, async (req, res) => {
+  const userId = req.user.id;
+  const userPlan = req.user.plan || 'free';
+  try {
+    const ok = await history.remove(req.params.id, userId, userPlan);
+    if (!ok) {
+      return res.status(404).json({ error: 'not found' });
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[history] remove error:', err.message);
+    res.status(500).json({ error: '削除に失敗しました' });
+  }
 });
 
 /* ------------------------------------------------------------- memory */
@@ -954,33 +1195,44 @@ app.use((err, req, res, _next) => {
 });
 
 function openBrowser(url) {
+  if (process.env.NODE_ENV === 'test' || process.env.CI) return;
   try {
     const { spawn } = require('child_process');
+    let child;
     if (process.platform === 'win32') {
-      spawn('cmd', ['/c', 'start', '', url], { detached: true, stdio: 'ignore' });
+      child = spawn('cmd', ['/c', 'start', '', url], { detached: true, stdio: 'ignore' });
     } else if (process.platform === 'darwin') {
-      spawn('open', [url], { detached: true, stdio: 'ignore' });
+      child = spawn('open', [url], { detached: true, stdio: 'ignore' });
     } else {
-      spawn('xdg-open', [url], { detached: true, stdio: 'ignore' });
+      child = spawn('xdg-open', [url], { detached: true, stdio: 'ignore' });
+    }
+    if (child && typeof child.unref === 'function') {
+      child.unref();
     }
   } catch {}
 }
 
 /** 該当ポートで動いているのが Research Studio か確認 */
-async function checkIsResearchStudio(port) {
-  const hosts = ['127.0.0.1', 'localhost'];
-  for (const h of hosts) {
-    try {
-      const res = await fetch(`http://${h}:${port}/api/info`, {
-        signal: AbortSignal.timeout(1000),
+function checkIsResearchStudio(port) {
+  return new Promise((resolve) => {
+    const req = http.get(`http://127.0.0.1:${port}/api/info`, { timeout: 1000 }, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        try {
+          const json = JSON.parse(data);
+          resolve(json && json.app === 'Research Studio');
+        } catch {
+          resolve(false);
+        }
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.app === 'Research Studio') return true;
-      }
-    } catch {}
-  }
-  return false;
+    });
+    req.on('error', () => resolve(false));
+    req.on('timeout', () => {
+      try { req.destroy(); } catch {}
+      resolve(false);
+    });
+  });
 }
 
 function startServer(port, host, retries = 5) {
@@ -1015,8 +1267,11 @@ function startServer(port, host, retries = 5) {
         console.log(`  [情報] Research Studio はすでに起動しています (ポート: ${port})`);
         console.log(`  既存のブラウザ画面を開きます: http://localhost:${port}`);
         console.log(`${'═'.repeat(56)}\n`);
-        openBrowser(`http://localhost:${port}`);
-        process.exit(0);
+        if (process.env.NODE_ENV !== 'test') {
+          openBrowser(`http://localhost:${port}`);
+        }
+        setTimeout(() => process.exit(0), 20);
+        return;
       }
 
       console.error(`\n[エラー] ポート ${port} は使用中です。Research Studio は単一インスタンス（ポート ${port}）で動作します。`);
@@ -1036,8 +1291,11 @@ async function bootstrap() {
     console.log(`  [情報] Research Studio はすでに起動しています (ポート: ${PORT})`);
     console.log(`  既存のブラウザ画面を開きます: http://localhost:${PORT}`);
     console.log(`${'═'.repeat(56)}\n`);
-    openBrowser(`http://localhost:${PORT}`);
-    process.exit(0);
+    if (process.env.NODE_ENV !== 'test') {
+      openBrowser(`http://localhost:${PORT}`);
+    }
+    setTimeout(() => process.exit(0), 20);
+    return;
   }
 
   startServer(PORT, HOST);

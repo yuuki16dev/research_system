@@ -1,7 +1,10 @@
+'use strict';
+
 const { execFile } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const crypto = require('crypto');
 
 /**
  * OS内に既にインストールされている Edge または Chrome の実行ファイルパスを探索
@@ -53,39 +56,66 @@ function findSystemBrowser() {
   return null;
 }
 
-/**
- * 商用レポートHTMLからヘッドレスブラウザでPDFを直接生成する
- * @param {string} htmlContent - レポートの完全なHTML
- * @param {Object} options - 出力オプション（orientation: 'portrait' | 'landscape'）
- * @returns {Promise<string>} 生成されたPDFの一時ファイルパス
- */
-async function generatePdfFromHtml(htmlContent, options = {}) {
-  const browserPath = findSystemBrowser();
-  if (!browserPath) {
-    throw new Error('システム内に Microsoft Edge または Google Chrome が見つかりませんでした。');
+// B-7: PDF生成キュー管理（最大同時実行数 1件、最大待機列 5件）
+const MAX_CONCURRENT_PDF = 1;
+const MAX_WAITING_QUEUE = 5;
+let activePdfJobs = 0;
+const waitingQueue = [];
+
+function processNextQueueItem() {
+  if (activePdfJobs >= MAX_CONCURRENT_PDF || waitingQueue.length === 0) {
+    return;
   }
+  const item = waitingQueue.shift();
+  activePdfJobs++;
 
-  const isPortrait = options.orientation === 'portrait' || (htmlContent && (htmlContent.includes('class="doc"') || htmlContent.includes('A4 portrait') || htmlContent.includes('size: A4 portrait')));
-  const isCompleteDoc = /^\s*<!DOCTYPE\s+html/i.test(htmlContent) || /^\s*<html/i.test(htmlContent);
+  executePdfGeneration(item.htmlContent, item.options)
+    .then((pdfPath) => {
+      activePdfJobs--;
+      item.resolve(pdfPath);
+      processNextQueueItem();
+    })
+    .catch((err) => {
+      activePdfJobs--;
+      item.reject(err);
+      processNextQueueItem();
+    });
+}
 
-  const tmpDir = path.join(os.tmpdir(), 'research_studio_pdf');
-  fs.mkdirSync(tmpDir, { recursive: true });
-
-  const id = Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-  const tmpHtml = path.join(tmpDir, `report_${id}.html`);
-  const tmpPdf = path.join(tmpDir, `report_${id}.pdf`);
-
-  let fileContent = htmlContent;
-
-  if (!isCompleteDoc) {
-    // 従来のHTMLフラグメントの場合は完全なHTMLドキュメントを構築
-    let printCss = '';
-    const printCssPath = path.resolve(__dirname, '../public/css/print.css');
-    if (fs.existsSync(printCssPath)) {
-      printCss = fs.readFileSync(printCssPath, 'utf8');
+/**
+ * ヘッドレスブラウザによる直接のPDFバイナリ生成（キュー制御の内部関数）
+ * @param {string} htmlContent
+ * @param {Object} options
+ * @returns {Promise<string>}
+ */
+function executePdfGeneration(htmlContent, options = {}) {
+  return new Promise((resolve, reject) => {
+    const browserPath = findSystemBrowser();
+    if (!browserPath) {
+      return reject(new Error('システム内に Microsoft Edge または Google Chrome が見つかりませんでした。'));
     }
 
-    fileContent = `<!DOCTYPE html>
+    const isPortrait = options.orientation === 'portrait' || (htmlContent && (htmlContent.includes('class="doc"') || htmlContent.includes('A4 portrait') || htmlContent.includes('size: A4 portrait')));
+    const isCompleteDoc = /^\s*<!DOCTYPE\s+html/i.test(htmlContent) || /^\s*<html/i.test(htmlContent);
+
+    const tmpDir = path.join(os.tmpdir(), 'research_studio_pdf');
+    fs.mkdirSync(tmpDir, { recursive: true });
+
+    // B-7: 一時ファイル名は crypto.randomUUID() で生成
+    const id = crypto.randomUUID();
+    const tmpHtml = path.join(tmpDir, `report_${id}.html`);
+    const tmpPdf = path.join(tmpDir, `report_${id}.pdf`);
+
+    let fileContent = htmlContent;
+
+    if (!isCompleteDoc) {
+      let printCss = '';
+      const printCssPath = path.resolve(__dirname, '../public/css/print.css');
+      if (fs.existsSync(printCssPath)) {
+        printCss = fs.readFileSync(printCssPath, 'utf8');
+      }
+
+      fileContent = `<!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
@@ -115,11 +145,11 @@ async function generatePdfFromHtml(htmlContent, options = {}) {
   </div>
 </body>
 </html>`;
-  }
+    }
 
-  fs.writeFileSync(tmpHtml, fileContent, 'utf8');
+    fs.writeFileSync(tmpHtml, fileContent, 'utf8');
+    const tmpProfileDir = path.join(os.tmpdir(), `rs_pdf_profile_${crypto.randomUUID()}`);
 
-  return new Promise((resolve, reject) => {
     const args = [
       '--headless',
       '--no-sandbox',
@@ -133,6 +163,7 @@ async function generatePdfFromHtml(htmlContent, options = {}) {
       '--no-first-run',
       '--no-pdf-header-footer',
       '--run-all-compositor-stages-before-draw',
+      `--user-data-dir=${tmpProfileDir}`,
       ...(isPortrait ? [] : ['--landscape']),
       '--font-render-hinting=medium',
       '--enable-font-antialiasing',
@@ -142,9 +173,12 @@ async function generatePdfFromHtml(htmlContent, options = {}) {
     ];
 
     execFile(browserPath, args, { timeout: 25000 }, (error) => {
-      // HTMLファイルは即座に削除
+      // HTMLファイルと一時プロファイルは即座に削除
       try {
         fs.unlinkSync(tmpHtml);
+      } catch {}
+      try {
+        fs.rmSync(tmpProfileDir, { recursive: true, force: true });
       } catch {}
 
       if (error) {
@@ -163,7 +197,41 @@ async function generatePdfFromHtml(htmlContent, options = {}) {
   });
 }
 
+/**
+ * 商用レポートHTMLからヘッドレスブラウザでPDFを直接生成する（同時実行制御キュー付き）
+ * @param {string} htmlContent - レポートの完全なHTML
+ * @param {Object} options - 出力オプション（orientation: 'portrait' | 'landscape'）
+ * @returns {Promise<string>} 生成されたPDFの一時ファイルパス
+ */
+async function generatePdfFromHtml(htmlContent, options = {}) {
+  // B-7: 待機キューが 5件を超えたら 503 で即座に拒絶
+  if (waitingQueue.length >= MAX_WAITING_QUEUE) {
+    const error = new Error('PDF生成の待機列が上限（5件）に達しました。しばらく時間をおいてから再試行してください。');
+    error.status = 503;
+    error.code = 'PDF_QUEUE_OVERFLOW';
+    throw error;
+  }
+
+  return new Promise((resolve, reject) => {
+    waitingQueue.push({ htmlContent, options, resolve, reject });
+    processNextQueueItem();
+  });
+}
+
+/**
+ * キューの現在の稼働・待機状況を取得（テスト・監視用）
+ */
+function getQueueStatus() {
+  return {
+    active: activePdfJobs,
+    waiting: waitingQueue.length,
+    maxConcurrent: MAX_CONCURRENT_PDF,
+    maxWaiting: MAX_WAITING_QUEUE,
+  };
+}
+
 module.exports = {
   findSystemBrowser,
   generatePdfFromHtml,
+  getQueueStatus,
 };

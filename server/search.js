@@ -2,6 +2,7 @@
 
 const { domainOf } = require('./util');
 const { safeFetch } = require('./security');
+const { assertPublicUrl } = require('./url-guard');
 
 // Node.js 18.x 互換用 AbortSignal.any ポリフィル
 if (typeof AbortSignal.any !== 'function') {
@@ -239,8 +240,12 @@ function extractText(html) {
   return { title: titleM ? stripTags(titleM[1]) : '', text };
 }
 
-async function fetchPage(url, { signal, maxChars = 6000, timeoutMs = 7000 } = {}) {
-  const { text: rawHtml } = await safeFetch(url, { signal, timeoutMs, maxBytes: 2_000_000 });
+async function fetchPage(url, { signal, maxChars = 6000, timeoutMs = 7000, ...rest } = {}) {
+  // B-6: 取得前に assertPublicUrl で厳格にSSRF判定 (テスト時バイパス指定時を除く)
+  if (!(process.env.NODE_ENV === 'test' && rest._dangerouslyBypassFirstHopForTest)) {
+    await assertPublicUrl(url);
+  }
+  const { text: rawHtml } = await safeFetch(url, { signal, timeoutMs, maxBytes: 2_000_000, ...rest });
   const { title, text } = extractText(rawHtml);
   return { title, text: text.slice(0, maxChars) };
 }

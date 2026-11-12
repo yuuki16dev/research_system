@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const env = require('./env');
 const { DATA_DIR } = require('./settings');
 
 const FILE = path.join(DATA_DIR, 'memory.json');
@@ -10,6 +11,7 @@ const FILE = path.join(DATA_DIR, 'memory.json');
  * 記憶データの読み込み
  */
 function load() {
+  if (env.IS_CLOUD) return [];
   try {
     if (fs.existsSync(FILE)) {
       const data = JSON.parse(fs.readFileSync(FILE, 'utf8'));
@@ -25,6 +27,7 @@ function load() {
  * 記憶データの保存
  */
 function save(list) {
+  if (env.IS_CLOUD) return;
   try {
     fs.mkdirSync(path.dirname(FILE), { recursive: true });
     fs.writeFileSync(FILE, JSON.stringify(list, null, 2), 'utf8');
@@ -44,6 +47,7 @@ function extractKeywords(text = '') {
  * スコア75点以上のドメインのみを記憶し、低品質サイトは学習しない
  */
 function learnFromResearch(result) {
+  if (env.IS_CLOUD) return;
   if (!result || !Array.isArray(result.sources) || !result.theme) return;
 
   const current = load();
@@ -97,6 +101,7 @@ function learnFromResearch(result) {
  * 4. 明示的フラグ: 記憶ドメイン由来のソースには [知見メモリ] フラグを付与
  */
 function suggestRelevantDomains(theme, { limit = 2, exclude = [] } = {}) {
+  if (env.IS_CLOUD) return [];
   const current = load();
   if (!current.length || !theme) return [];
 
@@ -149,6 +154,7 @@ function suggestRelevantDomains(theme, { limit = 2, exclude = [] } = {}) {
 
 /** ドメインの個別削除 */
 function remove(domain) {
+  if (env.IS_CLOUD) return false;
   const current = load();
   const filtered = current.filter((x) => x.domain.toLowerCase() !== String(domain).toLowerCase());
   save(filtered);
@@ -157,6 +163,7 @@ function remove(domain) {
 
 /** 全記憶のリセット */
 function clear() {
+  if (env.IS_CLOUD) return true;
   save([]);
   return true;
 }

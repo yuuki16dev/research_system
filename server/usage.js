@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const env = require('./env');
 const { DATA_DIR } = require('./settings');
 
 const FILE = path.join(DATA_DIR, 'usage.json');
@@ -14,27 +15,9 @@ const GEMINI_PRICING = {
 };
 const USD_JPY_RATE = 150; // 参考レート
 
-function loadUsage() {
-  try {
-    if (fs.existsSync(FILE)) {
-      const data = JSON.parse(fs.readFileSync(FILE, 'utf8'));
-      if (data && !data.groq) {
-        data.groq = {
-          totalRequests: 0,
-          todayRequests: 0,
-          lastDate: new Date().toISOString().slice(0, 10),
-          totalPromptTokens: 0,
-          totalCandidatesTokens: 0,
-          totalTokens: 0,
-          lastUsed: null,
-          history: [],
-        };
-      }
-      return data;
-    }
-  } catch (e) {
-    console.error('[usage] load error:', e.message);
-  }
+let cloudMemoryUsage = null;
+
+function createEmptyUsage() {
   return {
     gemini: {
       totalRequests: 0,
@@ -66,7 +49,43 @@ function loadUsage() {
   };
 }
 
+function loadUsage() {
+  if (env.IS_CLOUD) {
+    if (!cloudMemoryUsage) {
+      cloudMemoryUsage = createEmptyUsage();
+    }
+    return cloudMemoryUsage;
+  }
+
+  try {
+    if (fs.existsSync(FILE)) {
+      const data = JSON.parse(fs.readFileSync(FILE, 'utf8'));
+      if (data && !data.groq) {
+        data.groq = {
+          totalRequests: 0,
+          todayRequests: 0,
+          lastDate: new Date().toISOString().slice(0, 10),
+          totalPromptTokens: 0,
+          totalCandidatesTokens: 0,
+          totalTokens: 0,
+          lastUsed: null,
+          history: [],
+        };
+      }
+      return data;
+    }
+  } catch (e) {
+    console.error('[usage] load error:', e.message);
+  }
+  return createEmptyUsage();
+}
+
 function saveUsage(data) {
+  if (env.IS_CLOUD) {
+    cloudMemoryUsage = data;
+    return;
+  }
+
   try {
     fs.mkdirSync(path.dirname(FILE), { recursive: true });
     fs.writeFileSync(FILE, JSON.stringify(data, null, 2), 'utf8');

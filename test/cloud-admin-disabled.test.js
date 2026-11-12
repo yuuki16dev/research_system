@@ -57,6 +57,7 @@ test('A-3: Cloud mode disables administrative routes and endpoints', async () =>
     {
       SUPABASE_URL: 'https://example.supabase.co',
       SUPABASE_ANON_KEY: 'test-anon-key',
+      SUPABASE_SERVICE_ROLE_KEY: 'test-service-role-key',
     },
     async (base) => {
       // 1. 管理系ルートがすべて 404 を返すことの検証

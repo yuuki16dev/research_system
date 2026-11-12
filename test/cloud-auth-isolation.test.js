@@ -79,6 +79,7 @@ test('A-4: Cloud mode rejects unauthenticated history access and isolates users'
       {
         SUPABASE_URL: 'https://example.supabase.co',
         SUPABASE_ANON_KEY: 'test-anon-key',
+        SUPABASE_SERVICE_ROLE_KEY: 'test-service-role-key',
         ENABLE_TEST_USERS: 'true',
       },
       async (base) => {

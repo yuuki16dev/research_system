@@ -11,9 +11,69 @@
 
 const env = require('./env');
 
-const SUPABASE_URL = process.env.SUPABASE_URL ? process.env.SUPABASE_URL.replace(/\/+$/, '') : '';
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
-const ENABLE_AUTH = process.env.ENABLE_AUTH === 'true';
+function isAuthEnforced() {
+  return process.env.ENABLE_AUTH === 'true';
+}
+
+function getSupabaseUrl() {
+  return process.env.SUPABASE_URL ? process.env.SUPABASE_URL.replace(/\/+$/, '') : '';
+}
+function getSupabaseAnonKey() {
+  return process.env.SUPABASE_ANON_KEY || '';
+}
+function getSupabaseServiceRoleKey() {
+  return process.env.SUPABASE_SERVICE_ROLE_KEY ? process.env.SUPABASE_SERVICE_ROLE_KEY.trim() : '';
+}
+
+// プロファイルキャッシュ（利用者ID -> { plan, subscriptionStatus, expiresAt }）60秒TTL (B-1)
+const profileCache = new Map();
+
+function clearProfileCache() {
+  profileCache.clear();
+}
+
+async function getProfileFromSupabase(userId) {
+  const now = Date.now();
+  const cached = profileCache.get(userId);
+  if (cached && cached.expiresAt > now) {
+    return cached;
+  }
+
+  const supabaseUrl = getSupabaseUrl();
+  const serviceKey = getSupabaseServiceRoleKey();
+  if (!supabaseUrl || !serviceKey) {
+    return { plan: 'free', subscriptionStatus: 'active', expiresAt: now + 60000 };
+  }
+
+  try {
+    const res = await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=plan,subscription_status`, {
+      headers: {
+        apikey: serviceKey,
+        Authorization: `Bearer ${serviceKey}`,
+      },
+      signal: AbortSignal.timeout(3000),
+    });
+
+    if (res.ok) {
+      const rows = await res.json();
+      if (Array.isArray(rows) && rows.length > 0) {
+        const item = {
+          plan: rows[0].plan || 'free',
+          subscriptionStatus: rows[0].subscription_status || 'active',
+          expiresAt: now + 60000,
+        };
+        profileCache.set(userId, item);
+        return item;
+      }
+    }
+  } catch (err) {
+    console.warn('[auth] Failed to fetch profile from Supabase:', err.message);
+  }
+
+  const fallback = { plan: 'free', subscriptionStatus: 'active', expiresAt: now + 60000 };
+  profileCache.set(userId, fallback);
+  return fallback;
+}
 
 // プリセットのテストアカウント一覧
 const PRESET_TEST_USERS = [
@@ -84,22 +144,45 @@ async function verifyToken(token) {
     }
   }
 
-  // Supabase JWT トークンの検証
-  if (env.IS_CLOUD && SUPABASE_ANON_KEY) {
+  // Supabase JWT トークンの検証 (B-1: profiles テーブルからプラン判定)
+  const supabaseUrl = getSupabaseUrl();
+  const anonKey = getSupabaseAnonKey();
+  if (env.IS_CLOUD && anonKey) {
     try {
-      const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      const res = await fetch(`${supabaseUrl}/auth/v1/user`, {
         headers: {
           Authorization: `Bearer ${token}`,
-          apikey: SUPABASE_ANON_KEY,
+          apikey: anonKey,
         },
         signal: AbortSignal.timeout(4000),
       });
 
       if (!res.ok) return null;
       const data = await res.json();
+      if (!data || !data.id) return null;
+
+      // profiles テーブルから plan と subscription_status を取得 (B-1)
+      const profile = await getProfileFromSupabase(data.id);
+      let plan = profile.plan || 'free';
+
+      // クラウド版の管理者制限: ADMIN_USER_IDS に含まれるUUIDのみ admin、それ以外は free 扱い (B-1)
+      const adminUserIds = (process.env.ADMIN_USER_IDS || '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      if (adminUserIds.includes(data.id)) {
+        plan = 'admin';
+      } else if (plan === 'admin') {
+        plan = 'free';
+      }
+
       return {
-        ...data,
-        plan: (data.user_metadata && data.user_metadata.plan) || 'free',
+        id: data.id,
+        email: data.email,
+        plan,
+        subscription_status: profile.subscriptionStatus || 'active',
+        role: data.role || 'authenticated',
         isTestUser: false,
       };
     } catch (err) {
@@ -128,7 +211,7 @@ async function requireAuth(req, res, next) {
   }
 
   // 認証が強制されていない環境で未ログインの場合は、デフォルト管理者として通過
-  if (!ENABLE_AUTH && !env.IS_CLOUD) {
+  if (!isAuthEnforced() && !env.IS_CLOUD) {
     req.user = {
       id: 'owner-user',
       email: 'owner@local',
@@ -162,7 +245,7 @@ async function optionalAuth(req, res, next) {
   }
 
   // トークンがない場合、未強制環境ではローカル管理者
-  if (!ENABLE_AUTH && !env.IS_CLOUD) {
+  if (!isAuthEnforced() && !env.IS_CLOUD) {
     req.user = {
       id: 'owner-user',
       email: 'owner@local',
@@ -185,8 +268,8 @@ async function optionalAuth(req, res, next) {
  */
 async function signupUser(email, password) {
   const normEmail = String(email || '').trim().toLowerCase();
-  if (!normEmail || !password || password.length < 6) {
-    throw new Error('有効なメールアドレスと6文字以上のパスワードを入力してください');
+  if (!normEmail || !password || String(password).length < 8) {
+    throw new Error('有効なメールアドレスと8文字以上のパスワードを入力してください');
   }
 
   // 既存テストアカウントとの重複チェック (TEST_USERS_ENABLED 有効時のみ)
@@ -219,21 +302,22 @@ async function signupUser(email, password) {
   }
 
   // Supabase が未設定の場合のエラー通知
-  if (!env.IS_CLOUD || !SUPABASE_ANON_KEY) {
+  const supabaseUrl = getSupabaseUrl();
+  const anonKey = getSupabaseAnonKey();
+  if (!env.IS_CLOUD || !anonKey) {
     throw new Error('クラウド認証（Supabase）が設定されていません。' + (env.TEST_USERS_ENABLED ? '検証用のテストアカウント（@test.local）をご利用ください。' : ''));
   }
 
-  // Supabase Auth へプロキシ
-  const res = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
+  // Supabase Auth へプロキシ (B-1: data.plan を送信しない)
+  const res = await fetch(`${supabaseUrl}/auth/v1/signup`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      apikey: SUPABASE_ANON_KEY,
+      apikey: anonKey,
     },
     body: JSON.stringify({
       email: normEmail,
       password,
-      data: { plan: 'free' },
     }),
     signal: AbortSignal.timeout(6000),
   });
@@ -279,15 +363,17 @@ async function loginUser(email, password) {
   }
 
   // 2. Supabase Auth での認証
-  if (!env.IS_CLOUD || !SUPABASE_ANON_KEY) {
+  const supabaseUrl = getSupabaseUrl();
+  const anonKey = getSupabaseAnonKey();
+  if (!env.IS_CLOUD || !anonKey) {
     throw new Error('クラウド認証（Supabase）が設定されていません。' + (env.TEST_USERS_ENABLED ? '検証用のテストアカウント（@test.local）をご利用ください。' : ''));
   }
 
-  const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+  const res = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      apikey: SUPABASE_ANON_KEY,
+      apikey: anonKey,
     },
     body: JSON.stringify({ email: normEmail, password }),
     signal: AbortSignal.timeout(6000),
@@ -308,5 +394,6 @@ module.exports = {
   verifySupabaseToken: verifyToken, // 後方互換性
   signupUser,
   loginUser,
+  clearProfileCache,
   isCloudAuthEnabled: () => Boolean(env.IS_CLOUD || env.TEST_USERS_ENABLED),
 };

@@ -63,10 +63,16 @@ export const api = {
 
   /**
    * SSE で進捗を購読する。
+   * @param {string} jobId
+   * @param {object} handlers
+   * @param {string} [token]
    * @returns {() => void} 購読解除関数
    */
-  subscribe(jobId, handlers) {
-    const es = new EventSource(`/api/research/${jobId}/events`);
+  subscribe(jobId, handlers, token = '') {
+    const url = token
+      ? `/api/research/${encodeURIComponent(jobId)}/events?token=${encodeURIComponent(token)}`
+      : `/api/research/${encodeURIComponent(jobId)}/events`;
+    const es = new EventSource(url);
     let finished = false;
     let hasResult = false;
 

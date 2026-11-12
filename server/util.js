@@ -185,7 +185,7 @@ function normalizeResult(raw = {}, meta = {}) {
         ? `カスタム指定: ${meta.customPurpose}`
         : (PURPOSE_LABELS[meta.purpose] || 'ビジネス・戦略資料'),
     customPurpose: meta.customPurpose || '',
-    referenceContext: meta.referenceContext || '',
+    // B-10: 手持ち資料テキスト（referenceContext）はレポート保存・返却オブジェクトから除外
     referenceUrls: arr(raw.referenceUrls || meta.referenceUrls)
       .map(str)
       .filter((u) => /^https?:\/\//i.test(u))

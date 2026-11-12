@@ -41,6 +41,10 @@ test('history: getAllForUser and restoreReports handle full report lifecycle', (
   const id1 = 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa';
   const id2 = 'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb';
 
+  // 事前クリーンアップ
+  history.getAllForUser(uidA, 'free').forEach((r) => history.remove(r.id, null, 'admin'));
+  history.getAllForUser(uidB, 'free').forEach((r) => history.remove(r.id, null, 'admin'));
+
   // レポート作成
   history.save({
     id: id1,
@@ -83,6 +87,7 @@ test('history: getAllForUser and restoreReports handle full report lifecycle', (
   // クリーンアップ
   history.remove(id1, null, 'admin');
   history.remove(id2, null, 'admin');
+  restoredB.forEach((r) => history.remove(r.id, null, 'admin'));
 });
 
 test('profile & backup: API endpoints work with authentication', async () => {

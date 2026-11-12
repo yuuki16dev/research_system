@@ -847,8 +847,8 @@ export async function startResearch(params) {
 
   // ジョブの開始
   try {
-    const { jobId } = await api.startResearch(params);
-    subscribeJob(jobId, params.depth);
+    const { jobId, token } = await api.startResearch(params);
+    subscribeJob(jobId, params.depth, token);
   } catch (err) {
     finishError(err.message);
   }
@@ -857,7 +857,7 @@ export async function startResearch(params) {
 /**
  * SSE ジョブ購読の共通ハンドラ
  */
-function subscribeJob(jobId, depth = 'quick') {
+function subscribeJob(jobId, depth = 'quick', token = '') {
   appState.activeJobId = jobId;
   let logCounter = 0;
 
@@ -952,7 +952,7 @@ function subscribeJob(jobId, depth = 'quick') {
     onError: (err) => {
       finishError(err.message);
     },
-  });
+  }, token);
 }
 
 function updateReassuranceGuidance(sec, stage, depth) {
@@ -1402,8 +1402,8 @@ export async function startCrossSynthesis(reportIds) {
   }, 1000);
 
   try {
-    const { jobId } = await api.crossSynthesize(reportIds);
-    subscribeJob(jobId, 'deep');
+    const { jobId, token } = await api.crossSynthesize(reportIds);
+    subscribeJob(jobId, 'deep', token);
   } catch (err) {
     finishError(err.message);
   }
@@ -1484,8 +1484,8 @@ export async function startDeltaTracking(baseReportId, baseReportTitle = '') {
   }, 1000);
 
   try {
-    const { jobId } = await api.startDeltaTracking(baseReportId);
-    subscribeJob(jobId, 'quick');
+    const { jobId, token } = await api.startDeltaTracking(baseReportId);
+    subscribeJob(jobId, 'quick', token);
   } catch (err) {
     finishError(err.message);
   }

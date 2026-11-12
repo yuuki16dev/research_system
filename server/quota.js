@@ -9,8 +9,12 @@
 
 const { IS_CLOUD } = require('./env');
 
-const SUPABASE_URL = process.env.SUPABASE_URL ? process.env.SUPABASE_URL.replace(/\/+$/, '') : '';
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '';
+function getSupabaseUrl() {
+  return process.env.SUPABASE_URL ? process.env.SUPABASE_URL.replace(/\/+$/, '') : '';
+}
+function getSupabaseServiceRoleKey() {
+  return process.env.SUPABASE_SERVICE_ROLE_KEY ? process.env.SUPABASE_SERVICE_ROLE_KEY.trim() : '';
+}
 
 const PLAN_LIMITS = {
   free: 3,      // お試し無料枠: 月3回
@@ -42,13 +46,23 @@ async function getMonthlyQuota(userId = 'local-user', plan = 'admin') {
 
   // 無制限プラン（admin）の場合
   if (limit === Infinity) {
+    // クラウド版の場合、ADMIN_USER_IDS に含まれるユーザーのみ無制限とする (B-1)
+    if (IS_CLOUD) {
+      const adminUserIds = (process.env.ADMIN_USER_IDS || '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (!adminUserIds.includes(userId)) {
+        return getMonthlyQuota(userId, 'free');
+      }
+    }
     const key = `${userId}:${ym}`;
     const used = localUsageCache.get(key) || 0;
     return {
       used,
       limit: 999999,
       remaining: 999999,
-      plan: plan || 'admin',
+      plan: 'admin',
       canResearch: true,
       yearMonth: ym,
     };
@@ -70,11 +84,27 @@ async function getMonthlyQuota(userId = 'local-user', plan = 'admin') {
   }
 
   // Supabase からクォータを取得
+  const supabaseUrl = getSupabaseUrl();
+  const serviceKey = getSupabaseServiceRoleKey();
+  if (!supabaseUrl || !serviceKey) {
+    const key = `${userId}:${ym}`;
+    const used = localUsageCache.get(key) || 0;
+    const remaining = Math.max(0, limit - used);
+    return {
+      used,
+      limit,
+      remaining,
+      plan,
+      canResearch: remaining > 0,
+      yearMonth: ym,
+    };
+  }
+
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/research_usage?user_id=eq.${encodeURIComponent(userId)}&year_month=eq.${encodeURIComponent(ym)}&select=used_count`, {
+    const res = await fetch(`${supabaseUrl}/rest/v1/research_usage?user_id=eq.${encodeURIComponent(userId)}&year_month=eq.${encodeURIComponent(ym)}&select=used_count`, {
       headers: {
-        apikey: SUPABASE_SERVICE_ROLE_KEY,
-        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        apikey: serviceKey,
+        Authorization: `Bearer ${serviceKey}`,
       },
       signal: AbortSignal.timeout(3000),
     });
@@ -122,17 +152,19 @@ async function recordUsage(userId = 'local-user', plan = 'admin') {
   const currentLocal = (localUsageCache.get(key) || 0) + 1;
   localUsageCache.set(key, currentLocal);
 
-  if (!IS_CLOUD || !SUPABASE_SERVICE_ROLE_KEY) {
+  const supabaseUrl = getSupabaseUrl();
+  const serviceKey = getSupabaseServiceRoleKey();
+  if (!IS_CLOUD || !serviceKey || !supabaseUrl) {
     return currentLocal;
   }
 
   try {
     // Supabase RPC または UPSERT でカウント更新
-    await fetch(`${SUPABASE_URL}/rest/v1/research_usage`, {
+    await fetch(`${supabaseUrl}/rest/v1/research_usage`, {
       method: 'POST',
       headers: {
-        apikey: SUPABASE_SERVICE_ROLE_KEY,
-        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        apikey: serviceKey,
+        Authorization: `Bearer ${serviceKey}`,
         'Content-Type': 'application/json',
         Prefer: 'resolution=merge-duplicates',
       },
@@ -156,7 +188,7 @@ async function recordUsage(userId = 'local-user', plan = 'admin') {
  */
 function requireQuota(req, res, next) {
   const user = req.user || { id: 'local-user', plan: 'admin' };
-  const plan = user.plan || (user.user_metadata && user.user_metadata.plan) || 'free';
+  const plan = user.plan || 'free';
 
   getMonthlyQuota(user.id, plan).then((quota) => {
     if (!quota.canResearch) {

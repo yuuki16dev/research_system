@@ -28,13 +28,19 @@ ENV CHROME_PATH=/usr/bin/chromium \
     PORT=3939
 
 # Copy package manifests first for caching
-COPY package*.json ./
+COPY --chown=node:node package*.json ./
 
 # Install production dependencies
 RUN npm ci --omit=dev
 
-# Copy project source code
-COPY . .
+# Copy project source code with node user ownership
+COPY --chown=node:node . .
+
+# Ensure proper permissions for node user
+RUN chown -R node:node /app
+
+# Switch to non-root user (B-7)
+USER node
 
 # Expose server port
 EXPOSE 3939

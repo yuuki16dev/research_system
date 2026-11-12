@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const env = require('./env');
 
 function resolveDataDir() {
   if (process.env.RESEARCH_DATA_DIR) {
@@ -77,6 +78,7 @@ function migrateOldDataIfNeeded() {
 }
 
 function ensureDir() {
+  if (env.IS_CLOUD) return;
   fs.mkdirSync(DATA_DIR, { recursive: true });
   migrateOldDataIfNeeded();
 }
@@ -108,6 +110,17 @@ function readFile() {
 
 /** 保存値 + 環境変数フォールバックを合成した実効設定 */
 function load() {
+  if (env.IS_CLOUD) {
+    const s = { ...DEFAULTS };
+    s.geminiModel = sanitizeGeminiModel(process.env.GEMINI_MODEL || s.geminiModel);
+    if (process.env.GEMINI_API_KEY) s.geminiApiKey = process.env.GEMINI_API_KEY;
+    if (process.env.TAVILY_API_KEY) s.tavilyApiKey = process.env.TAVILY_API_KEY;
+    if (process.env.GROQ_API_KEY) s.groqApiKey = process.env.GROQ_API_KEY;
+    if (process.env.GROQ_MODEL) s.groqModel = process.env.GROQ_MODEL;
+    if (process.env.MODE) s.mode = process.env.MODE;
+    return s;
+  }
+
   const raw = readFile();
   let needsPersist = false;
   // 他PCや過去バージョンで廃止モデルが保存されていた場合は自動修復して即時永続化
@@ -135,6 +148,9 @@ function load() {
  * 部分更新。undefined のキーは維持、空文字はクリア。
  */
 function save(patch = {}) {
+  if (env.IS_CLOUD) {
+    throw new Error('クラウド環境では設定ファイルの保存は無効化されています');
+  }
   ensureDir();
   const cur = { ...DEFAULTS, ...readFile() };
   for (const key of ALLOWED) {

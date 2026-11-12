@@ -983,7 +983,11 @@ async function runLive(p, s, ctx) {
     framework,
     multiHop,
     referenceUrls: p.referenceUrls || [],
-    attachedFiles: p.attachedFiles || [],
+    attachedFiles: (p.attachedFiles || []).map((f) => ({
+      name: String((f && f.name) || ''),
+      size: Number(f && f.size) || 0,
+      type: String((f && f.type) || ''),
+    })).filter((f) => f.name),
   };
 }
 
@@ -1400,7 +1404,11 @@ async function runMock(p, ctx) {
     notices: ['これは DEMO モードのサンプルデータです。API設定で Gemini APIキーを登録すると実際のWeb調査が行われます。'],
     multiHop: m.raw.multiHop,
     referenceUrls: m.raw.referenceUrls || p.referenceUrls || [],
-    attachedFiles: m.raw.attachedFiles || p.attachedFiles || [],
+    attachedFiles: (m.raw.attachedFiles || p.attachedFiles || []).map((f) => ({
+      name: String((f && f.name) || ''),
+      size: Number(f && f.size) || 0,
+      type: String((f && f.type) || ''),
+    })).filter((f) => f.name),
   };
 }
 
@@ -1441,9 +1449,13 @@ async function runResearch(job, settings) {
     focusLabel: FOCUS_LABELS[p.focus] || FOCUS_LABELS.auto,
     purpose: p.purpose || 'business',
     customPurpose: p.customPurpose || '',
-    referenceContext: p.referenceContext || '',
+    // B-10: referenceContext（手持ち資料テキスト）はレポートに保存しない
     referenceUrls: out.referenceUrls || p.referenceUrls || [],
-    attachedFiles: out.attachedFiles || p.attachedFiles || [],
+    attachedFiles: (out.attachedFiles || p.attachedFiles || []).map((f) => ({
+      name: String((f && f.name) || ''),
+      size: Number(f && f.size) || 0,
+      type: String((f && f.type) || ''),
+    })).filter((f) => f.name),
     period: p.period,
     customPeriod: p.customPeriod,
     mode: live ? 'live' : 'mock',

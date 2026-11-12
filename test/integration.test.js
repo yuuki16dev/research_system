@@ -206,7 +206,7 @@ test('integration: double-launch prevention exits second process gracefully and 
     // 既存のサーバーが稼働しているポート（3949）と同じポートで2つ目を起動
     const testPort = '3949';
     const child2 = spawn(process.execPath, [path.join(ROOT, 'server', 'index.js')], {
-      env: { ...process.env, PORT: testPort },
+      env: { ...process.env, PORT: testPort, NODE_ENV: 'test' },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 

@@ -29,4 +29,10 @@ services:
         sync: false # Supabase anon public APIキー
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false # Supabase service_role キー（クォータ更新・RLSバイパス用）
+      - key: ADMIN_USER_IDS
+        sync: false # 管理者UUIDリスト（カンマ区切り・B-1）
+      - key: HISTORY_MAX_PER_USER
+        value: 100
+      - key: HISTORY_RETENTION_DAYS
+        value: 0
 

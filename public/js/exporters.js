@@ -2480,7 +2480,6 @@ export async function exportPDF(data, brand = 'Research Studio', templateType = 
         data,
         brand,
         template: tpl,
-        html: htmlContent,
         filename,
         orientation: isPortrait ? 'portrait' : 'landscape'
       }),

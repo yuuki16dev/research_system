@@ -153,6 +153,8 @@ async function validateSafeUrl(rawUrl) {
   }
 }
 
+const { assertPublicUrl } = require('./url-guard');
+
 /**
  * SSRF安全な HTTP フェッチ（リダイレクト逐次検証 ＆ タイムアウト ＆ サイズ制限）
  * @param {string} rawUrl
@@ -165,10 +167,13 @@ async function safeFetch(rawUrl, options = {}) {
   const maxBytes = options.maxBytes || 2_000_000; // 2MB上限
   let currentUrl = rawUrl;
 
+  const isTestEnv = process.env.NODE_ENV === 'test';
+  const bypassFirstHopForTest = isTestEnv && options._dangerouslyBypassFirstHopForTest === true;
+
   for (let redirectCount = 0; redirectCount <= maxRedirects; redirectCount++) {
-    const check = await validateSafeUrl(currentUrl);
-    if (!check.safe) {
-      throw new Error(`SSRF安全ガードによるアクセス拒絶: ${check.reason} (${currentUrl})`);
+    // B-6: assertPublicUrl による厳格なパブリックURL検証 (テスト時であってもリダイレクト先は絶対にバイパス不可)
+    if (!(redirectCount === 0 && bypassFirstHopForTest)) {
+      await assertPublicUrl(currentUrl);
     }
 
     const controller = new AbortController();
@@ -199,7 +204,7 @@ async function safeFetch(rawUrl, options = {}) {
       clearTimeout(timeout);
     }
 
-    // 301, 302, 303, 307, 308 リダイレクトの検証と追跡
+    // 301, 302, 303, 307, 308 リダイレクトの検証と追跡 (最大3回)
     if ([301, 302, 303, 307, 308].includes(res.status)) {
       const location = res.headers.get('location');
       if (!location) {
@@ -219,10 +224,43 @@ async function safeFetch(rawUrl, options = {}) {
       throw new Error(`非対応のコンテンツタイプです: ${ct}`);
     }
 
-    // ストリームまたは ArrayBuffer で最大 maxBytes まで安全に読み取り
-    const arrayBuffer = await res.arrayBuffer();
-    const sliced = new Uint8Array(arrayBuffer).slice(0, maxBytes);
-    const text = new TextDecoder('utf-8', { fatal: false }).decode(sliced);
+    // B-6: 応答本文は 2MB を超えた時点で読み込みを打ち切る（全体を読み込んでから切り詰めない）
+    let text = '';
+    if (res.body && typeof res.body.getReader === 'function') {
+      const reader = res.body.getReader();
+      const chunks = [];
+      let totalBytes = 0;
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value) {
+            totalBytes += value.byteLength;
+            if (totalBytes > maxBytes) {
+              const excess = totalBytes - maxBytes;
+              if (value.byteLength > excess) {
+                chunks.push(value.subarray(0, value.byteLength - excess));
+              }
+              try {
+                await reader.cancel();
+              } catch {}
+              break;
+            }
+            chunks.push(value);
+          }
+        }
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          // ストリーム中断エラー以外はログ
+        }
+      }
+      const fullBuffer = Buffer.concat(chunks.map((c) => Buffer.from(c)));
+      text = new TextDecoder('utf-8', { fatal: false }).decode(fullBuffer);
+    } else {
+      const arrayBuffer = await res.arrayBuffer();
+      const sliced = new Uint8Array(arrayBuffer).slice(0, maxBytes);
+      text = new TextDecoder('utf-8', { fatal: false }).decode(sliced);
+    }
 
     return { response: res, text };
   }

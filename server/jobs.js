@@ -7,6 +7,54 @@ const { EventEmitter } = require('events');
 const jobs = new Map();
 const RETAIN_MS = 30 * 60 * 1000;
 
+// 未決定: サーバー全体の最大同時実行ジョブ数（仮の値: 3）
+const DEFAULT_MAX_CONCURRENT_JOBS = 3;
+
+function getMaxConcurrentJobs() {
+  const parsed = parseInt(process.env.MAX_CONCURRENT_JOBS, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_MAX_CONCURRENT_JOBS;
+}
+
+function getRunningJobCount() {
+  let count = 0;
+  for (const job of jobs.values()) {
+    if (job.status === 'running' && !job.controller.signal.aborted) {
+      count++;
+    }
+  }
+  return count;
+}
+
+function hasRunningJobForUser(userId) {
+  if (!userId) return false;
+  for (const job of jobs.values()) {
+    if (job.userId === userId && job.status === 'running' && !job.controller.signal.aborted) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function checkJobCapacity(userId) {
+  if (getRunningJobCount() >= getMaxConcurrentJobs()) {
+    return {
+      ok: false,
+      status: 503,
+      error: '現在サーバーが混雑しています。しばらく経ってから再度お試しください。',
+      code: 'SERVER_BUSY',
+    };
+  }
+  if (userId && hasRunningJobForUser(userId)) {
+    return {
+      ok: false,
+      status: 429,
+      error: '現在実行中のリサーチジョブがあります。完了をお待ちいただくか、キャンセルしてください。',
+      code: 'JOB_ALREADY_RUNNING',
+    };
+  }
+  return { ok: true };
+}
+
 function formatJobErrorMessage(err) {
   const msg = String((err && err.message) || '');
   const code = String((err && err.code) || (err && err.cause && err.cause.code) || '').toUpperCase();
@@ -16,10 +64,14 @@ function formatJobErrorMessage(err) {
   return msg || 'リサーチ処理中に予期せぬエラーが発生しました';
 }
 
-function createJob(params, runner, { onResult } = {}) {
+function createJob(params, runner, { onResult, userId } = {}) {
   const id = crypto.randomUUID();
+  const token = crypto.randomBytes(24).toString('base64url');
+  const jobUserId = userId || (params && params.userId) || null;
   const job = {
     id,
+    userId: jobUserId,
+    token, // 短命の購読用トークン
     params,
     status: 'running',
     events: [],
@@ -72,4 +124,17 @@ function createJob(params, runner, { onResult } = {}) {
 
 const getJob = (id) => jobs.get(id);
 
-module.exports = { createJob, getJob, formatJobErrorMessage };
+function _clearJobsForTest() {
+  jobs.clear();
+}
+
+module.exports = {
+  createJob,
+  getJob,
+  formatJobErrorMessage,
+  hasRunningJobForUser,
+  getRunningJobCount,
+  getMaxConcurrentJobs,
+  checkJobCapacity,
+  _clearJobsForTest,
+};
