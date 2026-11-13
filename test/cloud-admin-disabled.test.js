@@ -6,6 +6,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { spawn } = require('child_process');
+const { startDbCheckMockServer } = require('./helpers/mock-supabase-db');
 
 const ROOT = path.join(__dirname, '..');
 
@@ -53,9 +54,11 @@ async function runWithCloudServer(customEnv, callback) {
 }
 
 test('A-3: Cloud mode disables administrative routes and endpoints', async () => {
+  const mockDb = await startDbCheckMockServer();
+  try {
   await runWithCloudServer(
     {
-      SUPABASE_URL: 'https://example.supabase.co',
+      SUPABASE_URL: mockDb.url,
       SUPABASE_ANON_KEY: 'test-anon-key',
       SUPABASE_SERVICE_ROLE_KEY: 'test-service-role-key',
       TAVILY_API_KEY: 'dummy-tavily',
@@ -108,6 +111,9 @@ test('A-3: Cloud mode disables administrative routes and endpoints', async () =>
       assert.equal(healthAfter.status, 200, '/api/health must still respond after leave in cloud mode');
     }
   );
+  } finally {
+    await mockDb.close();
+  }
 });
 
 test('A-3: Local mode preserves administrative routes and settings update', async () => {

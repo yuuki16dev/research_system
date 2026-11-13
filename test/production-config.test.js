@@ -23,6 +23,8 @@ function getFreePort() {
 }
 
 async function runWithProductionServer(callback) {
+  const { startDbCheckMockServer } = require('./helpers/mock-supabase-db');
+  const mockDb = await startDbCheckMockServer();
   const port = await getFreePort();
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rs-prod-test-'));
 
@@ -34,7 +36,7 @@ async function runWithProductionServer(callback) {
   Object.assign(env, {
     PORT: String(port),
     NODE_ENV: 'production',
-    SUPABASE_URL: 'http://127.0.0.1:9',
+    SUPABASE_URL: mockDb.url,
     SUPABASE_ANON_KEY: 'dummy',
     SUPABASE_SERVICE_ROLE_KEY: 'dummy',
     TAVILY_API_KEY: 'dummy',
@@ -84,6 +86,7 @@ async function runWithProductionServer(callback) {
         try { child.kill('SIGKILL'); } catch {}
       }
     } catch {}
+    await mockDb.close();
     await new Promise((r) => setTimeout(r, 200));
     try {
       fs.rmSync(tmpDir, { recursive: true, force: true });

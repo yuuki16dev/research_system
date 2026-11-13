@@ -53,9 +53,11 @@ async function runWithServer(customEnv, callback) {
 }
 
 test('A-5: Cloud mode rejects unauthenticated requests to AI and export routes with 401', async () => {
+  const mockDb = await require('./helpers/mock-supabase-db').startDbCheckMockServer();
+  try {
   await runWithServer(
     {
-      SUPABASE_URL: 'https://example.supabase.co',
+      SUPABASE_URL: mockDb.url,
       SUPABASE_ANON_KEY: 'test-anon-key',
       SUPABASE_SERVICE_ROLE_KEY: 'test-service-role-key',
       TAVILY_API_KEY: 'dummy-tavily',
@@ -87,6 +89,9 @@ test('A-5: Cloud mode rejects unauthenticated requests to AI and export routes w
       }
     }
   );
+  } finally {
+    await mockDb.close();
+  }
 });
 
 test('A-5: Local mode allows requests to export and AI prompt routes without token', async () => {

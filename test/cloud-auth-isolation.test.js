@@ -74,10 +74,11 @@ test('A-4: Cloud mode rejects unauthenticated history access and isolates users'
     createdAt: new Date().toISOString(),
   });
 
+  const mockDb = await require('./helpers/mock-supabase-db').startDbCheckMockServer();
   try {
     await runWithServer(
       {
-        SUPABASE_URL: 'https://example.supabase.co',
+        SUPABASE_URL: mockDb.url,
         SUPABASE_ANON_KEY: 'test-anon-key',
         SUPABASE_SERVICE_ROLE_KEY: 'test-service-role-key',
         TAVILY_API_KEY: 'dummy-tavily',
@@ -139,6 +140,7 @@ test('A-4: Cloud mode rejects unauthenticated history access and isolates users'
       }
     );
   } finally {
+    await mockDb.close();
     history.remove(reportAId, null, 'admin', { all: true });
     history.remove(reportBId, null, 'admin', { all: true });
   }

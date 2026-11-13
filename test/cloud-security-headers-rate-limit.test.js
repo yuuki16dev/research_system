@@ -7,6 +7,7 @@ const assert = require('node:assert/strict');
 const http = require('http');
 const path = require('path');
 const { fork } = require('child_process');
+const { startDbCheckMockServer } = require('./helpers/mock-supabase-db');
 
 const getFreePort = () =>
   new Promise((resolve) => {
@@ -18,12 +19,13 @@ const getFreePort = () =>
   });
 
 test('B-8: Security headers and Content-Security-Policy are enforced by helmet', async () => {
+  const mockDb = await startDbCheckMockServer();
   const testPort = await getFreePort();
   const serverProcess = fork(path.resolve(__dirname, '../server/index.js'), [], {
     env: {
       ...process.env,
       PORT: String(testPort),
-      SUPABASE_URL: 'https://test-sec-headers.supabase.co',
+      SUPABASE_URL: mockDb.url,
       SUPABASE_SERVICE_ROLE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.fake_key_for_b8',
       ENABLE_AUTH: 'true',
       ENABLE_TEST_USERS: 'true',
@@ -60,16 +62,18 @@ test('B-8: Security headers and Content-Security-Policy are enforced by helmet',
     assert.ok(res.headers.get('x-frame-options') || csp.includes("frame-ancestors 'none'"), 'Frame protection must be active');
   } finally {
     serverProcess.kill('SIGTERM');
+    await mockDb.close();
   }
 });
 
 test('B-8: Rate limiting blocks 11th consecutive login attempt with 429', async () => {
+  const mockDb = await startDbCheckMockServer();
   const testPort = await getFreePort();
   const serverProcess = fork(path.resolve(__dirname, '../server/index.js'), [], {
     env: {
       ...process.env,
       PORT: String(testPort),
-      SUPABASE_URL: 'https://test-ratelimit.supabase.co',
+      SUPABASE_URL: mockDb.url,
       SUPABASE_SERVICE_ROLE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.fake_key_for_b8',
       ENABLE_AUTH: 'true',
       ENABLE_TEST_USERS: 'true',
@@ -114,16 +118,18 @@ test('B-8: Rate limiting blocks 11th consecutive login attempt with 429', async 
     assert.strictEqual(lastStatus, 429);
   } finally {
     serverProcess.kill('SIGTERM');
+    await mockDb.close();
   }
 });
 
 test('B-8: JSON body size limit (1MB default vs 10MB for attachment routes)', async () => {
+  const mockDb = await startDbCheckMockServer();
   const testPort = await getFreePort();
   const serverProcess = fork(path.resolve(__dirname, '../server/index.js'), [], {
     env: {
       ...process.env,
       PORT: String(testPort),
-      SUPABASE_URL: 'https://test-jsonlimit.supabase.co',
+      SUPABASE_URL: mockDb.url,
       SUPABASE_SERVICE_ROLE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.fake_key_for_b8',
       ENABLE_AUTH: 'true',
       ENABLE_TEST_USERS: 'true',
@@ -177,6 +183,7 @@ test('B-8: JSON body size limit (1MB default vs 10MB for attachment routes)', as
     assert.notStrictEqual(res2.status, 413, 'Attachment-capable route must allow bodies up to 10MB');
   } finally {
     serverProcess.kill('SIGTERM');
+    await mockDb.close();
   }
 });
 
@@ -287,12 +294,13 @@ test('B-8: /api/research/deep-dive validates field length and array count limits
 });
 
 test('B-8: Minimum password length is enforced to 8 characters', async () => {
+  const mockDb = await startDbCheckMockServer();
   const testPort = await getFreePort();
   const serverProcess = fork(path.resolve(__dirname, '../server/index.js'), [], {
     env: {
       ...process.env,
       PORT: String(testPort),
-      SUPABASE_URL: 'https://test-password.supabase.co',
+      SUPABASE_URL: mockDb.url,
       SUPABASE_SERVICE_ROLE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.fake_key_for_b8',
       ENABLE_AUTH: 'true',
       ENABLE_TEST_USERS: 'true',
@@ -332,6 +340,7 @@ test('B-8: Minimum password length is enforced to 8 characters', async () => {
     assert.strictEqual(resValid.status, 200);
   } finally {
     serverProcess.kill('SIGTERM');
+    await mockDb.close();
   }
 });
 

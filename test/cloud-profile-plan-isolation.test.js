@@ -235,6 +235,8 @@ test('B-1: End-to-end GET /api/auth/me retains profiles.plan even if user_metada
         ])
       );
     }
+    const { handleDbCheckRequest } = require('./helpers/mock-supabase-db');
+    if (handleDbCheckRequest(req, res, new URL(req.url, `http://${req.headers.host || 'localhost'}`))) return;
     res.statusCode = 404;
     res.end(JSON.stringify({ error: 'not found' }));
   });

@@ -7,6 +7,7 @@ const assert = require('node:assert/strict');
 const http = require('http');
 const path = require('path');
 const { fork } = require('child_process');
+const { handleDbCheckRequest, startDbCheckMockServer } = require('./helpers/mock-supabase-db');
 
 const getFreePort = () =>
   new Promise((resolve) => {
@@ -157,6 +158,8 @@ function createMockSupabaseServer() {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         return res.end('0');
       }
+
+      if (handleDbCheckRequest(req, res, url)) return;
 
       res.writeHead(404, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Not found' }));
@@ -385,12 +388,13 @@ test('B-11: Comprehensive Cloud Authorization and Tenant Isolation Suite', async
 });
 
 test('B-11: Production environment rejects test-token-admin-user and test accounts', async () => {
+  const mockDb = await startDbCheckMockServer();
   const testPort = await getFreePort();
   const serverProcess = fork(path.resolve(__dirname, '../server/index.js'), [], {
     env: {
       ...process.env,
       PORT: String(testPort),
-      SUPABASE_URL: 'https://prod-test.supabase.co',
+      SUPABASE_URL: mockDb.url,
       SUPABASE_SERVICE_ROLE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.fake_key_prod',
       ENABLE_AUTH: 'true',
       NODE_ENV: 'production', // 本番環境モード
@@ -436,6 +440,7 @@ test('B-11: Production environment rejects test-token-admin-user and test accoun
     assert.notStrictEqual(resLogin.status, 200, 'Test account login must fail in production');
   } finally {
     serverProcess.kill('SIGTERM');
+    await mockDb.close();
   }
 });
 

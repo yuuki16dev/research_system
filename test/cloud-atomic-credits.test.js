@@ -203,6 +203,10 @@ test('R-3 E2E: Concurrent 5 requests with 1 credit allow only 1, error triggers 
       }
       if (url.pathname === '/rest/v1/rpc/consume_credits') {
         const parsed = body ? JSON.parse(body) : {};
+        if (parsed.p_user === '00000000-0000-0000-0000-000000000000' || Number(parsed.p_cost) === 0) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          return res.end('true');
+        }
         if (state.consumeDelayMs > 0) {
           await new Promise((r) => setTimeout(r, state.consumeDelayMs));
         }
@@ -224,6 +228,10 @@ test('R-3 E2E: Concurrent 5 requests with 1 credit allow only 1, error triggers 
       }
       if (url.pathname === '/rest/v1/rpc/refund_credits') {
         const parsed = body ? JSON.parse(body) : {};
+        if (parsed.p_user === '00000000-0000-0000-0000-000000000000' || Number(parsed.p_cost) === 0) {
+          res.writeHead(204);
+          return res.end();
+        }
         const cost = Number(parsed.p_cost || 1);
         state.usedCredits = Math.max(0, state.usedCredits - cost);
         state.refundCalls.push(parsed);
@@ -234,7 +242,7 @@ test('R-3 E2E: Concurrent 5 requests with 1 credit allow only 1, error triggers 
         res.writeHead(200, { 'Content-Type': 'application/json' });
         return res.end('0');
       }
-      if (url.pathname.startsWith('/rest/v1/user_reports')) {
+      if (url.pathname.startsWith('/rest/v1/user_reports') || url.pathname === '/rest/v1/usage_events') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify([]));
       }

@@ -7,6 +7,11 @@ create or replace function public.consume_credits(
 ) returns boolean language plpgsql security definer
 set search_path = public as $$
 begin
+  -- R-7 起動時ヘルスチェック（p_cost = 0 / 存在しないUUID）で FK 違反を起こさず正常応答する
+  if p_cost <= 0 then
+    return true;
+  end if;
+
   insert into public.research_usage (user_id, year_month, used_count)
   values (p_user, p_ym, 0)
   on conflict (user_id, year_month) do nothing;

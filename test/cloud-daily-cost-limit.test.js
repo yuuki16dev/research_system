@@ -119,12 +119,26 @@ test('R-5 E2E: DAILY_COST_LIMIT_JPY=1 blocks all AI routes with 503 BEFORE consu
         return res.end(String(currentCostJpy));
       }
       if (url.pathname === '/rest/v1/rpc/consume_credits') {
+        let parsed = {};
+        try { parsed = JSON.parse(body || '{}'); } catch {}
+        if (parsed.p_user === '00000000-0000-0000-0000-000000000000' || Number(parsed.p_cost) === 0) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          return res.end('true');
+        }
         consumeCreditsCount++;
         res.writeHead(200, { 'Content-Type': 'application/json' });
         return res.end('true');
       }
+      if (url.pathname === '/rest/v1/rpc/refund_credits') {
+        res.writeHead(204);
+        return res.end();
+      }
+      if (url.pathname === '/rest/v1/research_usage' || url.pathname === '/rest/v1/user_reports') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end('[]');
+      }
       if (url.pathname === '/rest/v1/usage_events') {
-        res.writeHead(201, { 'Content-Type': 'application/json' });
+        res.writeHead(req.method === 'GET' ? 200 : 201, { 'Content-Type': 'application/json' });
         return res.end('[]');
       }
       res.writeHead(404, { 'Content-Type': 'application/json' });

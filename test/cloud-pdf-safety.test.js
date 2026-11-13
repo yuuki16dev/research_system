@@ -146,6 +146,7 @@ test('B-7: Cloud mode rejects html parameter with 400 and accepts data/template 
       });
     });
 
+  const mockDb = await require('./helpers/mock-supabase-db').startDbCheckMockServer();
   const testPort = await getFreePort();
   const { fork } = require('child_process');
 
@@ -153,7 +154,7 @@ test('B-7: Cloud mode rejects html parameter with 400 and accepts data/template 
     env: {
       ...process.env,
       PORT: String(testPort),
-      SUPABASE_URL: 'https://test-pdf-guard.supabase.co',
+      SUPABASE_URL: mockDb.url,
       SUPABASE_SERVICE_ROLE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.fake_key_for_pdf_test',
       TAVILY_API_KEY: 'dummy-tavily',
       ENABLE_AUTH: 'true',
@@ -226,5 +227,6 @@ test('B-7: Cloud mode rejects html parameter with 400 and accepts data/template 
     }
   } finally {
     serverProcess.kill('SIGTERM');
+    await mockDb.close();
   }
 });

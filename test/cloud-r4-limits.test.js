@@ -8,6 +8,7 @@ const net = require('node:net');
 const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
+const { handleDbCheckRequest } = require('./helpers/mock-supabase-db');
 
 const planConfig = require('../server/plan-config');
 
@@ -128,6 +129,8 @@ test('R-4 E2E: Deep-dive enforces reportId ownership (404), per-report/day limit
           return res.end(JSON.stringify(matched.map((e) => ({ id: e.id }))));
         }
       }
+
+      if (handleDbCheckRequest(req, res, url)) return;
 
       res.writeHead(404, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'not found' }));

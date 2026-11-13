@@ -55,6 +55,7 @@ const auth = require('./auth');
 const quota = require('./quota');
 const { validateThemeSafety } = require('./security');
 const env = require('./env');
+const dbCheck = require('./db-check');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 
@@ -1521,6 +1522,17 @@ async function bootstrap() {
     }
     setTimeout(() => process.exit(0), 20);
     return;
+  }
+
+  if (env.IS_CLOUD) {
+    try {
+      await dbCheck.verifyDatabaseSchema();
+    } catch (err) {
+      console.error(`[FATAL] ${err.message}`);
+      process.exitCode = 1;
+      setTimeout(() => process.exit(1), 50);
+      return;
+    }
   }
 
   startServer(PORT, HOST);

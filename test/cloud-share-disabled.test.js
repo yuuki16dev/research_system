@@ -65,12 +65,13 @@ test('A-6: Cloud mode disables /api/share/:id and /share/:id returning 404', asy
     createdAt: new Date().toISOString(),
   });
 
+  const mockDb = await require('./helpers/mock-supabase-db').startDbCheckMockServer();
   try {
     // 1. クラウドモードでの検証 (SUPABASE_URL 設定)
     await runWithServer(
       3961,
       {
-        SUPABASE_URL: 'https://example.supabase.co',
+        SUPABASE_URL: mockDb.url,
         SUPABASE_ANON_KEY: 'test-anon-key',
         SUPABASE_SERVICE_ROLE_KEY: 'test-service-role-key',
         TAVILY_API_KEY: 'dummy-tavily',
@@ -84,6 +85,11 @@ test('A-6: Cloud mode disables /api/share/:id and /share/:id returning 404', asy
         assert.equal(pageRes.status, 404, 'GET /share/:id must return 404 in cloud mode');
       }
     );
+  } finally {
+    await mockDb.close();
+  }
+
+  try {
 
     // 2. ローカルモードでの後方互換性検証 (SUPABASE_URL 未設定)
     await runWithServer(
