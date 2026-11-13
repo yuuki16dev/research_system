@@ -146,6 +146,99 @@ async function recordUsageEvent({
 }
 
 /**
+ * 日本時間 (Asia/Tokyo) 当日 00:00:00 の ISO 文字列 (UTC) を返す
+ * @param {Date} [date]
+ * @returns {string}
+ */
+function getJstDayStartIso(date = new Date()) {
+  const d = date instanceof Date ? date : new Date(date);
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(d);
+  const y = parts.find((p) => p.type === 'year')?.value;
+  const m = parts.find((p) => p.type === 'month')?.value;
+  const day = parts.find((p) => p.type === 'day')?.value;
+  return new Date(`${y}-${m}-${day}T00:00:00+09:00`).toISOString();
+}
+
+function parseSupabaseCount(res, rows) {
+  const range = res.headers.get('content-range');
+  if (range) {
+    const match = range.match(/\/(\d+)$/);
+    if (match) return parseInt(match[1], 10);
+  }
+  if (Array.isArray(rows)) return rows.length;
+  throw new Error('Unexpected count response from Supabase usage_events');
+}
+
+/**
+ * レポート単位・利用者1日単位の深掘り対話回数を取得する (R-4)
+ * クラウド版で Supabase からの件数取得に失敗した場合は例外を投げる（503 用）。
+ * @param {string} userId
+ * @param {string} reportId
+ * @returns {Promise<{ reportCount: number, dailyCount: number }>}
+ */
+async function countDeepDiveUsage(userId, reportId) {
+  const normUserId = String(userId || 'owner-user').trim();
+  const normReportId = String(reportId || '').trim();
+  const dayStartIso = getJstDayStartIso();
+
+  if (env.IS_CLOUD) {
+    const baseUrl = getSupabaseUrl();
+    const serviceKey = getServiceRoleKey();
+    if (!baseUrl || !serviceKey) {
+      throw new Error('Supabase credentials missing for countDeepDiveUsage');
+    }
+
+    const headers = {
+      apikey: serviceKey,
+      Authorization: `Bearer ${serviceKey}`,
+      Prefer: 'count=exact',
+    };
+
+    const reportUrl =
+      `${baseUrl}/rest/v1/usage_events?user_id=eq.${encodeURIComponent(normUserId)}` +
+      `&job_id=eq.${encodeURIComponent(normReportId)}` +
+      `&kind=eq.deepdive&status=eq.done&select=id`;
+    const dailyUrl =
+      `${baseUrl}/rest/v1/usage_events?user_id=eq.${encodeURIComponent(normUserId)}` +
+      `&kind=eq.deepdive&status=eq.done&created_at=gte.${encodeURIComponent(dayStartIso)}&select=id`;
+
+    const [reportRes, dailyRes] = await Promise.all([
+      fetch(reportUrl, { headers, signal: AbortSignal.timeout(5000) }),
+      fetch(dailyUrl, { headers, signal: AbortSignal.timeout(5000) }),
+    ]);
+
+    if (!reportRes.ok) {
+      throw new Error(`Failed to fetch report deepdive count (${reportRes.status})`);
+    }
+    if (!dailyRes.ok) {
+      throw new Error(`Failed to fetch daily deepdive count (${dailyRes.status})`);
+    }
+
+    const [reportRows, dailyRows] = await Promise.all([reportRes.json(), dailyRes.json()]);
+    return {
+      reportCount: parseSupabaseCount(reportRes, reportRows),
+      dailyCount: parseSupabaseCount(dailyRes, dailyRows),
+    };
+  }
+
+  const reportCount = normReportId
+    ? localUsageEvents.filter(
+        (e) => e.user_id === normUserId && e.job_id === normReportId && e.kind === 'deepdive' && e.status === 'done'
+      ).length
+    : 0;
+  const dailyCount = localUsageEvents.filter(
+    (e) => e.user_id === normUserId && e.kind === 'deepdive' && e.status === 'done' && e.created_at >= dayStartIso
+  ).length;
+
+  return { reportCount, dailyCount };
+}
+
+/**
  * ローカル記録されたイベント一覧を取得（テスト用）
  */
 function getLocalUsageEvents(userId = null) {
@@ -164,6 +257,8 @@ module.exports = {
   calculateTavilyCredits,
   calculateEstimatedCostJpy,
   recordUsageEvent,
+  getJstDayStartIso,
+  countDeepDiveUsage,
   getLocalUsageEvents,
   clearLocalUsageEvents,
 };

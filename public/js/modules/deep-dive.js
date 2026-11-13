@@ -416,6 +416,7 @@ export function bindDeepDiveDrawer() {
       const reportContext = buildReportStructuredContext(appState.currentResult);
 
       const res = await api.deepDive({
+        reportId: appState.currentResult.id || undefined,
         theme: appState.currentResult.theme,
         question,
         reportContext,
@@ -569,12 +570,16 @@ export function bindDeepDiveDrawer() {
         });
       }
     } catch (err) {
+      const displayMsg =
+        err && err.status === 403
+          ? 'このレポートの深掘り回数の上限に達しました'
+          : `深掘り調査に失敗しました: ${err.message}`;
       aiMsgEl.innerHTML = `
         <div class="dd-bubble" style="border-left-color: var(--danger);">
           <div class="dd-bubble-header">
             <span style="color: var(--danger-light);"><span data-icon="alert"></span>調査エラー</span>
           </div>
-          <p style="color: var(--danger); margin: 0;">深掘り調査に失敗しました: ${esc(err.message)}</p>
+          <p style="color: var(--danger); margin: 0;">${esc(displayMsg)}</p>
         </div>
       `;
       hydrateIcons(aiMsgEl);

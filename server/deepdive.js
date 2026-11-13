@@ -50,11 +50,19 @@ function cleanSearchQuery(question, theme, quote, chatHistory) {
  * @param {Array<{question: string, answer: string}>} [params.chatHistory]
  * @param {AbortSignal} [params.signal]
  */
-async function runDeepDive({ theme, question, reportContext = '', period = 'year', quote = '', chatHistory = [], signal, userId = 'owner-user', forceMock = false }) {
+async function runDeepDive({ theme, question, reportContext = '', period = 'year', quote = '', chatHistory = [], signal, userId = 'owner-user', reportId = null, forceMock = false }) {
   const currentSettings = settings.load();
   const isMock = Boolean(forceMock) || currentSettings.mode === 'mock' || !currentSettings.geminiApiKey;
 
   if (isMock) {
+    await usageEvents.recordUsageEvent({
+      userId: userId || 'owner-user',
+      kind: 'deepdive',
+      jobId: reportId || null,
+      geminiCalls: 0,
+      tavilyCredits: 0,
+      status: 'done',
+    });
     const hasHistory = Array.isArray(chatHistory) && chatHistory.length > 0;
     const historyNote = hasHistory ? `（これまでの対話文脈を踏まえて回答）` : '';
     return {
@@ -177,6 +185,7 @@ ${snippetBlock}
     await usageEvents.recordUsageEvent({
       userId: userId || 'owner-user',
       kind: 'deepdive',
+      jobId: reportId || null,
       model: currentSettings.geminiModel,
       promptTokens: tokenUsage.promptTokens,
       outputTokens: tokenUsage.candidatesTokens,
@@ -189,6 +198,7 @@ ${snippetBlock}
     await usageEvents.recordUsageEvent({
       userId: userId || 'owner-user',
       kind: 'deepdive',
+      jobId: reportId || null,
       model: currentSettings.geminiModel,
       status: isCancelled ? 'cancelled' : 'error',
     });

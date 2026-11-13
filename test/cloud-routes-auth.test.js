@@ -243,11 +243,19 @@ test('R-1: Production cloud defaults to requiring auth (401), and ALLOW_ANONYMOU
         body: JSON.stringify({ theme: 'R-1 test', depth: 'quick', forceMock: true }),
       });
       assert.equal(rRes.status, 202, 'POST /api/research without token must return 202 in anonymous cloud mode');
+      const rResJson = await rRes.json();
+
+      // リサーチ完了（履歴保存）を待ってから深掘り対話を呼び出す
+      for (let i = 0; i < 40; i++) {
+        await new Promise((r) => setTimeout(r, 150));
+        const histRes = await fetch(`${srvAnon.base}/api/history/${rResJson.jobId}`);
+        if (histRes.ok) break;
+      }
 
       const rDeep = await fetch(`${srvAnon.base}/api/research/deep-dive`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ theme: 'R-1 test', question: 'test question' }),
+        body: JSON.stringify({ reportId: rResJson.jobId, theme: 'R-1 test', question: 'test question', forceMock: true }),
       });
       assert.equal(rDeep.status, 200, 'POST /api/research/deep-dive without token must return 200 in anonymous cloud mode');
     } finally {

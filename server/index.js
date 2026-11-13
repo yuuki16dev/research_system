@@ -47,6 +47,8 @@ const excel = require('./excel');
 const templateEngine = require('./template-engine');
 const profile = require('./profile');
 const presentation = require('./presentation');
+const planConfig = require('./plan-config');
+const usageEvents = require('./usage-events');
 const { getFullUsageSummary } = require('./usage');
 const { buildMarkdown, buildPlainText } = require('./util');
 const auth = require('./auth');
@@ -191,7 +193,7 @@ let currentPort = PORT;
 let pkgVer = '1.11.0';
 try {
   pkgVer = require('../package.json').version || pkgVer;
-} catch {}
+} catch { }
 
 function compareSemver(a, b) {
   const pa = String(a).split('.').map(Number);
@@ -881,7 +883,7 @@ app.post('/api/research/:id/cancel', auth.requireAuth, (req, res) => {
 });
 
 app.post('/api/research/deep-dive', auth.requireAuth, aiLimiter, quota.requireActionQuota('deepdive'), async (req, res) => {
-  const { theme, question, reportContext, period, quote, chatHistory, forceMock } = req.body || {};
+  const { theme, question, reportContext, period, quote, chatHistory, reportId, forceMock } = req.body || {};
   if (!theme || !question) return res.status(400).json({ error: 'theme と question は必須です' });
 
   // B-8: 入力文字数・件数の厳格な検証
@@ -921,11 +923,67 @@ app.post('/api/research/deep-dive', auth.requireAuth, aiLimiter, quota.requireAc
       }
     }
   }
+  if (reportId !== undefined && reportId !== null && typeof reportId !== 'string') {
+    return res.status(400).json({ error: 'reportId は文字列である必要があります' });
+  }
+
+  const normReportId = typeof reportId === 'string' ? reportId.trim() : '';
+  const userId = req.user ? req.user.id : 'owner-user';
+  const userPlan = req.user ? (req.user.plan || 'free') : 'admin';
+
+  // R-4: クラウド版は reportId 必須 + 持ち主確認 (未存在・他人所有は 404)
+  if (env.IS_CLOUD) {
+    if (!normReportId) {
+      return res.status(400).json({ error: 'reportId は必須です' });
+    }
+    let targetReport;
+    try {
+      targetReport = await history.get(normReportId, userId, userPlan);
+    } catch (err) {
+      console.error('[deepdive] report lookup error:', err);
+      return res.status(503).json({ error: 'レポート情報の確認に失敗しました。しばらく経ってから再度お試しください。' });
+    }
+    if (!targetReport) {
+      return res.status(404).json({ error: '対象のレポートが見つかりません' });
+    }
+  }
+
+  // R-4: レポート単位・利用者1日単位の深掘り回数上限確認 (取得失敗時は 503)
+  try {
+    const counts = await usageEvents.countDeepDiveUsage(userId, normReportId);
+    if (normReportId && counts.reportCount >= planConfig.DEEPDIVE_LIMIT_PER_REPORT) {
+      return res.status(403).json({
+        error: 'このレポートの深掘り回数の上限に達しました',
+        code: 'DEEPDIVE_LIMIT',
+      });
+    }
+    if (counts.dailyCount >= planConfig.DEEPDIVE_LIMIT_PER_DAY) {
+      return res.status(403).json({
+        error: '本日の深掘り対話の利用上限に達しました。明日以降に再度お試しください。',
+        code: 'DEEPDIVE_LIMIT',
+      });
+    }
+  } catch (err) {
+    console.error('[deepdive] countDeepDiveUsage error:', err);
+    return res.status(503).json({
+      error: '利用回数の確認に失敗しました。しばらく経ってから再度お試しください。',
+      code: 'DEEPDIVE_COUNT_UNAVAILABLE',
+    });
+  }
 
   console.log(`[深掘り対話] 質問: "${question.slice(0, 35)}..." を受信 (履歴: ${Array.isArray(chatHistory) ? chatHistory.length : 0}件)`);
   try {
-    const userId = req.user ? req.user.id : 'owner-user';
-    const result = await deepdive.runDeepDive({ theme, question, reportContext, period, quote, chatHistory, userId, forceMock: !!forceMock });
+    const result = await deepdive.runDeepDive({
+      theme,
+      question,
+      reportContext,
+      period,
+      quote,
+      chatHistory,
+      userId,
+      reportId: normReportId || null,
+      forceMock: !!forceMock,
+    });
     res.json(result);
   } catch (err) {
     console.error('Deep dive execution error:', err);
@@ -987,7 +1045,7 @@ app.post('/api/export/pdf', auth.requireAuth, async (req, res) => {
       try {
         const fs = require('fs');
         if (fs.existsSync(pdfPath)) fs.unlinkSync(pdfPath);
-      } catch {}
+      } catch { }
     });
   } catch (err) {
     console.error('PDF export error:', err);
@@ -1059,8 +1117,62 @@ app.post('/api/presentation/prompt', auth.requireAuth, (req, res) => {
   }
 });
 
+const MAX_SLIDE_DOCUMENT_CHARS = 15000;
+const MAX_SLIDE_META_CHARS = 300;
+const MAX_SLIDE_FILES = 5;
+const MAX_SLIDE_FILE_BYTES = 5 * 1024 * 1024; // 5MB相当
+
+function validatePresentationInput({ document, audience, goal, files }) {
+  if (document !== undefined && document !== null) {
+    if (typeof document !== 'string' || document.length > MAX_SLIDE_DOCUMENT_CHARS) {
+      return `document は${MAX_SLIDE_DOCUMENT_CHARS.toLocaleString()}文字以内の文字列である必要があります`;
+    }
+  }
+  if (audience !== undefined && audience !== null) {
+    if (typeof audience !== 'string' || audience.length > MAX_SLIDE_META_CHARS) {
+      return `audience は${MAX_SLIDE_META_CHARS}文字以内の文字列である必要があります`;
+    }
+  }
+  if (goal !== undefined && goal !== null) {
+    if (typeof goal !== 'string' || goal.length > MAX_SLIDE_META_CHARS) {
+      return `goal は${MAX_SLIDE_META_CHARS}文字以内の文字列である必要があります`;
+    }
+  }
+  if (files !== undefined && files !== null) {
+    if (!Array.isArray(files)) {
+      return 'files は配列である必要があります';
+    }
+    if (files.length > MAX_SLIDE_FILES) {
+      return `files は最大${MAX_SLIDE_FILES}件までです`;
+    }
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      if (!f || typeof f !== 'object') {
+        return `files[${i}] が不正です`;
+      }
+      if (f.base64 !== undefined && f.base64 !== null) {
+        if (typeof f.base64 !== 'string') {
+          return `files[${i}].base64 は文字列である必要があります`;
+        }
+        const stripped = f.base64.replace(/^data:[^;]+;base64,/i, '').replace(/\s+/g, '');
+        const padding = stripped.endsWith('==') ? 2 : stripped.endsWith('=') ? 1 : 0;
+        const decodedBytes = Math.floor((stripped.length * 3) / 4) - padding;
+        if (decodedBytes > MAX_SLIDE_FILE_BYTES) {
+          return `files[${i}].base64 は5MB以下である必要があります`;
+        }
+      }
+    }
+  }
+  return null;
+}
+
 app.post('/api/presentation/generate', auth.requireAuth, aiLimiter, quota.requireActionQuota('slides', { skipReserve: true }), async (req, res) => {
   const { document, audience, goal, files } = req.body || {};
+  const validationError = validatePresentationInput({ document, audience, goal, files });
+  if (validationError) {
+    return res.status(400).json({ error: validationError });
+  }
+
   const hasDoc = document && document.trim();
   const hasFiles = Array.isArray(files) && files.length > 0;
 
@@ -1125,7 +1237,7 @@ app.get('/api/history/backup', auth.requireAuth, async (req, res) => {
     const reports = await history.getAllForUser(userId, userPlan);
     const userProf = profile.getProfile(userId);
     const ymd = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    
+
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Content-Disposition', `attachment; filename="research_studio_backup_${userId}_${ymd}.json"`);
     res.json({
@@ -1298,7 +1410,7 @@ function openBrowser(url) {
     if (child && typeof child.unref === 'function') {
       child.unref();
     }
-  } catch {}
+  } catch { }
 }
 
 /** 該当ポートで動いているのが Research Studio か確認 */
@@ -1318,7 +1430,7 @@ function checkIsResearchStudio(port) {
     });
     req.on('error', () => resolve(false));
     req.on('timeout', () => {
-      try { req.destroy(); } catch {}
+      try { req.destroy(); } catch { }
       resolve(false);
     });
   });

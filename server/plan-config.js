@@ -36,6 +36,10 @@ const PLAN_ALLOWED_ACTIONS = {
   admin: ['research_quick', 'research_deep', 'cross', 'delta', 'slides', 'deepdive'],
 };
 
+// 深掘り対話の利用上限（R-4: 未決定・仮の値）
+const DEEPDIVE_LIMIT_PER_REPORT = 10;
+const DEEPDIVE_LIMIT_PER_DAY = 50;
+
 /**
  * アクション名から消費クレジット数を取得
  * @param {string} action
@@ -64,6 +68,8 @@ module.exports = {
   PLAN_CREDITS,
   ACTION_CREDIT_COSTS,
   PLAN_ALLOWED_ACTIONS,
+  DEEPDIVE_LIMIT_PER_REPORT,
+  DEEPDIVE_LIMIT_PER_DAY,
   getActionCost,
   isActionAllowedForPlan,
 };
