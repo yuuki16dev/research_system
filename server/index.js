@@ -618,8 +618,33 @@ if (!env.IS_CLOUD) {
 }
 
 /* ----------------------------------------------------------- research */
-app.post('/api/research', auth.requireAuth, aiLimiter, quota.requireQuota, (req, res) => {
+async function refundEarlyIfReserved(req, userId, action) {
+  if (req.creditReservation && req.creditReservation.reserved) {
+    await quota.refundCredits(userId, action, req.creditReservation.yearMonth).catch((err) => {
+      console.warn('[quota] early refund error:', err.message);
+    });
+    req.creditReservation.reserved = false;
+  }
+}
+
+function buildCreditOnSettled(req, userId, action) {
+  return async (status) => {
+    const shouldRefund = status === 'error' || (status === 'cancelled' && quota.shouldRefundOnCancel());
+    if (shouldRefund && req.creditReservation && req.creditReservation.reserved) {
+      await quota.refundCredits(userId, action, req.creditReservation.yearMonth).catch((err) => {
+        console.warn('[quota] settled refund error:', err.message);
+      });
+      req.creditReservation.reserved = false;
+    }
+  };
+}
+
+app.post('/api/research', auth.requireAuth, aiLimiter, quota.requireQuota, async (req, res) => {
   const b = req.body || {};
+  const userId = req.user ? req.user.id : 'owner-user';
+  const userPlan = req.user ? (req.user.plan || 'free') : 'admin';
+  const actionName = req.actionName || (b.depth === 'deep' ? 'research_deep' : 'research_quick');
+
   const theme = String(b.theme || '').trim().slice(0, 300);
   const scope = ['web', 'sns', 'sites'].includes(b.scope) ? b.scope : 'web';
   const depth = ['quick', 'deep'].includes(b.depth) ? b.depth : 'quick';
@@ -634,21 +659,23 @@ app.post('/api/research', auth.requireAuth, aiLimiter, quota.requireQuota, (req,
   const attachedFiles = Array.isArray(b.attachedFiles) ? b.attachedFiles.filter(f => f && typeof f === 'object' && f.name).slice(0, 10) : [];
   const focus = typeof b.focus === 'string' ? b.focus.slice(0, 200) : '';
   const authoritative = !!b.authoritative;
-  if (theme.length < 2) return res.status(400).json({ error: 'テーマを2文字以上で入力してください' });
+  if (theme.length < 2) {
+    await refundEarlyIfReserved(req, userId, actionName);
+    return res.status(400).json({ error: 'テーマを2文字以上で入力してください' });
+  }
 
   // 悪意ある検索・不正攻撃コードの防御 (v2.15.0)
   const safetyCheck = validateThemeSafety(theme);
   if (!safetyCheck.safe) {
+    await refundEarlyIfReserved(req, userId, actionName);
     return res.status(400).json({ error: `入力内容が安全基準に抵触しました: ${safetyCheck.reason}` });
   }
   const sanitizedTheme = safetyCheck.sanitized;
 
-  const userId = req.user ? req.user.id : 'owner-user';
-  const userPlan = req.user ? (req.user.plan || 'free') : 'admin';
-
   // B-9: 同時実行数および同一ユーザーの実行中ジョブ制限
   const capacity = checkJobCapacity(userId);
   if (!capacity.ok) {
+    await refundEarlyIfReserved(req, userId, actionName);
     return res.status(capacity.status).json({ error: capacity.error, code: capacity.code });
   }
 
@@ -665,9 +692,6 @@ app.post('/api/research', auth.requireAuth, aiLimiter, quota.requireQuota, (req,
       } catch (err) {
         console.error('[history] save error:', err.message);
       }
-      if (userId) {
-        quota.consumeActionCredits(userId, userPlan, depth === 'deep' ? 'research_deep' : 'research_quick').catch((err) => console.warn('[quota] record error:', err.message));
-      }
       if (!env.IS_CLOUD) {
         try {
           memory.learnFromResearch(result);
@@ -676,30 +700,33 @@ app.post('/api/research', auth.requireAuth, aiLimiter, quota.requireQuota, (req,
         }
       }
     },
+    onSettled: buildCreditOnSettled(req, userId, actionName),
   });
   res.status(202).json({ jobId: job.id, token: job.token, subscriptionToken: job.token });
 });
 
 /* ------------------------------------------------ cross-synthesis (v1.17.0) */
-app.post('/api/research/cross-synthesis', auth.requireAuth, aiLimiter, quota.requireActionQuota('cross'), async (req, res) => {
+app.post('/api/research/cross-synthesis', auth.requireAuth, aiLimiter, quota.requireActionQuota('cross', { checkCapacity: true }), async (req, res) => {
   const b = req.body || {};
-  const reportIds = Array.isArray(b.reportIds) ? b.reportIds : [];
-  if (reportIds.length < 2) {
-    return res.status(400).json({ error: 'クロス分析には2件以上のレポート選択が必要です' });
-  }
-
   const userId = req.user.id;
   const userPlan = req.user.plan || 'free';
+  const reportIds = Array.isArray(b.reportIds) ? b.reportIds : [];
+  if (reportIds.length < 2) {
+    await refundEarlyIfReserved(req, userId, 'cross');
+    return res.status(400).json({ error: 'クロス分析には2件以上のレポート選択が必要です' });
+  }
 
   // B-9: 同時実行数および同一ユーザーの実行中ジョブ制限
   const capacity = checkJobCapacity(userId);
   if (!capacity.ok) {
+    await refundEarlyIfReserved(req, userId, 'cross');
     return res.status(capacity.status).json({ error: capacity.error, code: capacity.code });
   }
 
   const reportPromises = reportIds.map((id) => history.get(id, userId, userPlan));
   const reports = (await Promise.all(reportPromises)).filter(Boolean);
   if (reports.length < 2) {
+    await refundEarlyIfReserved(req, userId, 'cross');
     return res.status(404).json({ error: '選択されたレポートが見つかりません（2件以上存在する必要があります）' });
   }
 
@@ -725,9 +752,6 @@ app.post('/api/research/cross-synthesis', auth.requireAuth, aiLimiter, quota.req
       } catch (err) {
         console.error('[history] save error:', err.message);
       }
-      if (userId) {
-        quota.consumeActionCredits(userId, userPlan, 'cross').catch((err) => console.warn('[quota] record error:', err.message));
-      }
       if (!env.IS_CLOUD) {
         try {
           memory.learnFromResearch(result);
@@ -736,29 +760,32 @@ app.post('/api/research/cross-synthesis', auth.requireAuth, aiLimiter, quota.req
         }
       }
     },
+    onSettled: buildCreditOnSettled(req, userId, 'cross'),
   });
   res.status(202).json({ jobId: job.id, token: job.token, subscriptionToken: job.token });
 });
 
 /* ------------------------------------------------ delta-tracking (v1.18.0) */
-app.post('/api/research/delta', auth.requireAuth, aiLimiter, quota.requireActionQuota('delta'), async (req, res) => {
+app.post('/api/research/delta', auth.requireAuth, aiLimiter, quota.requireActionQuota('delta', { checkCapacity: true }), async (req, res) => {
   const b = req.body || {};
-  const baseReportId = String(b.baseReportId || '').trim();
-  if (!baseReportId) {
-    return res.status(400).json({ error: '差分更新元のレポートID（baseReportId）が必要です' });
-  }
-
   const userId = req.user.id;
   const userPlan = req.user.plan || 'free';
+  const baseReportId = String(b.baseReportId || '').trim();
+  if (!baseReportId) {
+    await refundEarlyIfReserved(req, userId, 'delta');
+    return res.status(400).json({ error: '差分更新元のレポートID（baseReportId）が必要です' });
+  }
 
   // B-9: 同時実行数および同一ユーザーの実行中ジョブ制限
   const capacity = checkJobCapacity(userId);
   if (!capacity.ok) {
+    await refundEarlyIfReserved(req, userId, 'delta');
     return res.status(capacity.status).json({ error: capacity.error, code: capacity.code });
   }
 
   const baseReport = await history.get(baseReportId, userId, userPlan);
   if (!baseReport) {
+    await refundEarlyIfReserved(req, userId, 'delta');
     return res.status(404).json({ error: '差分更新元のレポートが見つかりません' });
   }
 
@@ -785,9 +812,6 @@ app.post('/api/research/delta', auth.requireAuth, aiLimiter, quota.requireAction
       } catch (err) {
         console.error('[history] save error:', err.message);
       }
-      if (userId) {
-        quota.consumeActionCredits(userId, userPlan, 'delta').catch((err) => console.warn('[quota] record error:', err.message));
-      }
       if (!env.IS_CLOUD) {
         try {
           memory.learnFromResearch(result);
@@ -796,6 +820,7 @@ app.post('/api/research/delta', auth.requireAuth, aiLimiter, quota.requireAction
         }
       }
     },
+    onSettled: buildCreditOnSettled(req, userId, 'delta'),
   });
   res.status(202).json({ jobId: job.id, token: job.token, subscriptionToken: job.token });
 });
@@ -1034,7 +1059,7 @@ app.post('/api/presentation/prompt', auth.requireAuth, (req, res) => {
   }
 });
 
-app.post('/api/presentation/generate', auth.requireAuth, aiLimiter, quota.requireActionQuota('slides'), async (req, res) => {
+app.post('/api/presentation/generate', auth.requireAuth, aiLimiter, quota.requireActionQuota('slides', { skipReserve: true }), async (req, res) => {
   const { document, audience, goal, files } = req.body || {};
   const hasDoc = document && document.trim();
   const hasFiles = Array.isArray(files) && files.length > 0;
@@ -1043,13 +1068,37 @@ app.post('/api/presentation/generate', auth.requireAuth, aiLimiter, quota.requir
     return res.status(400).json({ error: '企画書・資料のテキストを入力するか、ファイルを添付してください' });
   }
 
+  const userId = req.user ? req.user.id : 'owner-user';
+  const userPlan = req.user ? (req.user.plan || 'free') : 'admin';
+
+  let reservation;
   try {
-    const userId = req.user ? req.user.id : 'owner-user';
-    const userPlan = req.user ? (req.user.plan || 'free') : 'admin';
+    reservation = await quota.reserveCredits(userId, userPlan, 'slides');
+  } catch (err) {
+    console.error('[quota] presentation reserveCredits error:', err);
+    return res.status(503).json({
+      error: 'クレジット残高の確認に失敗しました。しばらく経ってから再度お試しください。',
+      code: 'QUOTA_UNAVAILABLE',
+    });
+  }
+
+  if (!reservation.ok) {
+    return res.status(403).json({
+      error: `今月のリサーチ上限回数（クレジット不足: 必要 ${reservation.cost}）に達しました。プランをアップグレードするか来月1日のリセットをお待ちください。`,
+      code: 'QUOTA_EXCEEDED',
+      requiredCredits: reservation.cost,
+    });
+  }
+
+  try {
     const slidesData = await presentation.generateSlides({ document, audience, goal, files, userId });
-    quota.consumeActionCredits(userId, userPlan, 'slides').catch((err) => console.warn('[quota] record error:', err.message));
     res.json(slidesData);
   } catch (err) {
+    if (reservation.reserved) {
+      await quota.refundCredits(userId, 'slides', reservation.yearMonth).catch((refundErr) => {
+        console.warn('[quota] presentation refund error:', refundErr.message);
+      });
+    }
     console.error('Presentation generate error:', err);
     res.status(500).json({ error: 'スライドの生成に失敗しました' });
   }

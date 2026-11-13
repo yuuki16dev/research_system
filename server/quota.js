@@ -1,70 +1,106 @@
 'use strict';
 
 /**
- * リサーチクレジット＆クォータ管理モジュール (C-4: レビュー H6)
+ * リサーチクレジット＆クォータ管理モジュール (C-4 / R-3)
  *
- * 1. プランごとの月間クレジット数を追跡（free: 3, standard: 30, admin: 無制限）
- * 2. アクションごとの消費クレジット（通常: 1, 深掘り: 3, クロス: 2, 差分: 2, スライド: 1, 対話: 0）を減算
- * 3. free プランでの通常リサーチ以外の実行を 403 (PLAN_FORBIDDEN) で拒否
- * 4. クラウド環境（Supabase連携）およびローカル環境（無制限管理者）の両方に対応
+ * 1. プランごとの月間クレジット数は server/plan-config.js に一本化
+ * 2. 開始前に reserveCredits() で原子的に確保し、ジョブ失敗時のみ refundCredits() で返却
+ * 3. 年月は日本時間（Asia/Tokyo）で計算
+ * 4. クラウド版（UUIDユーザー）は Supabase RPC (consume_credits / refund_credits) を使用し、
+ *    障害時は素通しせず例外・unavailable を返す
  */
 
 const env = require('./env');
 const planConfig = require('./plan-config');
+const { checkJobCapacity } = require('./jobs');
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function getSupabaseUrl() {
   return process.env.SUPABASE_URL ? process.env.SUPABASE_URL.replace(/\/+$/, '') : '';
 }
+
 function getSupabaseServiceRoleKey() {
   return process.env.SUPABASE_SERVICE_ROLE_KEY ? process.env.SUPABASE_SERVICE_ROLE_KEY.trim() : '';
 }
 
-// 既存テスト互換用 PLAN_LIMITS（plan-config.js の PLAN_CREDITS を参照）
-const PLAN_LIMITS = {
-  ...planConfig.PLAN_CREDITS,
-  light: 40,
-  pro: 80,
-  admin: Infinity,
-};
+function isUuid(value) {
+  return typeof value === 'string' && UUID_RE.test(value.trim());
+}
 
-// メモリキャッシュ（ローカル環境および高速キャッシュ用）
-// key: `${userId}:${yearMonth}` -> count
-const localUsageCache = new Map();
+function getAdminUserIds() {
+  return (process.env.ADMIN_USER_IDS || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
 
-function getCurrentYearMonth() {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  return `${y}-${m}`;
+function isAdminUser(userId) {
+  return Boolean(userId && getAdminUserIds().includes(userId));
+}
+
+function shouldRefundOnCancel() {
+  return process.env.REFUND_ON_CANCEL === 'true';
+}
+
+// 互換用エクスポート（plan-config.js に一本化）
+const PLAN_LIMITS = planConfig.PLAN_CREDITS;
+
+// 非UUIDユーザー（ローカル版、テストアカウント、匿名モード）用メモリストア
+// ※ クラウド版の正規UUIDユーザーでは一切使用しない
+const memoryCredits = new Map();
+
+/**
+ * 日本時間 (Asia/Tokyo) 基準の YYYY-MM を返す
+ * @param {Date} [date]
+ * @returns {string}
+ */
+function getCurrentYearMonth(date = new Date()) {
+  const d = date instanceof Date ? date : new Date(date);
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric',
+    month: '2-digit',
+  }).formatToParts(d);
+  const year = parts.find((p) => p.type === 'year')?.value;
+  const month = parts.find((p) => p.type === 'month')?.value;
+  return `${year}-${month}`;
+}
+
+function resolveEffectivePlanAndLimit(userId, plan = 'free') {
+  const normPlan = String(plan || 'free').toLowerCase();
+  const limit = PLAN_LIMITS[normPlan] !== undefined ? PLAN_LIMITS[normPlan] : PLAN_LIMITS.free;
+
+  if (limit === Infinity) {
+    if (env.IS_CLOUD && !isAdminUser(userId)) {
+      return { plan: 'free', limit: PLAN_LIMITS.free };
+    }
+    return { plan: 'admin', limit: Infinity };
+  }
+
+  return { plan: normPlan, limit };
+}
+
+function isBypassUser(userId, resolvedLimit) {
+  if (!env.IS_CLOUD && userId === 'owner-user') return true;
+  if (isAdminUser(userId)) return true;
+  if (resolvedLimit === Infinity) return true;
+  return false;
 }
 
 /**
- * ユーザーの当月クォータ情報を取得
+ * ユーザーの当月クォータ情報を取得（表示・検査用）
+ * クラウド版で Supabase から取得できない場合はメモリで代用せず unavailable: true を返す。
  * @param {string} userId
  * @param {string} plan
- * @returns {Promise<{ used: number, limit: number, remaining: number, plan: string, canResearch: boolean, yearMonth: string }>}
  */
 async function getMonthlyQuota(userId = 'local-user', plan = 'admin') {
   const ym = getCurrentYearMonth();
-  const normPlan = String(plan || 'free').toLowerCase();
-  const limit = PLAN_LIMITS[normPlan] !== undefined ? PLAN_LIMITS[normPlan] : (planConfig.PLAN_CREDITS[normPlan] || PLAN_LIMITS.free);
+  const { plan: resolvedPlan, limit } = resolveEffectivePlanAndLimit(userId, plan);
 
-  // 無制限プラン（admin）の場合
-  if (limit === Infinity) {
-    // クラウド版の場合、ADMIN_USER_IDS に含まれるユーザーのみ無制限とする (B-1)
-    if (env.IS_CLOUD) {
-      const adminUserIds = (process.env.ADMIN_USER_IDS || '')
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean);
-      if (!adminUserIds.includes(userId)) {
-        return getMonthlyQuota(userId, 'free');
-      }
-    }
-    const key = `${userId}:${ym}`;
-    const used = localUsageCache.get(key) || 0;
+  if (isBypassUser(userId, limit)) {
     return {
-      used,
+      used: 0,
       limit: 999999,
       remaining: 999999,
       plan: 'admin',
@@ -73,135 +109,239 @@ async function getMonthlyQuota(userId = 'local-user', plan = 'admin') {
     };
   }
 
-  // Supabase 未設定（ローカル/テスト環境）の場合はローカルキャッシュで制限判定
-  if (!env.IS_CLOUD) {
-    const key = `${userId}:${ym}`;
-    const used = localUsageCache.get(key) || 0;
-    const remaining = Math.max(0, limit - used);
-    return {
-      used,
-      limit,
-      remaining,
-      plan: normPlan,
-      canResearch: remaining > 0,
-      yearMonth: ym,
-    };
-  }
+  // クラウド版かつ UUID ユーザーの場合は Supabase から取得（失敗時もメモリで代用しない）
+  if (env.IS_CLOUD && isUuid(userId)) {
+    const supabaseUrl = getSupabaseUrl();
+    const serviceKey = getSupabaseServiceRoleKey();
+    if (!supabaseUrl || !serviceKey) {
+      return {
+        used: null,
+        limit,
+        remaining: null,
+        unavailable: true,
+        plan: resolvedPlan,
+        canResearch: false,
+        yearMonth: ym,
+      };
+    }
 
-  // Supabase からクォータを取得
-  const supabaseUrl = getSupabaseUrl();
-  const serviceKey = getSupabaseServiceRoleKey();
-  if (!supabaseUrl || !serviceKey) {
-    const key = `${userId}:${ym}`;
-    const used = localUsageCache.get(key) || 0;
-    const remaining = Math.max(0, limit - used);
-    return {
-      used,
-      limit,
-      remaining,
-      plan: normPlan,
-      canResearch: remaining > 0,
-      yearMonth: ym,
-    };
-  }
+    try {
+      const res = await fetch(
+        `${supabaseUrl}/rest/v1/research_usage?user_id=eq.${encodeURIComponent(userId)}&year_month=eq.${encodeURIComponent(ym)}&select=used_count`,
+        {
+          headers: {
+            apikey: serviceKey,
+            Authorization: `Bearer ${serviceKey}`,
+          },
+          signal: AbortSignal.timeout(3000),
+        }
+      );
 
-  try {
-    const res = await fetch(`${supabaseUrl}/rest/v1/research_usage?user_id=eq.${encodeURIComponent(userId)}&year_month=eq.${encodeURIComponent(ym)}&select=used_count`, {
-      headers: {
-        apikey: serviceKey,
-        Authorization: `Bearer ${serviceKey}`,
-      },
-      signal: AbortSignal.timeout(3000),
-    });
+      if (!res.ok) {
+        return {
+          used: null,
+          limit,
+          remaining: null,
+          unavailable: true,
+          plan: resolvedPlan,
+          canResearch: false,
+          yearMonth: ym,
+        };
+      }
 
-    if (res.ok) {
       const rows = await res.json();
-      const used = (Array.isArray(rows) && rows.length > 0) ? (rows[0].used_count || 0) : 0;
+      const used = Array.isArray(rows) && rows.length > 0 ? rows[0].used_count || 0 : 0;
       const remaining = Math.max(0, limit - used);
       return {
         used,
         limit,
         remaining,
-        plan: normPlan,
+        plan: resolvedPlan,
         canResearch: remaining > 0,
         yearMonth: ym,
       };
+    } catch (err) {
+      console.warn('[quota] Failed to fetch quota from Supabase:', err.message);
+      return {
+        used: null,
+        limit,
+        remaining: null,
+        unavailable: true,
+        plan: resolvedPlan,
+        canResearch: false,
+        yearMonth: ym,
+      };
     }
-  } catch (err) {
-    console.warn('[quota] Failed to fetch quota from Supabase:', err.message);
   }
 
-  // フォールバック（キャッシュ参照）
+  // 非UUIDユーザー（ローカル版・テストアカウント・匿名モード）はメモリ実装を使用
   const key = `${userId}:${ym}`;
-  const used = localUsageCache.get(key) || 0;
+  const used = memoryCredits.get(key) || 0;
   const remaining = Math.max(0, limit - used);
   return {
     used,
     limit,
     remaining,
-    plan: normPlan,
+    plan: resolvedPlan,
     canResearch: remaining > 0,
     yearMonth: ym,
   };
 }
 
 /**
- * クォータを指定量消費（カウント・クレジット加算）
+ * 実行前にクレジットを原子的に確保する (R-3)
  * @param {string} userId
  * @param {string} plan
- * @param {number} [amount=1]
- * @returns {Promise<number>} 更新後の消費クレジット数
+ * @param {string} action
+ * @returns {Promise<{ ok: boolean, reserved: boolean, cost: number, yearMonth: string, plan: string, reason?: string }>}
  */
-async function recordUsage(userId = 'local-user', plan = 'admin', amount = 1) {
+async function reserveCredits(userId, plan = 'free', action = 'research_quick') {
   const ym = getCurrentYearMonth();
-  const key = `${userId}:${ym}`;
-  const addCount = Math.max(0, parseInt(amount, 10) || 1);
-  const currentLocal = (localUsageCache.get(key) || 0) + addCount;
-  localUsageCache.set(key, currentLocal);
+  const cost = planConfig.getActionCost(action);
+  const { plan: resolvedPlan, limit } = resolveEffectivePlanAndLimit(userId, plan);
 
-  const supabaseUrl = getSupabaseUrl();
-  const serviceKey = getSupabaseServiceRoleKey();
-  if (!env.IS_CLOUD || !serviceKey || !supabaseUrl) {
-    return currentLocal;
+  if (cost <= 0 || isBypassUser(userId, limit)) {
+    return {
+      ok: true,
+      reserved: false,
+      cost: 0,
+      yearMonth: ym,
+      plan: isBypassUser(userId, limit) ? 'admin' : resolvedPlan,
+    };
   }
 
-  try {
-    // Supabase RPC または UPSERT でカウント更新
-    await fetch(`${supabaseUrl}/rest/v1/research_usage`, {
+  if (env.IS_CLOUD && isUuid(userId)) {
+    const supabaseUrl = getSupabaseUrl();
+    const serviceKey = getSupabaseServiceRoleKey();
+    if (!supabaseUrl || !serviceKey) {
+      throw new Error('Supabase configuration missing for consume_credits RPC');
+    }
+
+    const res = await fetch(`${supabaseUrl}/rest/v1/rpc/consume_credits`, {
       method: 'POST',
       headers: {
         apikey: serviceKey,
         Authorization: `Bearer ${serviceKey}`,
         'Content-Type': 'application/json',
-        Prefer: 'resolution=merge-duplicates',
       },
       body: JSON.stringify({
-        user_id: userId,
-        year_month: ym,
-        used_count: currentLocal,
-        updated_at: new Date().toISOString(),
+        p_user: userId,
+        p_ym: ym,
+        p_cost: cost,
+        p_limit: limit,
       }),
-      signal: AbortSignal.timeout(3000),
+      signal: AbortSignal.timeout(5000),
     });
-  } catch (err) {
-    console.warn('[quota] Failed to record usage to Supabase:', err.message);
+
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => '');
+      throw new Error(`consume_credits RPC returned HTTP ${res.status}: ${errBody}`);
+    }
+
+    const consumed = await res.json();
+    if (consumed === true) {
+      return {
+        ok: true,
+        reserved: true,
+        cost,
+        yearMonth: ym,
+        plan: resolvedPlan,
+      };
+    }
+    if (consumed === false) {
+      return {
+        ok: false,
+        reserved: false,
+        reason: 'QUOTA_EXCEEDED',
+        cost,
+        yearMonth: ym,
+        plan: resolvedPlan,
+      };
+    }
+
+    throw new Error(`Unexpected consume_credits RPC response: ${JSON.stringify(consumed)}`);
   }
 
-  return currentLocal;
+  // 非UUID（ローカル版、テスト用アカウント、ログイン不要モード）用メモリ実装
+  const key = `${userId}:${ym}`;
+  const currentUsed = memoryCredits.get(key) || 0;
+  if (currentUsed + cost > limit) {
+    return {
+      ok: false,
+      reserved: false,
+      reason: 'QUOTA_EXCEEDED',
+      cost,
+      yearMonth: ym,
+      plan: resolvedPlan,
+    };
+  }
+  memoryCredits.set(key, currentUsed + cost);
+  return {
+    ok: true,
+    reserved: true,
+    cost,
+    yearMonth: ym,
+    plan: resolvedPlan,
+  };
 }
 
 /**
- * 特定アクションの実行可否と必要クレジット数を検査 (C-4)
+ * 失敗時等に確保済みクレジットを返却する (R-3)
  * @param {string} userId
- * @param {string} plan
  * @param {string} action
- * @returns {Promise<{ allowed: boolean, reason?: string, message?: string, cost: number, quota?: object }>}
+ * @param {string} yearMonth 確保時に返された年月
+ */
+async function refundCredits(userId, action = 'research_quick', yearMonth = getCurrentYearMonth()) {
+  const ym = yearMonth || getCurrentYearMonth();
+  const cost = planConfig.getActionCost(action);
+
+  if (cost <= 0 || isBypassUser(userId, undefined)) {
+    return { refunded: false, cost: 0, yearMonth: ym };
+  }
+
+  if (env.IS_CLOUD && isUuid(userId)) {
+    const supabaseUrl = getSupabaseUrl();
+    const serviceKey = getSupabaseServiceRoleKey();
+    if (!supabaseUrl || !serviceKey) {
+      throw new Error('Supabase configuration missing for refund_credits RPC');
+    }
+
+    const res = await fetch(`${supabaseUrl}/rest/v1/rpc/refund_credits`, {
+      method: 'POST',
+      headers: {
+        apikey: serviceKey,
+        Authorization: `Bearer ${serviceKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        p_user: userId,
+        p_ym: ym,
+        p_cost: cost,
+      }),
+      signal: AbortSignal.timeout(5000),
+    });
+
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => '');
+      throw new Error(`refund_credits RPC returned HTTP ${res.status}: ${errBody}`);
+    }
+
+    return { refunded: true, cost, yearMonth: ym };
+  }
+
+  const key = `${userId}:${ym}`;
+  const currentUsed = memoryCredits.get(key) || 0;
+  memoryCredits.set(key, Math.max(0, currentUsed - cost));
+  return { refunded: true, cost, yearMonth: ym };
+}
+
+/**
+ * 特定アクションの実行可否と必要クレジット数を検査（非破壊チェック用）
  */
 async function checkActionQuota(userId, plan = 'free', action = 'research_quick') {
   const cost = planConfig.getActionCost(action);
   const isAllowed = planConfig.isActionAllowedForPlan(plan, action);
 
-  // 1. プラン権限チェック (free は通常リサーチ以外不可)
   if (!isAllowed) {
     return {
       allowed: false,
@@ -211,8 +351,17 @@ async function checkActionQuota(userId, plan = 'free', action = 'research_quick'
     };
   }
 
-  // 2. クォータ残量チェック
   const quota = await getMonthlyQuota(userId, plan);
+  if (quota.unavailable) {
+    return {
+      allowed: false,
+      reason: 'QUOTA_UNAVAILABLE',
+      cost,
+      quota,
+      message: 'クレジット残高の確認に失敗しました。しばらく経ってから再度お試しください。',
+    };
+  }
+
   if (quota.plan === 'admin') {
     return { allowed: true, cost, quota };
   }
@@ -232,64 +381,96 @@ async function checkActionQuota(userId, plan = 'free', action = 'research_quick'
 }
 
 /**
- * 特定アクションのクレジットを消費 (C-4)
- * @param {string} userId
- * @param {string} plan
- * @param {string} action
- * @returns {Promise<number>}
- */
-async function consumeActionCredits(userId, plan = 'free', action = 'research_quick') {
-  const cost = planConfig.getActionCost(action);
-  if (cost <= 0) return 0;
-  return recordUsage(userId, plan, cost);
-}
-
-/**
- * アクションごとのクォータ検査ミドルウェア (C-4)
+ * アクションごとのクォータ検査・原子的確保ミドルウェア (R-3)
+ * 順序:
+ *   1. プラン権限チェック (403 PLAN_FORBIDDEN)
+ *   2. ジョブを伴う処理は checkJobCapacity を先に確認 (429 / 503)
+ *   3. reserveCredits で確保 (403 QUOTA_EXCEEDED / 例外時は 503 QUOTA_UNAVAILABLE)
+ *
  * @param {string|((req: object) => string)} actionOrResolver
+ * @param {{ checkCapacity?: boolean, skipReserve?: boolean }} [options]
  */
-function requireActionQuota(actionOrResolver) {
+function requireActionQuota(actionOrResolver, options = {}) {
+  const { checkCapacity = false, skipReserve = false } = options;
+
   return async (req, res, next) => {
     const user = req.user || { id: 'owner-user', plan: env.IS_CLOUD ? 'free' : 'admin' };
     const plan = user.plan || 'free';
     const action = typeof actionOrResolver === 'function' ? actionOrResolver(req) : actionOrResolver;
+    const cost = planConfig.getActionCost(action);
 
-    try {
-      const check = await checkActionQuota(user.id, plan, action);
-      if (!check.allowed) {
-        return res.status(403).json({
-          error: check.message,
-          code: check.reason,
-          requiredCredits: check.cost,
-          quota: check.quota,
+    // 1. プランの権限を確認する
+    if (!planConfig.isActionAllowedForPlan(plan, action)) {
+      return res.status(403).json({
+        error: `無料（Free）プランではこの機能（${action}）をご利用いただけません。Standardプランへアップグレードしてください。`,
+        code: 'PLAN_FORBIDDEN',
+        requiredCredits: cost,
+      });
+    }
+
+    // 2. ジョブを伴う処理は checkJobCapacity を先に確認する（クレジットは確保しない）
+    if (checkCapacity) {
+      const capacity = checkJobCapacity(user.id);
+      if (!capacity.ok) {
+        return res.status(capacity.status).json({
+          error: capacity.error,
+          code: capacity.code,
         });
       }
-      req.quota = check.quota;
-      req.actionCost = check.cost;
-      req.actionName = action;
-      next();
+    }
+
+    req.actionName = action;
+    req.actionCost = cost;
+
+    if (skipReserve) {
+      return next();
+    }
+
+    // 3. reserveCredits を呼ぶ
+    try {
+      const reservation = await reserveCredits(user.id, plan, action);
+      if (!reservation.ok) {
+        return res.status(403).json({
+          error: `今月のリサーチ上限回数（クレジット不足: 必要 ${reservation.cost}）に達しました。プランをアップグレードするか来月1日のリセットをお待ちください。`,
+          code: 'QUOTA_EXCEEDED',
+          requiredCredits: reservation.cost,
+        });
+      }
+
+      req.creditReservation = reservation;
+      return next();
     } catch (err) {
-      console.error('[quota] requireActionQuota error:', err);
-      next();
+      console.error('[quota] reserveCredits error:', err);
+      return res.status(503).json({
+        error: 'クレジット残高の確認に失敗しました。しばらく経ってから再度お試しください。',
+        code: 'QUOTA_UNAVAILABLE',
+      });
     }
   };
 }
 
 /**
- * 既存互換ミドルウェア（通常リサーチ用）
+ * 通常リサーチ用ミドルウェア
  */
-const requireQuota = requireActionQuota((req) => {
-  const body = req.body || {};
-  return body.depth === 'deep' ? 'research_deep' : 'research_quick';
-});
+const requireQuota = requireActionQuota(
+  (req) => ((req.body || {}).depth === 'deep' ? 'research_deep' : 'research_quick'),
+  { checkCapacity: true }
+);
+
+function _clearMemoryCreditsForTest() {
+  memoryCredits.clear();
+}
 
 module.exports = {
   PLAN_LIMITS,
   getCurrentYearMonth,
   getMonthlyQuota,
-  recordUsage,
+  reserveCredits,
+  refundCredits,
   checkActionQuota,
-  consumeActionCredits,
   requireActionQuota,
   requireQuota,
+  shouldRefundOnCancel,
+  isUuid,
+  _clearMemoryCreditsForTest,
 };

@@ -43,32 +43,32 @@ test('quota: getMonthlyQuota returns valid quota structure', async () => {
   assert.match(q.yearMonth, /^\d{4}-\d{2}$/);
 });
 
-test('quota: requireQuota blocks request when limit is reached', (t, done) => {
+test('quota: requireQuota blocks request when limit is reached', async () => {
+  const uid = `blocked-user-${Date.now()}`;
   const req = {
-    user: { id: 'blocked-user', plan: 'free' },
+    user: { id: uid, plan: 'free' },
   };
 
-  // Simulate reaching quota by recording 3 usages
-  const ym = quota.getCurrentYearMonth();
-  quota.recordUsage('blocked-user', 'free').then(() => {
-    quota.recordUsage('blocked-user', 'free').then(() => {
-      quota.recordUsage('blocked-user', 'free').then(() => {
-        const res = {
-          status(code) {
-            assert.strictEqual(code, 403, 'Must return 403 Forbidden');
-            return {
-              json(payload) {
-                assert.strictEqual(payload.code, 'QUOTA_EXCEEDED');
-                assert.ok(payload.error.includes('リサーチ上限回数'));
-                done();
-              },
-            };
+  // Reserve 3 credits (free plan monthly limit = 3)
+  await quota.reserveCredits(uid, 'free', 'research_quick');
+  await quota.reserveCredits(uid, 'free', 'research_quick');
+  await quota.reserveCredits(uid, 'free', 'research_quick');
+
+  await new Promise((resolve) => {
+    const res = {
+      status(code) {
+        assert.strictEqual(code, 403, 'Must return 403 Forbidden');
+        return {
+          json(payload) {
+            assert.strictEqual(payload.code, 'QUOTA_EXCEEDED');
+            assert.ok(payload.error.includes('リサーチ上限回数'));
+            resolve();
           },
         };
-        quota.requireQuota(req, res, () => {
-          assert.fail('Should not call next when quota exceeded');
-        });
-      });
+      },
+    };
+    quota.requireQuota(req, res, () => {
+      assert.fail('Should not call next when quota exceeded');
     });
   });
 });

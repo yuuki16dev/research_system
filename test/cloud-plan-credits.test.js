@@ -62,26 +62,30 @@ test('C-4: Consuming credits reduces remaining balance by action cost', async ()
   assert.equal(q0.remaining, 3);
 
   // 1. 通常リサーチ消費 (コスト 1)
-  await quota.consumeActionCredits(userId, 'free', 'research_quick');
+  const r1 = await quota.reserveCredits(userId, 'free', 'research_quick');
+  assert.equal(r1.ok, true);
+  assert.equal(r1.reserved, true);
   const q1 = await quota.getMonthlyQuota(userId, 'free');
   assert.equal(q1.used, 1);
   assert.equal(q1.remaining, 2);
 
   // 2. 対話消費 (コスト 0)
-  await quota.consumeActionCredits(userId, 'free', 'deepdive');
+  const r2 = await quota.reserveCredits(userId, 'free', 'deepdive');
+  assert.equal(r2.ok, true);
+  assert.equal(r2.reserved, false);
   const q2 = await quota.getMonthlyQuota(userId, 'free');
   assert.equal(q2.used, 1);
   assert.equal(q2.remaining, 2);
 
-  // 3. 残り2クレジットの状態で、コスト3の処理を行おうとすると CREDIT_EXHAUSTED
-  const resExhaust = await quota.checkActionQuota(userId, 'standard', 'research_deep');
-  // standard プランで残り2クレジット、必要3クレジット
-  // ここでは free だが standard で試算
-  // コスト3を消費してみる
-  await quota.consumeActionCredits(userId, 'free', 'research_quick'); // 2回目 -> 残り1
-  await quota.consumeActionCredits(userId, 'free', 'research_quick'); // 3回目 -> 残り0
+  // 3. 残高 2 の状態で消費を続けて残高 0 にする
+  await quota.reserveCredits(userId, 'free', 'research_quick'); // 2回目 -> 残り1
+  await quota.reserveCredits(userId, 'free', 'research_quick'); // 3回目 -> 残り0
   const qEnd = await quota.getMonthlyQuota(userId, 'free');
   assert.equal(qEnd.remaining, 0);
+
+  const r4 = await quota.reserveCredits(userId, 'free', 'research_quick');
+  assert.equal(r4.ok, false);
+  assert.equal(r4.reason, 'QUOTA_EXCEEDED');
 
   const resZero = await quota.checkActionQuota(userId, 'free', 'research_quick');
   assert.equal(resZero.allowed, false);

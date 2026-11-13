@@ -11,8 +11,8 @@
 const PLAN_CREDITS = {
   free: 3,         // お試し無料枠: 月3クレジット
   standard: 30,    // スタンダード: 月30クレジット
-  light: 10,       // （互換用）
-  pro: 30,         // （互換用）
+  light: 40,       // （互換用）
+  pro: 80,         // （互換用）
   admin: Infinity, // 管理者・ローカル利用: 無制限
 };
 

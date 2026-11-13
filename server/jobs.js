@@ -64,7 +64,7 @@ function formatJobErrorMessage(err) {
   return msg || 'リサーチ処理中に予期せぬエラーが発生しました';
 }
 
-function createJob(params, runner, { onResult, userId } = {}) {
+function createJob(params, runner, { onResult, onSettled, userId } = {}) {
   const id = crypto.randomUUID();
   const token = crypto.randomBytes(24).toString('base64url');
   const jobUserId = userId || (params && params.userId) || null;
@@ -98,12 +98,13 @@ function createJob(params, runner, { onResult, userId } = {}) {
   jobs.set(id, job);
 
   setImmediate(async () => {
+    let settled = false;
     try {
       const result = await runner(job);
       job.status = 'done';
       if (onResult) {
         try {
-          onResult(result);
+          await onResult(result);
         } catch (e) {
           console.error('[history] 保存に失敗:', e.message);
         }
@@ -115,6 +116,14 @@ function createJob(params, runner, { onResult, userId } = {}) {
       const errMsg = job.status === 'cancelled' ? 'リサーチをキャンセルしました' : formatJobErrorMessage(e);
       job.emit({ type: 'error', message: errMsg });
     } finally {
+      if (!settled && typeof onSettled === 'function') {
+        settled = true;
+        try {
+          await onSettled(job.status);
+        } catch (e) {
+          console.error('[job] onSettled error:', e.message);
+        }
+      }
       job.emit({ type: 'end', status: job.status });
       setTimeout(() => jobs.delete(id), RETAIN_MS).unref();
     }
