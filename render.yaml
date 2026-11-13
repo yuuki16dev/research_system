@@ -37,4 +37,6 @@ services:
         value: 0
       - key: ENABLE_TEST_USERS
         value: "true" # 検証用テストアカウントを配置・有効化
+      - key: ALLOW_ANONYMOUS_CLOUD
+        sync: false # テスト公開時のみ "true" を設定（既定は未設定＝ログイン必須）
 

@@ -16,11 +16,9 @@ function isAuthEnforced() {
 }
 
 function isAuthRequired() {
-  if (process.env.NODE_ENV === 'test') {
-    return env.IS_CLOUD || process.env.ENABLE_AUTH === 'true';
+  if (env.IS_CLOUD) {
+    return process.env.ALLOW_ANONYMOUS_CLOUD !== 'true';
   }
-  // ユーザー指示「公開・クラウド環境もログイン不要にして欲しい。サービス公開前に戻す」に従い、
-  // 公開・クラウド環境では明示的に ENABLE_AUTH === 'true' が設定されない限りログイン不要（admin仕様）
   return process.env.ENABLE_AUTH === 'true';
 }
 
@@ -211,6 +209,21 @@ async function verifyToken(token) {
 }
 
 /**
+ * 認証不要モード時に付与する匿名/ローカルユーザーオブジェクトを生成
+ */
+function buildAnonymousUser() {
+  const isCloudAnon = Boolean(env.IS_CLOUD);
+  return {
+    id: 'owner-user',
+    email: isCloudAnon ? 'anonymous@cloud.local' : 'owner@local',
+    role: 'authenticated',
+    plan: isCloudAnon ? 'free' : 'admin',
+    isLocal: !isCloudAnon,
+    isAnonymousCloud: isCloudAnon,
+  };
+}
+
+/**
  * 認証ミドルウェア（必須）
  */
 async function requireAuth(req, res, next) {
@@ -226,15 +239,9 @@ async function requireAuth(req, res, next) {
     }
   }
 
-  // 認証が不要な環境（ローカル、およびサービス公開前の公開・クラウド環境）: 未ログインを管理者（owner-user / admin）として自動通過
+  // 認証不要モード（ローカル既定、またはクラウド環境で ALLOW_ANONYMOUS_CLOUD=true の場合のみ）
   if (!isAuthRequired()) {
-    req.user = {
-      id: 'owner-user',
-      email: 'owner@local',
-      role: 'authenticated',
-      plan: 'admin',
-      isLocal: !env.IS_CLOUD,
-    };
+    req.user = buildAnonymousUser();
     return next();
   }
 
@@ -260,15 +267,8 @@ async function optionalAuth(req, res, next) {
     }
   }
 
-  // トークンがない場合、認証不要環境では管理者として設定
   if (!isAuthRequired()) {
-    req.user = {
-      id: 'owner-user',
-      email: 'owner@local',
-      role: 'authenticated',
-      plan: 'admin',
-      isLocal: !env.IS_CLOUD,
-    };
+    req.user = buildAnonymousUser();
     return next();
   }
 
@@ -404,6 +404,7 @@ async function loginUser(email, password) {
 
 module.exports = {
   PRESET_TEST_USERS,
+  buildAnonymousUser,
   isAuthEnforced,
   isAuthRequired,
   requireAuth,

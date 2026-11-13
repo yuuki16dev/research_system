@@ -9,7 +9,7 @@
  * 4. クラウド環境（Supabase連携）およびローカル環境（無制限管理者）の両方に対応
  */
 
-const { IS_CLOUD } = require('./env');
+const env = require('./env');
 const planConfig = require('./plan-config');
 
 function getSupabaseUrl() {
@@ -52,7 +52,7 @@ async function getMonthlyQuota(userId = 'local-user', plan = 'admin') {
   // 無制限プラン（admin）の場合
   if (limit === Infinity) {
     // クラウド版の場合、ADMIN_USER_IDS に含まれるユーザーのみ無制限とする (B-1)
-    if (IS_CLOUD) {
+    if (env.IS_CLOUD) {
       const adminUserIds = (process.env.ADMIN_USER_IDS || '')
         .split(',')
         .map((s) => s.trim())
@@ -74,7 +74,7 @@ async function getMonthlyQuota(userId = 'local-user', plan = 'admin') {
   }
 
   // Supabase 未設定（ローカル/テスト環境）の場合はローカルキャッシュで制限判定
-  if (!IS_CLOUD) {
+  if (!env.IS_CLOUD) {
     const key = `${userId}:${ym}`;
     const used = localUsageCache.get(key) || 0;
     const remaining = Math.max(0, limit - used);
@@ -161,7 +161,7 @@ async function recordUsage(userId = 'local-user', plan = 'admin', amount = 1) {
 
   const supabaseUrl = getSupabaseUrl();
   const serviceKey = getSupabaseServiceRoleKey();
-  if (!IS_CLOUD || !serviceKey || !supabaseUrl) {
+  if (!env.IS_CLOUD || !serviceKey || !supabaseUrl) {
     return currentLocal;
   }
 
@@ -250,7 +250,7 @@ async function consumeActionCredits(userId, plan = 'free', action = 'research_qu
  */
 function requireActionQuota(actionOrResolver) {
   return async (req, res, next) => {
-    const user = req.user || { id: 'owner-user', plan: 'admin' };
+    const user = req.user || { id: 'owner-user', plan: env.IS_CLOUD ? 'free' : 'admin' };
     const plan = user.plan || 'free';
     const action = typeof actionOrResolver === 'function' ? actionOrResolver(req) : actionOrResolver;
 

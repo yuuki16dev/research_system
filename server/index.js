@@ -225,11 +225,13 @@ app.get('/api/health', (req, res) => {
 
 /* ------------------------------------------------------------- Auth & Quota */
 app.get('/api/auth/config', (req, res) => {
+  const anonymousMode = Boolean(env.IS_CLOUD && process.env.ALLOW_ANONYMOUS_CLOUD === 'true');
   res.json({
     enabled: auth.isCloudAuthEnabled(),
     hasSupabase: env.IS_CLOUD,
     isLocal: !env.IS_CLOUD,
     testUsersEnabled: env.TEST_USERS_ENABLED,
+    anonymousMode,
   });
 });
 
@@ -286,19 +288,21 @@ app.get('/api/auth/me', async (req, res) => {
     }
   }
 
-  // 認証が不要な場合（ローカル環境、およびサービス公開前の公開・クラウド環境）:
-  // 常に admin 仕様（owner-user）として自動認証し、ログイン不要・回数無制限で快適に利用可能
+  // 認証不要モード（ローカル環境、またはクラウド環境で ALLOW_ANONYMOUS_CLOUD=true の場合のみ）
   if (!auth.isAuthRequired()) {
-    const q = await quota.getMonthlyQuota('owner-user', 'admin');
+    const anonUser = auth.buildAnonymousUser();
+    const q = await quota.getMonthlyQuota(anonUser.id, anonUser.plan);
+    const effectivePlan = q.plan || anonUser.plan;
     return res.json({
       authenticated: true,
       isCloud: Boolean(env.IS_CLOUD),
       isLocal: !env.IS_CLOUD,
+      anonymousMode: Boolean(env.IS_CLOUD),
       user: {
-        id: 'owner-user',
-        email: 'owner@local',
-        plan: 'admin',
-        role: 'admin',
+        id: anonUser.id,
+        email: anonUser.email,
+        plan: effectivePlan,
+        role: effectivePlan === 'admin' ? 'admin' : 'user',
         isLocal: !env.IS_CLOUD,
       },
       quota: q,
@@ -1288,6 +1292,10 @@ function startServer(port, host, retries = 5) {
     console.log(`  ★ 終了方法: [Ctrl + C] を押すか、このウィンドウを閉じてください`);
     console.log(`  ★ 停止用バッチ: stop.bat をダブルクリックでも停止できます`);
     console.log(`${line}\n`);
+
+    if (env.IS_CLOUD && process.env.ALLOW_ANONYMOUS_CLOUD === 'true') {
+      console.warn('警告: ログイン不要モードで起動しています。全訪問者が1つの利用者として扱われます');
+    }
 
     if (process.pkg || process.env.AUTO_OPEN === '1') {
       openBrowser(`http://localhost:${port}`);

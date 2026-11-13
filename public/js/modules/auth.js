@@ -172,6 +172,13 @@ export async function refreshAuthStatus() {
     authState.hasSupabase = !!config.hasSupabase;
     authState.isLocal = !!config.isLocal;
     authState.testUsersEnabled = !!config.testUsersEnabled;
+    authState.anonymousMode = !!config.anonymousMode;
+
+    // クラウド匿名テスト公開モード警告バナー制御 (R-1)
+    const anonBanner = document.getElementById('anonymous-mode-banner');
+    if (anonBanner) {
+      anonBanner.hidden = !config.anonymousMode;
+    }
 
     // テストユーザーUIの表示制御 (A-2)
     const quickBox = document.getElementById('auth-test-quick-box');
