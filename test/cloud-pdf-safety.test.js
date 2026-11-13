@@ -155,6 +155,7 @@ test('B-7: Cloud mode rejects html parameter with 400 and accepts data/template 
       PORT: String(testPort),
       SUPABASE_URL: 'https://test-pdf-guard.supabase.co',
       SUPABASE_SERVICE_ROLE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.fake_key_for_pdf_test',
+      TAVILY_API_KEY: 'dummy-tavily',
       ENABLE_AUTH: 'true',
       ENABLE_TEST_USERS: 'true',
       NODE_ENV: 'test',

@@ -124,6 +124,7 @@ test('B-3: End-to-end research execution in cloud mode leaves no memory.json, se
       SUPABASE_URL: `http://127.0.0.1:${mockPort}`,
       SUPABASE_ANON_KEY: 'test-anon-key',
       SUPABASE_SERVICE_ROLE_KEY: 'test-service-role-key',
+      TAVILY_API_KEY: 'dummy-tavily',
       ENABLE_TEST_USERS: 'true',
     },
     silent: true,

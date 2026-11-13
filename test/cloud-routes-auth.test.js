@@ -58,6 +58,7 @@ test('A-5: Cloud mode rejects unauthenticated requests to AI and export routes w
       SUPABASE_URL: 'https://example.supabase.co',
       SUPABASE_ANON_KEY: 'test-anon-key',
       SUPABASE_SERVICE_ROLE_KEY: 'test-service-role-key',
+      TAVILY_API_KEY: 'dummy-tavily',
       ENABLE_TEST_USERS: 'true',
     },
     async (base) => {

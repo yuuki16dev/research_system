@@ -13,20 +13,8 @@ function getIsProduction() {
 }
 
 function getTestUsersEnabled() {
-  // 明示的に ENABLE_TEST_USERS が設定されている場合は最優先（production でも明示的有効化を許可）
-  if (process.env.ENABLE_TEST_USERS !== undefined) {
-    return process.env.ENABLE_TEST_USERS === 'true' || process.env.ENABLE_TEST_USERS === '1';
-  }
-  // テスト実行時はデフォルトで有効
-  if (process.env.NODE_ENV === 'test') {
-    return true;
-  }
-  // 本番環境（production）では明示指定がない限りセキュリティのため無効
-  if (getIsProduction()) {
-    return false;
-  }
-  // 開発・ローカル環境ではデフォルトで有効
-  return true;
+  // 明示的に ENABLE_TEST_USERS=true (または 1) が設定されている場合のみ有効（既定は無効）
+  return process.env.ENABLE_TEST_USERS === 'true' || process.env.ENABLE_TEST_USERS === '1';
 }
 
 const env = {

@@ -62,7 +62,7 @@ if (env.IS_CLOUD && (!process.env.SUPABASE_SERVICE_ROLE_KEY || !process.env.SUPA
 }
 
 // C-1: クラウド環境では TAVILY_API_KEY が必須（DuckDuckGo へのフォールバック不可）
-if (env.IS_CLOUD && process.env.NODE_ENV !== 'test' && (!process.env.TAVILY_API_KEY || !process.env.TAVILY_API_KEY.trim())) {
+if (env.IS_CLOUD && (!process.env.TAVILY_API_KEY || !process.env.TAVILY_API_KEY.trim())) {
   console.error('[FATAL] クラウド環境では TAVILY_API_KEY が必須です');
   process.exit(1);
 }
@@ -121,10 +121,9 @@ const aiLimiter = rateLimit({
   message: { error: 'AIリクエストの回数上限に達しました（1分間に最大10回）。しばらく待ってから再試行してください。', code: 'RATE_LIMIT_EXCEEDED' },
 });
 
-const isTest = process.env.NODE_ENV === 'test';
 const generalApiLimiter = rateLimit({
   windowMs: 60 * 1000, // 1分
-  max: isTest ? 5000 : 120, // テスト環境ではテスト全体の並行連続呼び出しを阻害しないよう緩和
+  max: 120,
   validate: false,
   standardHeaders: true,
   legacyHeaders: false,
@@ -857,7 +856,7 @@ app.post('/api/research/:id/cancel', auth.requireAuth, (req, res) => {
 });
 
 app.post('/api/research/deep-dive', auth.requireAuth, aiLimiter, quota.requireActionQuota('deepdive'), async (req, res) => {
-  const { theme, question, reportContext, period, quote, chatHistory } = req.body || {};
+  const { theme, question, reportContext, period, quote, chatHistory, forceMock } = req.body || {};
   if (!theme || !question) return res.status(400).json({ error: 'theme と question は必須です' });
 
   // B-8: 入力文字数・件数の厳格な検証
@@ -901,7 +900,7 @@ app.post('/api/research/deep-dive', auth.requireAuth, aiLimiter, quota.requireAc
   console.log(`[深掘り対話] 質問: "${question.slice(0, 35)}..." を受信 (履歴: ${Array.isArray(chatHistory) ? chatHistory.length : 0}件)`);
   try {
     const userId = req.user ? req.user.id : 'owner-user';
-    const result = await deepdive.runDeepDive({ theme, question, reportContext, period, quote, chatHistory, userId });
+    const result = await deepdive.runDeepDive({ theme, question, reportContext, period, quote, chatHistory, userId, forceMock: !!forceMock });
     res.json(result);
   } catch (err) {
     console.error('Deep dive execution error:', err);

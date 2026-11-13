@@ -25,6 +25,7 @@ test('B-9: Job ownership, subscription token verification, cancel authorization,
       PORT: String(testPort),
       SUPABASE_URL: 'https://test-jobs.supabase.co',
       SUPABASE_SERVICE_ROLE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.fake_key_for_b9',
+      TAVILY_API_KEY: 'dummy-tavily',
       ENABLE_AUTH: 'true',
       ENABLE_TEST_USERS: 'true',
       MAX_CONCURRENT_JOBS: '2', // テスト用に同時実行数上限を2に設定

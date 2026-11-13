@@ -69,6 +69,7 @@ test('B-10: End-to-end research execution with attachments excludes base64 and r
       PORT: String(testPort),
       SUPABASE_URL: 'https://test-attached-safety.supabase.co',
       SUPABASE_SERVICE_ROLE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.fake_key_for_b10',
+      TAVILY_API_KEY: 'dummy-tavily',
       ENABLE_AUTH: 'true',
       ENABLE_TEST_USERS: 'true',
       NODE_ENV: 'test',
@@ -76,20 +77,19 @@ test('B-10: End-to-end research execution with attachments excludes base64 and r
     stdio: 'pipe',
   });
 
-  await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('Server start timed out')), 10000);
-    serverProcess.stdout.on('data', (d) => {
-      if (d.toString().includes('起動しました') || d.toString().includes(String(testPort))) {
-        clearTimeout(timer);
-        resolve();
-      }
-    });
-  });
-
-  const baseUrl = `http://127.0.0.1:${testPort}`;
-  const token = 'Bearer test-token-user-a';
-
   try {
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('Server start timed out')), 10000);
+      serverProcess.stdout.on('data', (d) => {
+        if (d.toString().includes('起動しました') || d.toString().includes(String(testPort))) {
+          clearTimeout(timer);
+          resolve();
+        }
+      });
+    });
+
+    const baseUrl = `http://127.0.0.1:${testPort}`;
+    const token = 'Bearer test-token-user-a';
     // 添付ファイル（base64, text含む）と手持ち資料（referenceContext）を付けてリサーチ開始
     const createRes = await fetch(`${baseUrl}/api/research`, {
       method: 'POST',

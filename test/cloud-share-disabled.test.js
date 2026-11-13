@@ -73,6 +73,7 @@ test('A-6: Cloud mode disables /api/share/:id and /share/:id returning 404', asy
         SUPABASE_URL: 'https://example.supabase.co',
         SUPABASE_ANON_KEY: 'test-anon-key',
         SUPABASE_SERVICE_ROLE_KEY: 'test-service-role-key',
+        TAVILY_API_KEY: 'dummy-tavily',
         ENABLE_TEST_USERS: 'true',
       },
       async (base) => {

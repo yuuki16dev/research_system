@@ -50,9 +50,9 @@ function cleanSearchQuery(question, theme, quote, chatHistory) {
  * @param {Array<{question: string, answer: string}>} [params.chatHistory]
  * @param {AbortSignal} [params.signal]
  */
-async function runDeepDive({ theme, question, reportContext = '', period = 'year', quote = '', chatHistory = [], signal, userId = 'owner-user' }) {
+async function runDeepDive({ theme, question, reportContext = '', period = 'year', quote = '', chatHistory = [], signal, userId = 'owner-user', forceMock = false }) {
   const currentSettings = settings.load();
-  const isMock = currentSettings.mode === 'mock' || !currentSettings.geminiApiKey || (process.env.NODE_ENV === 'test' && !process.env.ENABLE_REAL_AI);
+  const isMock = Boolean(forceMock) || currentSettings.mode === 'mock' || !currentSettings.geminiApiKey;
 
   if (isMock) {
     const hasHistory = Array.isArray(chatHistory) && chatHistory.length > 0;

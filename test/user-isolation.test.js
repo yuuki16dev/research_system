@@ -11,50 +11,57 @@ const auth = require('../server/auth');
 const history = require('../server/history');
 
 test('user-isolation: auth provides preset test users and validates tokens', async () => {
-  // 1. Preset test user accounts
-  assert.ok(Array.isArray(auth.PRESET_TEST_USERS), 'PRESET_TEST_USERS must be an array');
-  assert.equal(auth.PRESET_TEST_USERS.length, 4);
+  const prevTestUsers = process.env.ENABLE_TEST_USERS;
+  process.env.ENABLE_TEST_USERS = 'true';
+  try {
+    // 1. Preset test user accounts
+    assert.ok(Array.isArray(auth.PRESET_TEST_USERS), 'PRESET_TEST_USERS must be an array');
+    assert.equal(auth.PRESET_TEST_USERS.length, 4);
 
-  // 2. Login User A
-  const resA = await auth.loginUser('user-a@test.local', 'password123');
-  assert.ok(resA.access_token);
-  assert.equal(resA.user.id, 'user-a');
-  assert.equal(resA.user.plan, 'free');
+    // 2. Login User A
+    const resA = await auth.loginUser('user-a@test.local', 'password123');
+    assert.ok(resA.access_token);
+    assert.equal(resA.user.id, 'user-a');
+    assert.equal(resA.user.plan, 'free');
 
-  // 3. Login User B
-  const resB = await auth.loginUser('user-b@test.local', 'password123');
-  assert.ok(resB.access_token);
-  assert.equal(resB.user.id, 'user-b');
-  assert.equal(resB.user.plan, 'free');
+    // 3. Login User B
+    const resB = await auth.loginUser('user-b@test.local', 'password123');
+    assert.ok(resB.access_token);
+    assert.equal(resB.user.id, 'user-b');
+    assert.equal(resB.user.plan, 'free');
 
-  // 4. Login Standard User
-  const resStd = await auth.loginUser('standard@test.local', 'standardpass');
-  assert.ok(resStd.access_token);
-  assert.equal(resStd.user.id, 'user-std');
-  assert.equal(resStd.user.plan, 'standard');
+    // 4. Login Standard User
+    const resStd = await auth.loginUser('standard@test.local', 'standardpass');
+    assert.ok(resStd.access_token);
+    assert.equal(resStd.user.id, 'user-std');
+    assert.equal(resStd.user.plan, 'standard');
 
-  // 5. Login Admin
-  const resAdmin = await auth.loginUser('admin@test.local', 'adminpassword');
-  assert.ok(resAdmin.access_token);
-  assert.equal(resAdmin.user.id, 'admin-user');
-  assert.equal(resAdmin.user.plan, 'admin');
+    // 5. Login Admin
+    const resAdmin = await auth.loginUser('admin@test.local', 'adminpassword');
+    assert.ok(resAdmin.access_token);
+    assert.equal(resAdmin.user.id, 'admin-user');
+    assert.equal(resAdmin.user.plan, 'admin');
 
-  // 5. Wrong password rejected
-  await assert.rejects(async () => {
-    await auth.loginUser('user-a@test.local', 'wrongpassword');
-  }, /パスワードが正しくありません/);
+    // 5. Wrong password rejected
+    await assert.rejects(async () => {
+      await auth.loginUser('user-a@test.local', 'wrongpassword');
+    }, /パスワードが正しくありません/);
 
-  // 6. Token verification
-  const verifiedA = await auth.verifyToken(resA.access_token);
-  assert.ok(verifiedA);
-  assert.equal(verifiedA.id, 'user-a');
+    // 6. Token verification
+    const verifiedA = await auth.verifyToken(resA.access_token);
+    assert.ok(verifiedA);
+    assert.equal(verifiedA.id, 'user-a');
 
-  const verifiedB = await auth.verifyToken(resB.access_token);
-  assert.ok(verifiedB);
-  assert.equal(verifiedB.id, 'user-b');
+    const verifiedB = await auth.verifyToken(resB.access_token);
+    assert.ok(verifiedB);
+    assert.equal(verifiedB.id, 'user-b');
 
-  const invalidUser = await auth.verifyToken('invalid-token');
-  assert.equal(invalidUser, null);
+    const invalidUser = await auth.verifyToken('invalid-token');
+    assert.equal(invalidUser, null);
+  } finally {
+    if (prevTestUsers === undefined) delete process.env.ENABLE_TEST_USERS;
+    else process.env.ENABLE_TEST_USERS = prevTestUsers;
+  }
 });
 
 test('user-isolation: history list, get, and delete are isolated between users', () => {

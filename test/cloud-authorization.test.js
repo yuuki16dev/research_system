@@ -197,6 +197,7 @@ test('B-11: Comprehensive Cloud Authorization and Tenant Isolation Suite', async
       SUPABASE_URL: mockSupabaseUrl,
       SUPABASE_ANON_KEY: 'test-anon-key',
       SUPABASE_SERVICE_ROLE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.fake_service_role_key',
+      TAVILY_API_KEY: 'dummy-tavily',
       ENABLE_AUTH: 'true',
       ENABLE_TEST_USERS: 'true',
       NODE_ENV: 'test',
@@ -204,21 +205,20 @@ test('B-11: Comprehensive Cloud Authorization and Tenant Isolation Suite', async
     stdio: 'pipe',
   });
 
-  await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('Server start timed out')), 10000);
-    serverProcess.stdout.on('data', (d) => {
-      if (d.toString().includes('起動しました') || d.toString().includes(String(testPort))) {
-        clearTimeout(timer);
-        resolve();
-      }
-    });
-  });
-
   const baseUrl = `http://127.0.0.1:${testPort}`;
   const tokenA = 'Bearer valid-token-user-a';
   const tokenB = 'Bearer valid-token-user-b';
 
   try {
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('Server start timed out')), 10000);
+      serverProcess.stdout.on('data', (d) => {
+        if (d.toString().includes('起動しました') || d.toString().includes(String(testPort))) {
+          clearTimeout(timer);
+          resolve();
+        }
+      });
+    });
     // -------------------------------------------------------------------------
     // 1. トークンなしで、A-4・A-5 の全保護ルートが 401 を返すこと
     // -------------------------------------------------------------------------

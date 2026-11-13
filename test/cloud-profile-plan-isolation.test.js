@@ -248,6 +248,7 @@ test('B-1: End-to-end GET /api/auth/me retains profiles.plan even if user_metada
         SUPABASE_URL: `http://127.0.0.1:${mockSupabasePort}`,
         SUPABASE_ANON_KEY: 'mock-anon-key',
         SUPABASE_SERVICE_ROLE_KEY: 'mock-service-key',
+        TAVILY_API_KEY: 'dummy-tavily',
       },
       async (base) => {
         const res = await fetch(`${base}/api/auth/me`, {

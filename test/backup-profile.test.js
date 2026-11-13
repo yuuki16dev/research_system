@@ -91,22 +91,29 @@ test('history: getAllForUser and restoreReports handle full report lifecycle', (
 });
 
 test('profile & backup: API endpoints work with authentication', async () => {
-  const auth = require('../server/auth');
-  const loginRes = await auth.loginUser('user-a@test.local', 'password123');
-  assert.ok(loginRes.access_token);
-  assert.equal(loginRes.user.id, 'user-a');
+  const prevTestUsers = process.env.ENABLE_TEST_USERS;
+  process.env.ENABLE_TEST_USERS = 'true';
+  try {
+    const auth = require('../server/auth');
+    const loginRes = await auth.loginUser('user-a@test.local', 'password123');
+    assert.ok(loginRes.access_token);
+    assert.equal(loginRes.user.id, 'user-a');
 
-  // プロフィール更新
-  const updateRes = profile.updateProfile('user-a', {
-    displayName: 'テストユーザーA',
-    avatar: '🚀',
-  });
-  assert.equal(updateRes.displayName, 'テストユーザーA');
-  assert.equal(updateRes.avatar, '🚀');
+    // プロフィール更新
+    const updateRes = profile.updateProfile('user-a', {
+      displayName: 'テストユーザーA',
+      avatar: '🚀',
+    });
+    assert.equal(updateRes.displayName, 'テストユーザーA');
+    assert.equal(updateRes.avatar, '🚀');
 
-  const fetchedProf = profile.getProfile('user-a');
-  assert.equal(fetchedProf.displayName, 'テストユーザーA');
-  assert.equal(fetchedProf.avatar, '🚀');
+    const fetchedProf = profile.getProfile('user-a');
+    assert.equal(fetchedProf.displayName, 'テストユーザーA');
+    assert.equal(fetchedProf.avatar, '🚀');
+  } finally {
+    if (prevTestUsers === undefined) delete process.env.ENABLE_TEST_USERS;
+    else process.env.ENABLE_TEST_USERS = prevTestUsers;
+  }
 });
 
 test('profile & backup: DOM consistency in public/index.html', () => {

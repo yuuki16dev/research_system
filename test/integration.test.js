@@ -193,6 +193,7 @@ test('integration: /api/research/deep-dive handles question answering with multi
         chatHistory: [
           { question: '推奨されるクラウド移行プランは？', answer: 'ハイブリッドクラウド構成が推奨されます。' }
         ],
+        forceMock: true,
       }),
     });
     assert.strictEqual(res.status, 200);
