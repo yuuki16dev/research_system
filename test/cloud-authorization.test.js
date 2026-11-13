@@ -177,7 +177,13 @@ function createMockSupabaseServer() {
           resolve(`http://127.0.0.1:${port}`);
         });
       }),
-    close: () => new Promise((resolve) => server.close(resolve)),
+    close: () =>
+      new Promise((resolve) => {
+        if (typeof server.closeAllConnections === 'function') {
+          server.closeAllConnections();
+        }
+        server.close(resolve);
+      }),
   };
 }
 
@@ -219,7 +225,7 @@ test('B-11: Comprehensive Cloud Authorization and Tenant Isolation Suite', async
 
   try {
     await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error('Server start timed out')), 10000);
+      const timer = setTimeout(() => reject(new Error('Server start timed out')), 25000);
       serverProcess.stdout.on('data', (d) => {
         if (d.toString().includes('起動しました') || d.toString().includes(String(testPort))) {
           clearTimeout(timer);
@@ -404,19 +410,19 @@ test('B-11: Production environment rejects test-token-admin-user and test accoun
     stdio: 'pipe',
   });
 
-  await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('Server start timed out')), 10000);
-    serverProcess.stdout.on('data', (d) => {
-      if (d.toString().includes('起動しました') || d.toString().includes(String(testPort))) {
-        clearTimeout(timer);
-        resolve();
-      }
-    });
-  });
-
   const baseUrl = `http://127.0.0.1:${testPort}`;
 
   try {
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('Server start timed out')), 25000);
+      serverProcess.stdout.on('data', (d) => {
+        if (d.toString().includes('起動しました') || d.toString().includes(String(testPort))) {
+          clearTimeout(timer);
+          resolve();
+        }
+      });
+    });
+
     // 1. test-token-admin-user で /api/auth/me を呼び出す -> authenticated: false
     const resMe = await fetch(`${baseUrl}/api/auth/me`, {
       headers: { Authorization: 'Bearer test-token-admin-user' },

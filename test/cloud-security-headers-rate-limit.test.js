@@ -35,17 +35,17 @@ test('B-8: Security headers and Content-Security-Policy are enforced by helmet',
     stdio: 'pipe',
   });
 
-  await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('Server start timed out')), 10000);
-    serverProcess.stdout.on('data', (d) => {
-      if (d.toString().includes('起動しました') || d.toString().includes(String(testPort))) {
-        clearTimeout(timer);
-        resolve();
-      }
-    });
-  });
-
   try {
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('Server start timed out')), 25000);
+      serverProcess.stdout.on('data', (d) => {
+        if (d.toString().includes('起動しました') || d.toString().includes(String(testPort))) {
+          clearTimeout(timer);
+          resolve();
+        }
+      });
+    });
+
     const res = await fetch(`http://127.0.0.1:${testPort}/api/info`);
     assert.strictEqual(res.status, 200);
 
@@ -83,17 +83,17 @@ test('B-8: Rate limiting blocks 11th consecutive login attempt with 429', async 
     stdio: 'pipe',
   });
 
-  await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('Server start timed out')), 10000);
-    serverProcess.stdout.on('data', (d) => {
-      if (d.toString().includes('起動しました') || d.toString().includes(String(testPort))) {
-        clearTimeout(timer);
-        resolve();
-      }
-    });
-  });
-
   try {
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('Server start timed out')), 25000);
+      serverProcess.stdout.on('data', (d) => {
+        if (d.toString().includes('起動しました') || d.toString().includes(String(testPort))) {
+          clearTimeout(timer);
+          resolve();
+        }
+      });
+    });
+
     // ログイン試行を 11 回連続で送信
     let lastStatus = 0;
     let rateLimited = false;
@@ -139,17 +139,17 @@ test('B-8: JSON body size limit (1MB default vs 10MB for attachment routes)', as
     stdio: 'pipe',
   });
 
-  await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('Server start timed out')), 10000);
-    serverProcess.stdout.on('data', (d) => {
-      if (d.toString().includes('起動しました') || d.toString().includes(String(testPort))) {
-        clearTimeout(timer);
-        resolve();
-      }
-    });
-  });
-
   try {
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('Server start timed out')), 25000);
+      serverProcess.stdout.on('data', (d) => {
+        if (d.toString().includes('起動しました') || d.toString().includes(String(testPort))) {
+          clearTimeout(timer);
+          resolve();
+        }
+      });
+    });
+
     const authHeader = 'Bearer test-token-user-a';
 
     // 1. 通常ルート (/api/research/deep-dive) に 1.5MB の巨大ボディを送信 -> 413 Payload Too Large
@@ -213,17 +213,17 @@ test('B-8: /api/research/deep-dive validates field length and array count limits
     stdio: 'pipe',
   });
 
-  await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('Server start timed out')), 10000);
-    serverProcess.stdout.on('data', (d) => {
-      if (d.toString().includes('起動しました') || d.toString().includes(String(testPort))) {
-        clearTimeout(timer);
-        resolve();
-      }
-    });
-  });
-
   try {
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('Server start timed out')), 25000);
+      serverProcess.stdout.on('data', (d) => {
+        if (d.toString().includes('起動しました') || d.toString().includes(String(testPort))) {
+          clearTimeout(timer);
+          resolve();
+        }
+      });
+    });
+
     const authHeader = 'Bearer test-token-user-a';
 
     // 1. theme > 500文字 -> 400
@@ -288,7 +288,10 @@ test('B-8: /api/research/deep-dive validates field length and array count limits
     assert.strictEqual(resHistItem.status, 400);
     assert.ok((await resHistItem.json()).error.includes('chatHistory[0]'));
   } finally {
-    serverProcess.kill('SIGTERM');
+    try { serverProcess.kill('SIGKILL'); } catch {}
+    if (typeof mockSupabase.closeAllConnections === 'function') {
+      mockSupabase.closeAllConnections();
+    }
     await new Promise((r) => mockSupabase.close(r));
   }
 });
@@ -310,17 +313,17 @@ test('B-8: Minimum password length is enforced to 8 characters', async () => {
     stdio: 'pipe',
   });
 
-  await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('Server start timed out')), 10000);
-    serverProcess.stdout.on('data', (d) => {
-      if (d.toString().includes('起動しました') || d.toString().includes(String(testPort))) {
-        clearTimeout(timer);
-        resolve();
-      }
-    });
-  });
-
   try {
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('Server start timed out')), 25000);
+      serverProcess.stdout.on('data', (d) => {
+        if (d.toString().includes('起動しました') || d.toString().includes(String(testPort))) {
+          clearTimeout(timer);
+          resolve();
+        }
+      });
+    });
+
     // 1. 7文字のパスワード -> 400
     const resShort = await fetch(`http://127.0.0.1:${testPort}/api/auth/signup`, {
       method: 'POST',

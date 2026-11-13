@@ -38,7 +38,7 @@ test('B-4: PATCH request with { userId: "victim" } cannot change report ownershi
   try {
     // 起動待ち
     let started = false;
-    for (let i = 0; i < 60; i++) {
+    for (let i = 0; i < 150; i++) {
       try {
         const res = await fetch(`http://127.0.0.1:${testPort}/api/health`);
         if (res.ok) {
@@ -128,7 +128,7 @@ test('B-4: Restore reports with conflicting ID cannot overwrite another user rep
 
   try {
     let started = false;
-    for (let i = 0; i < 60; i++) {
+    for (let i = 0; i < 150; i++) {
       try {
         const res = await fetch(`http://127.0.0.1:${testPort}/api/health`);
         if (res.ok) {
@@ -225,7 +225,7 @@ test('B-4: Restore endpoint enforces maximum 50 items and 1MB item size limit', 
 
   try {
     let started = false;
-    for (let i = 0; i < 60; i++) {
+    for (let i = 0; i < 150; i++) {
       try {
         const res = await fetch(`http://127.0.0.1:${testPort}/api/health`);
         if (res.ok) {

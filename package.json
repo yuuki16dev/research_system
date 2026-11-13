@@ -9,7 +9,7 @@
     "stop": "node server/stop.js",
     "server": "node server/index.js",
     "dev": "node server/start.js",
-    "test": "node --test",
+    "test": "node --test --test-concurrency=4",
     "test:exports": "node scripts/verify-all-exports.js",
     "test:exe": "node scripts/verify-exe.js",
     "fix:bat": "node scripts/normalize-bat.js",

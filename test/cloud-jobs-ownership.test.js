@@ -44,21 +44,20 @@ test('B-9: Job ownership, subscription token verification, cancel authorization,
     stdio: 'pipe',
   });
 
-  await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('Server start timed out')), 10000);
-    serverProcess.stdout.on('data', (d) => {
-      if (d.toString().includes('起動しました') || d.toString().includes(String(testPort))) {
-        clearTimeout(timer);
-        resolve();
-      }
-    });
-  });
-
   const baseUrl = `http://127.0.0.1:${testPort}`;
   const tokenA = 'Bearer test-token-user-a';
   const tokenB = 'Bearer test-token-user-b';
 
   try {
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('Server start timed out')), 25000);
+      serverProcess.stdout.on('data', (d) => {
+        if (d.toString().includes('起動しました') || d.toString().includes(String(testPort))) {
+          clearTimeout(timer);
+          resolve();
+        }
+      });
+    });
     // 1. 利用者Aがジョブを開始（forceMock: true）
     const resA1 = await fetch(`${baseUrl}/api/research`, {
       method: 'POST',
@@ -217,7 +216,10 @@ test('B-9: Job ownership, subscription token verification, cancel authorization,
       headers: { Authorization: tokenA },
     }).catch(() => {});
   } finally {
-    serverProcess.kill('SIGTERM');
+    try { serverProcess.kill('SIGKILL'); } catch {}
+    if (typeof mockSupabase.closeAllConnections === 'function') {
+      mockSupabase.closeAllConnections();
+    }
     await new Promise((r) => mockSupabase.close(r));
   }
 });

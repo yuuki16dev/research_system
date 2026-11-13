@@ -133,7 +133,7 @@ test('B-3: End-to-end research execution in cloud mode leaves no memory.json, se
   try {
     // サーバーの起動待ち
     let started = false;
-    for (let i = 0; i < 60; i++) {
+    for (let i = 0; i < 150; i++) {
       try {
         const res = await fetch(`http://127.0.0.1:${testPort}/api/health`);
         if (res.ok) {

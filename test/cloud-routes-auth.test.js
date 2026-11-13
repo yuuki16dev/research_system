@@ -26,21 +26,20 @@ async function runWithServer(customEnv, callback) {
 
   const url = `http://127.0.0.1:${testPort}`;
 
-  let ready = false;
-  for (let i = 0; i < 60; i++) {
-    await new Promise((r) => setTimeout(r, 200));
-    try {
-      const res = await fetch(`${url}/api/health`);
-      if (res.ok) {
-        ready = true;
-        break;
-      }
-    } catch {}
-  }
-
-  assert.ok(ready, `Test server failed to start on port ${testPort}`);
-
   try {
+    let ready = false;
+    for (let i = 0; i < 100; i++) {
+      await new Promise((r) => setTimeout(r, 200));
+      try {
+        const res = await fetch(`${url}/api/health`);
+        if (res.ok) {
+          ready = true;
+          break;
+        }
+      } catch {}
+    }
+
+    assert.ok(ready, `Test server failed to start on port ${testPort}`);
     await callback(url);
   } finally {
     try {

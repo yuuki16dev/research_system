@@ -164,21 +164,21 @@ test('B-7: Cloud mode rejects html parameter with 400 and accepts data/template 
     stdio: 'pipe',
   });
 
-  // サーバーの起動待機
-  await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('Server start timed out')), 10000);
-    serverProcess.stdout.on('data', (d) => {
-      if (d.toString().includes('起動しました') || d.toString().includes(String(testPort))) {
-        clearTimeout(timer);
-        resolve();
-      }
-    });
-    serverProcess.stderr.on('data', (d) => {
-      // ログ出力監視
-    });
-  });
-
   try {
+    // サーバーの起動待機
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('Server start timed out')), 25000);
+      serverProcess.stdout.on('data', (d) => {
+        if (d.toString().includes('起動しました') || d.toString().includes(String(testPort))) {
+          clearTimeout(timer);
+          resolve();
+        }
+      });
+      serverProcess.stderr.on('data', (d) => {
+        // ログ出力監視
+      });
+    });
+
     const authHeader = 'Bearer test-token-user-a';
 
     // 1. html パラメータを送信した場合: 400 Bad Request かつ HTML_PAYLOAD_FORBIDDEN
@@ -226,7 +226,7 @@ test('B-7: Cloud mode rejects html parameter with 400 and accepts data/template 
       assert.notStrictEqual(validRes.status, 400, 'Must not fail with 400 when valid data is supplied');
     }
   } finally {
-    serverProcess.kill('SIGTERM');
+    try { serverProcess.kill('SIGKILL'); } catch {}
     await mockDb.close();
   }
 });

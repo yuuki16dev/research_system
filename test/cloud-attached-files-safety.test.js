@@ -89,7 +89,7 @@ test('B-10: End-to-end research execution with attachments excludes base64 and r
 
   try {
     await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error('Server start timed out')), 10000);
+      const timer = setTimeout(() => reject(new Error('Server start timed out')), 25000);
       serverProcess.stdout.on('data', (d) => {
         if (d.toString().includes('起動しました') || d.toString().includes(String(testPort))) {
           clearTimeout(timer);
@@ -185,7 +185,10 @@ test('B-10: End-to-end research execution with attachments excludes base64 and r
     // 3. referenceContext がレポートから除外されていること
     assert.strictEqual(completedResult.referenceContext, undefined);
   } finally {
-    serverProcess.kill('SIGTERM');
+    try { serverProcess.kill('SIGKILL'); } catch {}
+    if (typeof mockSupabase.closeAllConnections === 'function') {
+      mockSupabase.closeAllConnections();
+    }
     await new Promise((r) => mockSupabase.close(r));
   }
 });
