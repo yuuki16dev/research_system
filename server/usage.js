@@ -106,10 +106,12 @@ function recordGemini({ model, promptTokens = 0, candidatesTokens = 0, totalToke
   data.gemini.lastUsed = new Date().toISOString();
 
   // コスト換算
-  const promptCost = (data.gemini.totalPromptTokens / 1_000_000) * GEMINI_PRICING.inputPerMillion;
-  const candCost = (data.gemini.totalCandidatesTokens / 1_000_000) * GEMINI_PRICING.outputPerMillion;
+  const activePricing = getModelPricing(model || DEFAULT_GEMINI_MODEL);
+  const usdJpyRate = modelConfig.getUsdJpyRate ? modelConfig.getUsdJpyRate() : USD_JPY_RATE;
+  const promptCost = (data.gemini.totalPromptTokens / 1_000_000) * activePricing.inputPerMillion;
+  const candCost = (data.gemini.totalCandidatesTokens / 1_000_000) * activePricing.outputPerMillion;
   data.gemini.estimatedCostUsd = Number((promptCost + candCost).toFixed(5));
-  data.gemini.estimatedCostJpy = Math.round(data.gemini.estimatedCostUsd * USD_JPY_RATE * 100) / 100;
+  data.gemini.estimatedCostJpy = Math.round(data.gemini.estimatedCostUsd * usdJpyRate * 100) / 100;
 
   // 履歴ログ (直近30件)
   if (!Array.isArray(data.gemini.history)) data.gemini.history = [];

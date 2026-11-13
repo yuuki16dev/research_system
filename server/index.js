@@ -31,7 +31,8 @@ const path = require('path');
 const os = require('os');
 const fs = require('fs');
 const QRCode = require('qrcode');
-const { DEFAULT_GEMINI_MODEL, DEFAULT_FALLBACK_MODELS } = require('./model-config');
+const modelConfig = require('./model-config');
+const { DEFAULT_GEMINI_MODEL, DEFAULT_FALLBACK_MODELS } = modelConfig;
 
 const settings = require('./settings');
 const history = require('./history');
@@ -1476,6 +1477,10 @@ function startServer(port, host, retries = 5) {
 
     if (env.IS_CLOUD && process.env.ALLOW_ANONYMOUS_CLOUD === 'true') {
       console.warn('警告: ログイン不要モードで起動しています。全訪問者が1つの利用者として扱われます');
+    }
+
+    if (env.IS_CLOUD && modelConfig.isUsingDefaultModelPricing()) {
+      console.warn('警告: モデル単価が仮の値です。AI Studio の請求画面で確認して設定してください');
     }
 
     if (process.pkg || process.env.AUTO_OPEN === '1') {

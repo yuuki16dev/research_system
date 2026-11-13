@@ -41,4 +41,12 @@ services:
         sync: false # テスト公開時のみ "true" を設定（既定は未設定＝ログイン必須）
       - key: DAILY_COST_LIMIT_JPY
         value: 1000 # 全体の日次AI推定原価上限 (JPY・R-5)
+      - key: MODEL_PRICING_JSON
+        sync: false # AI Studio 請求画面で確認したモデル単価JSON (R-6)
+      - key: TAVILY_USD_PER_CREDIT
+        value: "0.008" # Tavily 1クレジット単価 (USD・仮値・R-6)
+      - key: USD_JPY_RATE
+        value: 150 # 為替レート (JPY/USD・仮値・R-6)
+      - key: GEMINI_FALLBACK_MODELS
+        sync: false # クラウド版の切り替え先モデル（未設定時は切り替えなし・R-6）
 

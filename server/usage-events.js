@@ -77,10 +77,9 @@ function calculateEstimatedCostJpy({ model, promptTokens = 0, outputTokens = 0, 
   const pricing = modelConfig.getModelPricing(model);
   const promptCostUsd = (promptTokens / 1_000_000) * pricing.inputPerMillion;
   const outputCostUsd = (outputTokens / 1_000_000) * pricing.outputPerMillion;
-  // Tavily 1クレジットあたり参考価格 ($0.005)
-  const tavilyCostUsd = tavilyCredits * 0.005;
+  const tavilyCostUsd = tavilyCredits * modelConfig.getTavilyUsdPerCredit();
   const totalUsd = promptCostUsd + outputCostUsd + tavilyCostUsd;
-  return Number((totalUsd * modelConfig.USD_JPY_RATE).toFixed(4));
+  return Number((totalUsd * modelConfig.getUsdJpyRate()).toFixed(4));
 }
 
 /**
