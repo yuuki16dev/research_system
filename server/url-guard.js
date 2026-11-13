@@ -14,6 +14,60 @@ const dns = require('dns').promises;
 const net = require('net');
 
 /**
+ * IPv6文字列を 8 個の 16bit 整数配列へ正規化・展開する
+ * @param {string} ip
+ * @returns {number[]|null}
+ */
+function parseIpv6ToGroups(ip) {
+  let s = String(ip).toLowerCase().trim();
+  const zoneIdx = s.indexOf('%');
+  if (zoneIdx !== -1) {
+    s = s.slice(0, zoneIdx);
+  }
+
+  // 末尾に埋め込まれた IPv4 表記 (::ffff:127.0.0.1, 64:ff9b::10.0.0.1 等) を 2つの 16bit グループへ変換
+  const lastColon = s.lastIndexOf(':');
+  if (lastColon !== -1) {
+    const tail = s.slice(lastColon + 1);
+    if (net.isIPv4(tail)) {
+      const octets = tail.split('.').map(Number);
+      const hi = ((octets[0] << 8) | octets[1]).toString(16);
+      const lo = ((octets[2] << 8) | octets[3]).toString(16);
+      s = `${s.slice(0, lastColon + 1)}${hi}:${lo}`;
+    }
+  }
+
+  const dblParts = s.split('::');
+  if (dblParts.length > 2) return null;
+
+  let head = dblParts[0] ? dblParts[0].split(':').filter(Boolean) : [];
+  let tailParts = dblParts.length === 2 && dblParts[1] ? dblParts[1].split(':').filter(Boolean) : [];
+
+  const totalExplicit = head.length + tailParts.length;
+  if (dblParts.length === 1 && totalExplicit !== 8) return null;
+  if (dblParts.length === 2 && totalExplicit > 8) return null;
+
+  const zerosNeeded = dblParts.length === 2 ? 8 - totalExplicit : 0;
+  const full = [
+    ...head,
+    ...new Array(zerosNeeded).fill('0'),
+    ...tailParts,
+  ];
+  if (full.length !== 8) return null;
+
+  const groups = [];
+  for (const part of full) {
+    if (!/^[0-9a-f]{1,4}$/.test(part)) return null;
+    groups.push(parseInt(part, 16));
+  }
+  return groups;
+}
+
+function groupsLower32ToIpv4(g6, g7) {
+  return `${(g6 >> 8) & 0xff}.${g6 & 0xff}.${(g7 >> 8) & 0xff}.${g7 & 0xff}`;
+}
+
+/**
  * IPアドレスが制限（内部・プライベート・メタデータ）対象かを判定
  * @param {string} ip
  * @returns {boolean}
@@ -56,21 +110,34 @@ function isRestrictedIp(ip) {
 
   // IPv6 チェック
   if (net.isIPv6(ip)) {
-    const norm = ip.toLowerCase();
+    const groups = parseIpv6ToGroups(ip);
+    if (!groups) return true;
+
+    const [g0, g1, g2, g3, g4, g5, g6, g7] = groups;
+
     // ループバック ::1
-    if (norm === '::1' || norm === '0000:0000:0000:0000:0000:0000:0000:0001') return true;
+    if (g0 === 0 && g1 === 0 && g2 === 0 && g3 === 0 && g4 === 0 && g5 === 0 && g6 === 0 && g7 === 1) {
+      return true;
+    }
     // 未指定 ::
-    if (norm === '::' || norm === '0000:0000:0000:0000:0000:0000:0000:0000') return true;
+    if (g0 === 0 && g1 === 0 && g2 === 0 && g3 === 0 && g4 === 0 && g5 === 0 && g6 === 0 && g7 === 0) {
+      return true;
+    }
     // ユニークローカル fc00::/7 (fc00:: - fdff:ffff:...)
-    if (/^f[cd][0-9a-f]{2}:/i.test(norm)) return true;
+    if ((g0 & 0xfe00) === 0xfc00) return true;
     // リンクローカル fe80::/10 (fe80:: - febf:...)
-    if (/^fe[89ab][0-9a-f]:/i.test(norm)) return true;
+    if ((g0 & 0xffc0) === 0xfe80) return true;
     // マルチキャスト ff00::/8
-    if (/^ff[0-9a-f]{2}:/i.test(norm)) return true;
-    // IPv4 射影 IPv6 (::ffff:127.0.0.1 等)
-    const ipv4Mapped = norm.match(/::ffff:(\d+\.\d+\.\d+\.\d+)/i);
-    if (ipv4Mapped) {
-      return isRestrictedIp(ipv4Mapped[1]);
+    if ((g0 & 0xff00) === 0xff00) return true;
+    // 文書用プレフィックス 2001:db8::/32
+    if (g0 === 0x2001 && g1 === 0x0db8) return true;
+    // IPv4 射影 IPv6 ::ffff:0:0/96（10進・16進両表記に対応）
+    if (g0 === 0 && g1 === 0 && g2 === 0 && g3 === 0 && g4 === 0 && g5 === 0xffff) {
+      return isRestrictedIp(groupsLower32ToIpv4(g6, g7));
+    }
+    // NAT64 プレフィックス 64:ff9b::/96
+    if (g0 === 0x0064 && g1 === 0xff9b && g2 === 0 && g3 === 0 && g4 === 0 && g5 === 0) {
+      return isRestrictedIp(groupsLower32ToIpv4(g6, g7));
     }
 
     return false;
@@ -113,8 +180,8 @@ async function assertPublicUrl(urlStr) {
     throw new Error(`不許可のポート番号です: ${parsed.port}（80または443のみ許可）`);
   }
 
-  // 4. ホスト名の検証
-  const hostname = parsed.hostname.toLowerCase();
+  // 4. ホスト名の検証（IPv6 の角かっこ [...] を外してから判定）
+  const hostname = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, '');
   if (!hostname) {
     throw new Error('ホスト名が指定されていません');
   }

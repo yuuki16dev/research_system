@@ -10,148 +10,11 @@
 
 'use strict';
 
-const dns = require('dns').promises;
-const net = require('net');
 const { URL } = require('url');
 
 // 健全なクローラー宣言 User-Agent
 const CRAWLER_USER_AGENT =
   'ResearchStudio-Bot/2.15 (Responsible AI Researcher; +https://github.com/yuuki16dev/research_system)';
-
-/**
- * IPアドレスがプライベート、ループバック、リンクローカル、またはメタデータIPかを厳格判定
- * @param {string} ip
- * @returns {boolean}
- */
-function isPrivateOrRestrictedIp(ip) {
-  if (!ip || typeof ip !== 'string') return true;
-
-  // IPv4 チェック
-  if (net.isIPv4(ip)) {
-    const parts = ip.split('.').map(Number);
-    const [b0, b1] = parts;
-
-    // 0.0.0.0/8 (Current network)
-    if (b0 === 0) return true;
-    // 10.0.0.0/8 (Private)
-    if (b0 === 10) return true;
-    // 127.0.0.0/8 (Loopback / localhost)
-    if (b0 === 127) return true;
-    // 169.254.0.0/16 (Link-local / AWS/GCP/Azure Cloud Metadata: 169.254.169.254)
-    if (b0 === 169 && b1 === 254) return true;
-    // 172.16.0.0/12 (Private)
-    if (b0 === 172 && b1 >= 16 && b1 <= 31) return true;
-    // 192.168.0.0/16 (Private)
-    if (b0 === 192 && b1 === 168) return true;
-    // 100.64.0.0/10 (Carrier-grade NAT)
-    if (b0 === 100 && b1 >= 64 && b1 <= 127) return true;
-    // 192.0.0.0/24 (IETF Protocol Assignments)
-    if (b0 === 192 && b1 === 0 && parts[2] === 0) return true;
-    // 198.18.0.0/15 (Benchmarking)
-    if (b0 === 198 && (b1 === 18 || b1 === 19)) return true;
-    // 224.0.0.0/4 (Multicast)
-    if (b0 >= 224 && b0 <= 239) return true;
-    // 240.0.0.0/4 (Reserved)
-    if (b0 >= 240) return true;
-
-    return false;
-  }
-
-  // IPv6 チェック
-  if (net.isIPv6(ip)) {
-    const norm = ip.toLowerCase();
-    // ループバック ::1
-    if (norm === '::1' || norm === '0000:0000:0000:0000:0000:0000:0000:0001') return true;
-    // 未指定アドレス ::
-    if (norm === '::' || norm === '0000:0000:0000:0000:0000:0000:0000:0000') return true;
-    // ユニークローカル fc00::/7 (fd00::/8 を含む)
-    if (/^f[cd][0-9a-f]{2}:/i.test(norm)) return true;
-    // リンクローカル fe80::/10
-    if (/^fe[89ab][0-9a-f]:/i.test(norm)) return true;
-    // IPv4 マップド IPv6 (::ffff:127.0.0.1 等)
-    const ipv4Mapped = norm.match(/::ffff:(\d+\.\d+\.\d+\.\d+)/i);
-    if (ipv4Mapped) {
-      return isPrivateOrRestrictedIp(ipv4Mapped[1]);
-    }
-    return false;
-  }
-
-  return true;
-}
-
-/**
- * URLが安全で外部の一般公開サイトであるかを検証（SSRFガード）
- * @param {string} rawUrl
- * @returns {Promise<{safe: boolean, reason?: string, parsedUrl?: URL, resolvedIp?: string}>}
- */
-async function validateSafeUrl(rawUrl) {
-  if (!rawUrl || typeof rawUrl !== 'string') {
-    return { safe: false, reason: 'URLが指定されていません' };
-  }
-
-  const trimmed = rawUrl.trim();
-  let parsed;
-  try {
-    parsed = new URL(trimmed);
-  } catch {
-    return { safe: false, reason: '無効なURL形式です' };
-  }
-
-  // 1. プロトコル制限: http または https のみ許可
-  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    return { safe: false, reason: `不許可のプロトコルです: ${parsed.protocol}（http/httpsのみ許可）` };
-  }
-
-  // 2. ホスト名の安全検証
-  const hostname = parsed.hostname.toLowerCase();
-  if (!hostname) {
-    return { safe: false, reason: 'ホスト名が存在しません' };
-  }
-
-  // ローカル名・特殊ドメインの即時ブロック
-  if (
-    hostname === 'localhost' ||
-    hostname.endsWith('.localhost') ||
-    hostname.endsWith('.local') ||
-    hostname.endsWith('.internal') ||
-    hostname.endsWith('.lan') ||
-    hostname.endsWith('.corp') ||
-    hostname.endsWith('.test') ||
-    hostname.endsWith('.example') ||
-    hostname.endsWith('.invalid')
-  ) {
-    return { safe: false, reason: `プライベート/内部ホスト名へのアクセスは禁止されています: ${hostname}` };
-  }
-
-  // 3. ホスト名がIP直打ちの場合
-  if (net.isIP(hostname)) {
-    if (isPrivateOrRestrictedIp(hostname)) {
-      return { safe: false, reason: `プライベートまたは制限されたIPへのアクセスは禁止されています: ${hostname}` };
-    }
-    return { safe: true, parsedUrl: parsed, resolvedIp: hostname };
-  }
-
-  // 4. DNS事前名前解決によるIP検証（DNS Rebinding / プライベートIP偽装の防止）
-  try {
-    const lookup = await dns.lookup(hostname, { all: true });
-    if (!lookup || lookup.length === 0) {
-      return { safe: false, reason: `ドメインの名前解決に失敗しました: ${hostname}` };
-    }
-
-    for (const record of lookup) {
-      if (isPrivateOrRestrictedIp(record.address)) {
-        return {
-          safe: false,
-          reason: `ドメイン ${hostname} が内部IP (${record.address}) に解決されたためブロックしました`,
-        };
-      }
-    }
-
-    return { safe: true, parsedUrl: parsed, resolvedIp: lookup[0].address };
-  } catch (err) {
-    return { safe: false, reason: `DNS解決エラー: ${err.message}` };
-  }
-}
 
 const { assertPublicUrl } = require('./url-guard');
 
@@ -340,8 +203,6 @@ const PROMPT_INJECTION_BARRIER = `
 `;
 
 module.exports = {
-  isPrivateOrRestrictedIp,
-  validateSafeUrl,
   safeFetch,
   validateThemeSafety,
   wrapUntrustedContent,

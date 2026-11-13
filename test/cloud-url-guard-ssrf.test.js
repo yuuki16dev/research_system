@@ -5,7 +5,7 @@ process.env.NODE_ENV = 'test';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('http');
-const { assertPublicUrl, isPublicUrl } = require('../server/url-guard');
+const { assertPublicUrl, isPublicUrl, isRestrictedIp } = require('../server/url-guard');
 const search = require('../server/search');
 const { safeFetch } = require('../server/security');
 
@@ -26,6 +26,9 @@ test('B-6: assertPublicUrl blocks SSRF target URLs, schemes, credentials, and no
     'http://0.0.0.0/',
     'http://[::1]/',
     'http://[::ffff:127.0.0.1]/',
+    'http://[::ffff:7f00:1]/',
+    'http://[64:ff9b::7f00:1]/',
+    'http://[2001:db8::1]/',
     'http://192.168.1.1/',
     'http://172.16.0.1/',
     'http://100.64.0.1/',
@@ -41,6 +44,35 @@ test('B-6: assertPublicUrl blocks SSRF target URLs, schemes, credentials, and no
     );
     assert.strictEqual(await isPublicUrl(u), false, `isPublicUrl must return false for "${u}"`);
   }
+});
+
+test('R-8: IPv6 bracket stripping, IPv4-mapped hex, NAT64, and 2001:db8::/32 are rejected by IP check (not DNS failure)', async () => {
+  const ipv6Urls = [
+    'http://[::1]/',
+    'http://[::ffff:127.0.0.1]/',
+    'http://[::ffff:7f00:1]/',
+    'http://[64:ff9b::7f00:1]/',
+    'http://[2001:db8::1]/',
+  ];
+
+  for (const u of ipv6Urls) {
+    await assert.rejects(
+      () => assertPublicUrl(u),
+      /プライベートまたは制限されたIPアドレスへのアクセスは禁止されています/,
+      `URL "${u}" must fail specifically at IP inspection, not DNS lookup`
+    );
+  }
+
+  // パブリックIPv4の射影/NAT64は制限対象外
+  assert.strictEqual(isRestrictedIp('::ffff:8.8.8.8'), false);
+  assert.strictEqual(isRestrictedIp('::ffff:0808:0808'), false);
+  assert.strictEqual(isRestrictedIp('64:ff9b::8.8.8.8'), false);
+  assert.strictEqual(isRestrictedIp('64:ff9b::0808:0808'), false);
+  // 制限IPv4の射影/NAT64および文書用プレフィックスは制限対象
+  assert.strictEqual(isRestrictedIp('::ffff:169.254.169.254'), true);
+  assert.strictEqual(isRestrictedIp('::ffff:a9fe:a9fe'), true);
+  assert.strictEqual(isRestrictedIp('64:ff9b::a9fe:a9fe'), true);
+  assert.strictEqual(isRestrictedIp('2001:db8:85a3::8a2e:370:7334'), true);
 });
 
 test('B-6: safeFetch / fetchPage blocks open redirect leading to private or metadata address', async () => {

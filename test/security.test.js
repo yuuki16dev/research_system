@@ -8,68 +8,55 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const security = require('../server/security');
 const {
-  isPrivateOrRestrictedIp,
-  validateSafeUrl,
   validateThemeSafety,
   wrapUntrustedContent,
   PROMPT_INJECTION_BARRIER,
-} = require('../server/security');
+} = security;
+const {
+  isRestrictedIp,
+  isPublicUrl,
+} = require('../server/url-guard');
 
-test('security: isPrivateOrRestrictedIp correctly identifies private/restricted IPs', () => {
-  // ループバック
-  assert.equal(isPrivateOrRestrictedIp('127.0.0.1'), true);
-  assert.equal(isPrivateOrRestrictedIp('127.0.1.1'), true);
-  assert.equal(isPrivateOrRestrictedIp('::1'), true);
-
-  // クラウドメタデータ (AWS/GCP/Azure)
-  assert.equal(isPrivateOrRestrictedIp('169.254.169.254'), true);
-  assert.equal(isPrivateOrRestrictedIp('169.254.1.1'), true);
-
-  // プライベート LAN
-  assert.equal(isPrivateOrRestrictedIp('10.0.0.1'), true);
-  assert.equal(isPrivateOrRestrictedIp('172.16.0.1'), true);
-  assert.equal(isPrivateOrRestrictedIp('172.31.255.255'), true);
-  assert.equal(isPrivateOrRestrictedIp('192.168.0.1'), true);
-  assert.equal(isPrivateOrRestrictedIp('192.168.1.100'), true);
-
-  // 一般公開パブリック IP
-  assert.equal(isPrivateOrRestrictedIp('8.8.8.8'), false);
-  assert.equal(isPrivateOrRestrictedIp('1.1.1.1'), false);
-  assert.equal(isPrivateOrRestrictedIp('142.250.196.142'), false);
+test('security: legacy duplicate SSRF helpers are removed from server/security.js', () => {
+  assert.equal(security.isPrivateOrRestrictedIp, undefined);
+  assert.equal(security.validateSafeUrl, undefined);
 });
 
-test('security: validateSafeUrl blocks SSRF target URLs and schemes', async () => {
-  // 1. ローカルホスト・内部サービス
-  const r1 = await validateSafeUrl('http://localhost:3939/api/settings');
-  assert.equal(r1.safe, false);
+test('security: isRestrictedIp correctly identifies private/restricted IPs', () => {
+  // ループバック
+  assert.equal(isRestrictedIp('127.0.0.1'), true);
+  assert.equal(isRestrictedIp('127.0.1.1'), true);
+  assert.equal(isRestrictedIp('::1'), true);
 
-  const r2 = await validateSafeUrl('http://127.0.0.1:3939/');
-  assert.equal(r2.safe, false);
+  // クラウドメタデータ (AWS/GCP/Azure)
+  assert.equal(isRestrictedIp('169.254.169.254'), true);
+  assert.equal(isRestrictedIp('169.254.1.1'), true);
 
-  // 2. クラウドメタデータ
-  const r3 = await validateSafeUrl('http://169.254.169.254/latest/meta-data/');
-  assert.equal(r3.safe, false);
+  // プライベート LAN
+  assert.equal(isRestrictedIp('10.0.0.1'), true);
+  assert.equal(isRestrictedIp('172.16.0.1'), true);
+  assert.equal(isRestrictedIp('172.31.255.255'), true);
+  assert.equal(isRestrictedIp('192.168.0.1'), true);
+  assert.equal(isRestrictedIp('192.168.1.100'), true);
 
-  // 3. 危険なプロトコル
-  const r4 = await validateSafeUrl('file:///etc/passwd');
-  assert.equal(r4.safe, false);
+  // 一般公開パブリック IP
+  assert.equal(isRestrictedIp('8.8.8.8'), false);
+  assert.equal(isRestrictedIp('1.1.1.1'), false);
+  assert.equal(isRestrictedIp('142.250.196.142'), false);
+});
 
-  const r5 = await validateSafeUrl('file:///C:/Windows/System32/calc.exe');
-  assert.equal(r5.safe, false);
-
-  const r6 = await validateSafeUrl('ftp://example.com/secret.txt');
-  assert.equal(r6.safe, false);
-
-  const r7 = await validateSafeUrl('gopher://127.0.0.1:6379/_');
-  assert.equal(r7.safe, false);
-
-  // 4. プライベート LAN
-  const r8 = await validateSafeUrl('http://192.168.1.1/admin');
-  assert.equal(r8.safe, false);
-
-  const r9 = await validateSafeUrl('http://10.0.0.1/');
-  assert.equal(r9.safe, false);
+test('security: isPublicUrl (url-guard) blocks SSRF target URLs and schemes', async () => {
+  assert.equal(await isPublicUrl('http://localhost:3939/api/settings'), false);
+  assert.equal(await isPublicUrl('http://127.0.0.1:3939/'), false);
+  assert.equal(await isPublicUrl('http://169.254.169.254/latest/meta-data/'), false);
+  assert.equal(await isPublicUrl('file:///etc/passwd'), false);
+  assert.equal(await isPublicUrl('file:///C:/Windows/System32/calc.exe'), false);
+  assert.equal(await isPublicUrl('ftp://example.com/secret.txt'), false);
+  assert.equal(await isPublicUrl('gopher://127.0.0.1:6379/_'), false);
+  assert.equal(await isPublicUrl('http://192.168.1.1/admin'), false);
+  assert.equal(await isPublicUrl('http://10.0.0.1/'), false);
 });
 
 test('security: validateThemeSafety sanitizes and rejects malicious payloads', () => {
