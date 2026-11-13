@@ -18,12 +18,22 @@ const getFreePort = () =>
   });
 
 test('B-9: Job ownership, subscription token verification, cancel authorization, and concurrency limits', async () => {
+  const mockSupabase = http.createServer((req, res) => {
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    if (url.pathname === '/rest/v1/rpc/usage_cost_since') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end('0');
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end('[]');
+  });
+  const sbPort = await new Promise((resolve) => mockSupabase.listen(0, '127.0.0.1', () => resolve(mockSupabase.address().port)));
   const testPort = await getFreePort();
   const serverProcess = fork(path.resolve(__dirname, '../server/index.js'), [], {
     env: {
       ...process.env,
       PORT: String(testPort),
-      SUPABASE_URL: 'https://test-jobs.supabase.co',
+      SUPABASE_URL: `http://127.0.0.1:${sbPort}`,
       SUPABASE_SERVICE_ROLE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.fake_key_for_b9',
       TAVILY_API_KEY: 'dummy-tavily',
       ENABLE_AUTH: 'true',
@@ -208,6 +218,7 @@ test('B-9: Job ownership, subscription token verification, cancel authorization,
     }).catch(() => {});
   } finally {
     serverProcess.kill('SIGTERM');
+    await new Promise((r) => mockSupabase.close(r));
   }
 });
 

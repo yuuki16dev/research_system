@@ -620,6 +620,26 @@ if (!env.IS_CLOUD) {
 }
 
 /* ----------------------------------------------------------- research */
+async function requireDailyCostLimit(req, res, next) {
+  try {
+    const todayCost = await usageEvents.getTodayCostJpy();
+    const limitJpy = usageEvents.getDailyCostLimitJpy();
+    if (todayCost >= limitJpy) {
+      return res.status(503).json({
+        error: '本日の受付上限に達しました。明日以降に再度お試しください',
+        code: 'DAILY_LIMIT_REACHED',
+      });
+    }
+    return next();
+  } catch (err) {
+    console.error('[daily-cost] Failed to verify daily cost limit:', err);
+    return res.status(503).json({
+      error: '利用状況の確認に失敗しました。しばらく経ってから再度お試しください。',
+      code: 'DAILY_COST_UNAVAILABLE',
+    });
+  }
+}
+
 async function refundEarlyIfReserved(req, userId, action) {
   if (req.creditReservation && req.creditReservation.reserved) {
     await quota.refundCredits(userId, action, req.creditReservation.yearMonth).catch((err) => {
@@ -641,7 +661,7 @@ function buildCreditOnSettled(req, userId, action) {
   };
 }
 
-app.post('/api/research', auth.requireAuth, aiLimiter, quota.requireQuota, async (req, res) => {
+app.post('/api/research', auth.requireAuth, aiLimiter, requireDailyCostLimit, quota.requireQuota, async (req, res) => {
   const b = req.body || {};
   const userId = req.user ? req.user.id : 'owner-user';
   const userPlan = req.user ? (req.user.plan || 'free') : 'admin';
@@ -708,7 +728,7 @@ app.post('/api/research', auth.requireAuth, aiLimiter, quota.requireQuota, async
 });
 
 /* ------------------------------------------------ cross-synthesis (v1.17.0) */
-app.post('/api/research/cross-synthesis', auth.requireAuth, aiLimiter, quota.requireActionQuota('cross', { checkCapacity: true }), async (req, res) => {
+app.post('/api/research/cross-synthesis', auth.requireAuth, aiLimiter, requireDailyCostLimit, quota.requireActionQuota('cross', { checkCapacity: true }), async (req, res) => {
   const b = req.body || {};
   const userId = req.user.id;
   const userPlan = req.user.plan || 'free';
@@ -768,7 +788,7 @@ app.post('/api/research/cross-synthesis', auth.requireAuth, aiLimiter, quota.req
 });
 
 /* ------------------------------------------------ delta-tracking (v1.18.0) */
-app.post('/api/research/delta', auth.requireAuth, aiLimiter, quota.requireActionQuota('delta', { checkCapacity: true }), async (req, res) => {
+app.post('/api/research/delta', auth.requireAuth, aiLimiter, requireDailyCostLimit, quota.requireActionQuota('delta', { checkCapacity: true }), async (req, res) => {
   const b = req.body || {};
   const userId = req.user.id;
   const userPlan = req.user.plan || 'free';
@@ -882,7 +902,7 @@ app.post('/api/research/:id/cancel', auth.requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/api/research/deep-dive', auth.requireAuth, aiLimiter, quota.requireActionQuota('deepdive'), async (req, res) => {
+app.post('/api/research/deep-dive', auth.requireAuth, aiLimiter, requireDailyCostLimit, quota.requireActionQuota('deepdive'), async (req, res) => {
   const { theme, question, reportContext, period, quote, chatHistory, reportId, forceMock } = req.body || {};
   if (!theme || !question) return res.status(400).json({ error: 'theme と question は必須です' });
 
@@ -1166,7 +1186,7 @@ function validatePresentationInput({ document, audience, goal, files }) {
   return null;
 }
 
-app.post('/api/presentation/generate', auth.requireAuth, aiLimiter, quota.requireActionQuota('slides', { skipReserve: true }), async (req, res) => {
+app.post('/api/presentation/generate', auth.requireAuth, aiLimiter, requireDailyCostLimit, quota.requireActionQuota('slides', { skipReserve: true }), async (req, res) => {
   const { document, audience, goal, files } = req.body || {};
   const validationError = validatePresentationInput({ document, audience, goal, files });
   if (validationError) {

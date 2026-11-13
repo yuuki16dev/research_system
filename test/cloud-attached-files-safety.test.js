@@ -62,12 +62,22 @@ test('B-10: normalizeResult sanitizes attachedFiles and excludes referenceContex
 });
 
 test('B-10: End-to-end research execution with attachments excludes base64 and referenceContext from saved report', async () => {
+  const mockSupabase = http.createServer((req, res) => {
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    if (url.pathname === '/rest/v1/rpc/usage_cost_since') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end('0');
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end('[]');
+  });
+  const sbPort = await new Promise((resolve) => mockSupabase.listen(0, '127.0.0.1', () => resolve(mockSupabase.address().port)));
   const testPort = await getFreePort();
   const serverProcess = fork(path.resolve(__dirname, '../server/index.js'), [], {
     env: {
       ...process.env,
       PORT: String(testPort),
-      SUPABASE_URL: 'https://test-attached-safety.supabase.co',
+      SUPABASE_URL: `http://127.0.0.1:${sbPort}`,
       SUPABASE_SERVICE_ROLE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.fake_key_for_b10',
       TAVILY_API_KEY: 'dummy-tavily',
       ENABLE_AUTH: 'true',
@@ -176,6 +186,7 @@ test('B-10: End-to-end research execution with attachments excludes base64 and r
     assert.strictEqual(completedResult.referenceContext, undefined);
   } finally {
     serverProcess.kill('SIGTERM');
+    await new Promise((r) => mockSupabase.close(r));
   }
 });
 

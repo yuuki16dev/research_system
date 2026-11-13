@@ -181,12 +181,22 @@ test('B-8: JSON body size limit (1MB default vs 10MB for attachment routes)', as
 });
 
 test('B-8: /api/research/deep-dive validates field length and array count limits', async () => {
+  const mockSupabase = http.createServer((req, res) => {
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    if (url.pathname === '/rest/v1/rpc/usage_cost_since') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end('0');
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end('[]');
+  });
+  const sbPort = await new Promise((resolve) => mockSupabase.listen(0, '127.0.0.1', () => resolve(mockSupabase.address().port)));
   const testPort = await getFreePort();
   const serverProcess = fork(path.resolve(__dirname, '../server/index.js'), [], {
     env: {
       ...process.env,
       PORT: String(testPort),
-      SUPABASE_URL: 'https://test-validation.supabase.co',
+      SUPABASE_URL: `http://127.0.0.1:${sbPort}`,
       SUPABASE_SERVICE_ROLE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.fake_key_for_b8',
       ENABLE_AUTH: 'true',
       ENABLE_TEST_USERS: 'true',
@@ -272,6 +282,7 @@ test('B-8: /api/research/deep-dive validates field length and array count limits
     assert.ok((await resHistItem.json()).error.includes('chatHistory[0]'));
   } finally {
     serverProcess.kill('SIGTERM');
+    await new Promise((r) => mockSupabase.close(r));
   }
 });
 

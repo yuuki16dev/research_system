@@ -153,6 +153,11 @@ function createMockSupabaseServer() {
         }
       }
 
+      if (url.pathname === '/rest/v1/rpc/usage_cost_since') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end('0');
+      }
+
       res.writeHead(404, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Not found' }));
     });

@@ -89,6 +89,11 @@ test('R-4 E2E: Deep-dive enforces reportId ownership (404), per-report/day limit
         return res.end(JSON.stringify(rows));
       }
 
+      if (url.pathname === '/rest/v1/rpc/usage_cost_since') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end('0');
+      }
+
       if (url.pathname === '/rest/v1/usage_events') {
         if (req.method === 'POST') {
           const parsed = JSON.parse(body || '{}');

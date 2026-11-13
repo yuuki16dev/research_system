@@ -120,6 +120,11 @@ test('R-1: Production cloud defaults to requiring auth (401), and ALLOW_ANONYMOU
 
   // 最小モック Supabase サーバー
   const mockSb = http.createServer((req, res) => {
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    if (url.pathname === '/rest/v1/rpc/usage_cost_since') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end('0');
+    }
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end('[]');
   });

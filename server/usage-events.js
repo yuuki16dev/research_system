@@ -14,6 +14,35 @@ const modelConfig = require('./model-config');
 // ローカル・テスト環境用インメモリ保持
 const localUsageEvents = [];
 
+// 日次原価キャッシュ（TTL 60秒）
+const DEFAULT_DAILY_COST_LIMIT_JPY = 1000;
+const DAILY_COST_CACHE_TTL_MS = 60 * 1000;
+let dailyCostCache = null; // { costJpy: number, fetchedAt: number, jstDate: string }
+let lastWarnedJstDate = null;
+
+function getDailyCostLimitJpy() {
+  const raw = process.env.DAILY_COST_LIMIT_JPY;
+  if (raw !== undefined && raw !== '') {
+    const parsed = Number(raw);
+    if (Number.isFinite(parsed) && parsed >= 0) return parsed;
+  }
+  return DEFAULT_DAILY_COST_LIMIT_JPY;
+}
+
+function getJstDateString(date = new Date()) {
+  const d = date instanceof Date ? date : new Date(date);
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(d);
+  const y = parts.find((p) => p.type === 'year')?.value;
+  const m = parts.find((p) => p.type === 'month')?.value;
+  const day = parts.find((p) => p.type === 'day')?.value;
+  return `${y}-${m}-${day}`;
+}
+
 function getSupabaseUrl() {
   return process.env.SUPABASE_URL ? process.env.SUPABASE_URL.replace(/\/+$/, '') : '';
 }
@@ -111,6 +140,13 @@ async function recordUsageEvent({
   localUsageEvents.push(record);
   if (localUsageEvents.length > 500) localUsageEvents.shift();
 
+  // 原価が新規記録された場合は直近キャッシュに反映しつつ次回参照時に再取得させる
+  const todayJst = getJstDateString();
+  if (dailyCostCache && dailyCostCache.jstDate === todayJst) {
+    dailyCostCache.costJpy = Number((dailyCostCache.costJpy + estCostJpy).toFixed(4));
+    dailyCostCache.fetchedAt = 0;
+  }
+
   // クラウド環境（Supabase）への永続化
   if (env.IS_CLOUD) {
     try {
@@ -151,17 +187,95 @@ async function recordUsageEvent({
  * @returns {string}
  */
 function getJstDayStartIso(date = new Date()) {
-  const d = date instanceof Date ? date : new Date(date);
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Tokyo',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(d);
-  const y = parts.find((p) => p.type === 'year')?.value;
-  const m = parts.find((p) => p.type === 'month')?.value;
-  const day = parts.find((p) => p.type === 'day')?.value;
-  return new Date(`${y}-${m}-${day}T00:00:00+09:00`).toISOString();
+  return new Date(`${getJstDateString(date)}T00:00:00+09:00`).toISOString();
+}
+
+function maybeWarnDailyCostHigh(costJpy, todayJst) {
+  const limitJpy = getDailyCostLimitJpy();
+  if (limitJpy > 0 && costJpy >= limitJpy * 0.8 && lastWarnedJstDate !== todayJst) {
+    lastWarnedJstDate = todayJst;
+    console.warn(`[usage-events] 警告: 本日のAI推定原価が日次上限の80%を超えました (${costJpy} / ${limitJpy} JPY)`);
+  }
+}
+
+/**
+ * 日本時間当日0時以降のAI推定原価合計 (JPY) を取得する (R-5)
+ * - クラウド版は Supabase RPC usage_cost_since を呼び出し、60秒間キャッシュ
+ * - 取得失敗時は当日キャッシュがあればフォールバック、キャッシュもなければ例外を投げる
+ * @returns {Promise<number>}
+ */
+async function getTodayCostJpy() {
+  const now = Date.now();
+  const todayJst = getJstDateString(new Date(now));
+  const dayStartIso = getJstDayStartIso(new Date(now));
+
+  if (
+    dailyCostCache &&
+    dailyCostCache.jstDate === todayJst &&
+    now - dailyCostCache.fetchedAt < DAILY_COST_CACHE_TTL_MS
+  ) {
+    maybeWarnDailyCostHigh(dailyCostCache.costJpy, todayJst);
+    return dailyCostCache.costJpy;
+  }
+
+  if (env.IS_CLOUD) {
+    const baseUrl = getSupabaseUrl();
+    const serviceKey = getServiceRoleKey();
+    try {
+      if (!baseUrl || !serviceKey) {
+        throw new Error('Supabase credentials missing for usage_cost_since RPC');
+      }
+
+      const res = await fetch(`${baseUrl}/rest/v1/rpc/usage_cost_since`, {
+        method: 'POST',
+        headers: {
+          apikey: serviceKey,
+          Authorization: `Bearer ${serviceKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ p_since: dayStartIso }),
+        signal: AbortSignal.timeout(5000),
+      });
+
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => '');
+        throw new Error(`usage_cost_since RPC failed (${res.status}): ${errBody}`);
+      }
+
+      const payload = await res.json();
+      const total = Number(payload);
+      if (!Number.isFinite(total)) {
+        throw new Error(`Unexpected usage_cost_since response: ${JSON.stringify(payload)}`);
+      }
+
+      dailyCostCache = { costJpy: total, fetchedAt: now, jstDate: todayJst };
+      maybeWarnDailyCostHigh(total, todayJst);
+      return total;
+    } catch (err) {
+      if (dailyCostCache && dailyCostCache.jstDate === todayJst) {
+        console.warn(`[usage-events] usage_cost_since 取得失敗のため直近キャッシュを使用します: ${err.message}`);
+        maybeWarnDailyCostHigh(dailyCostCache.costJpy, todayJst);
+        return dailyCostCache.costJpy;
+      }
+      throw err;
+    }
+  }
+
+  // ローカル版はメモリ記録から集計
+  const total = Number(
+    localUsageEvents
+      .filter((e) => e.created_at >= dayStartIso)
+      .reduce((acc, e) => acc + (Number(e.est_cost_jpy) || 0), 0)
+      .toFixed(4)
+  );
+  dailyCostCache = { costJpy: total, fetchedAt: now, jstDate: todayJst };
+  maybeWarnDailyCostHigh(total, todayJst);
+  return total;
+}
+
+function _clearDailyCostCacheForTest() {
+  dailyCostCache = null;
+  lastWarnedJstDate = null;
 }
 
 function parseSupabaseCount(res, rows) {
@@ -258,8 +372,11 @@ module.exports = {
   calculateEstimatedCostJpy,
   recordUsageEvent,
   getJstDayStartIso,
+  getDailyCostLimitJpy,
+  getTodayCostJpy,
   countDeepDiveUsage,
   getLocalUsageEvents,
   clearLocalUsageEvents,
+  _clearDailyCostCacheForTest,
 };
 

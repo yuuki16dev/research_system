@@ -230,6 +230,10 @@ test('R-3 E2E: Concurrent 5 requests with 1 credit allow only 1, error triggers 
         res.writeHead(200, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify(null));
       }
+      if (url.pathname === '/rest/v1/rpc/usage_cost_since') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end('0');
+      }
       if (url.pathname.startsWith('/rest/v1/user_reports')) {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify([]));
