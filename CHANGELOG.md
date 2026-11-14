@@ -7,6 +7,34 @@
 - **マイナー (1.X.0)**: 後方互換性のある新機能の追加
 - **パッチ (1.0.X)**: 後方互換性のあるバグ修正や安定化・改善
 
+## [v2.18.0] - 2026-11-15
+
+### 🛡️ クラウド商用運用・原子的クレジット・コスト保護・高速キャッシュ基盤の統合強化 (R-1〜R-10)
+> **「クラウド本番環境での課金・原価・認可・SSRF・プライバシー・検索コストを全方位でガード」**  
+> 本番デプロイ前レビューに基づく一連の改善（R-1 〜 R-10）を完了しました。認証・クレジット引当の原子性、日次原価上限ガード、起動時 DB スキーマ検証、IPv6 対応 SSRF 防御、24時間・50MB の検索／本文キャッシュにより、安全性と運用コスト効率を大幅に向上させています。
+
+- **認証・認可 & RLS 保護強化 (`server/auth.js`, `server/index.js`, `supabase/migrations/20261114_lock_user_reports_writes.sql`)**:
+  - クラウド本番モードではデフォルトで認証必須とし、匿名アクセスは `ALLOW_ANONYMOUS_CLOUD=true` 明示時のみ有効化（R-1）。
+  - Supabase Auth 接続不可時の内部エラー文（`fetch failed` 等）の露出を廃止し、一律 HTTP `503` の定型メッセージへ統一（R-9 #1）。
+  - `user_reports` テーブルの利用者向け `INSERT` / `UPDATE` / `DELETE` RLS ポリシーを削除するマイグレーションを追加し、クライアントからの直接書き込み・改ざんを防止（R-9 #7）。
+- **原子的クレジット管理 & 日次 AI 原価上限 (`server/quota.js`, `server/usage-events.js`, `server/db-check.js`, `supabase/migrations/`)**:
+  - Supabase RPC（`consume_credits` / `refund_credits`）による実行前の原子的クレジット確保と異常終了時の自動返却を実装し、同時リクエストによるクレジット超過消費（レースコンディション）を解消（R-3）。
+  - 深掘り対話の対象レポート所有者確認およびレポート別・日次回数制限（`DEEPDIVE_LIMIT_PER_REPORT` / `DEEPDIVE_LIMIT_PER_DAY`）を導入（R-4）。
+  - `usage_cost_since` RPC を用いた全体日次 AI 原価上限ガード（`DAILY_COST_LIMIT_JPY`）を導入し、上限超過時はクレジット確保前に `503` で安全に遮断（R-5）。
+  - クラウド起動時に必須テーブル・列・RPC 関数の存在を確認する `verifyDatabaseSchema()` を配備（R-7）。
+- **単価・モデルフォールバック柔軟化 (`server/model-config.js`, `server/usage.js`)**:
+  - 環境変数 `MODEL_PRICING_JSON`、`TAVILY_USD_PER_CREDIT`、`USD_JPY_RATE`、`GEMINI_FALLBACK_MODELS` に対応し、クラウド環境では明示設定時のみフォールバックを実施（R-6）。
+- **SSRF 防御一本化・ログ最小化・プロキシ設定 (`server/url-guard.js`, `server/security.js`, `server/jobs.js`)**:
+  - SSRF 検証を `server/url-guard.js` へ一本化し、IPv6 角括弧除去、`::ffff:0:0/96`（10進/16進表記）・NAT64 (`64:ff9b::/96`)・`2001:db8::/32` の遮断を追加（R-8）。
+  - テーマ入力検査（`validateThemeSafety`）の技術調査向け誤ブロックを解消しつつ、クラウドログ出力時はテーマ・質問を先頭 20 文字＋文字数へ制限（R-9 #2, #5）。
+  - `TRUST_PROXY_HOPS`（既定 1）と `express-rate-limit` 検証有効化、キャッシュバスター `?v=` 同期検証、`.dockerignore` 整理を実施（R-9 #3, #4, #6）。
+- **検索・ページ本文 LRU キャッシュ (`server/cache.js`, `server/search.js`, R-10)**:
+  - 24 時間 TTL・合計 50MB 上限（LRU 自動削除）のメモリキャッシュを新設。同一クエリ・同条件での Tavily 再検索と URL 再取得をキャッシュ化し、ヒット時は Tavily API 呼び出し・クレジット加算を行いません。
+- **CI・テスト安定性向上 (`.github/workflows/ci.yml`, `package.json`, `test/`)**:
+  - Windows / Ubuntu の両 OS マトリクスでの CI 実行と、`--test-concurrency=4` による安定した全件テスト実行（280/280 合格）を確立。
+
+---
+
 ## [v2.17.1] - 2026-11-13
 
 ### 🧪 テストアカウント配置 & クラウド検証容易性の強化
