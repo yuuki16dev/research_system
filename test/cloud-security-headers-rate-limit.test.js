@@ -347,3 +347,78 @@ test('B-8: Minimum password length is enforced to 8 characters', async () => {
   }
 });
 
+test('R-9 #4: TRUST_PROXY_HOPS logs first 10 masked client IPs and X-Forwarded-For hops and omits validate:false without validation errors', async () => {
+  const fs = require('fs');
+  const indexSrc = fs.readFileSync(path.resolve(__dirname, '../server/index.js'), 'utf8');
+  assert.ok(!indexSrc.includes('validate: false'), 'server/index.js must not disable express-rate-limit validation');
+
+  const mockDb = await startDbCheckMockServer();
+  const testPort = await getFreePort();
+  const serverProcess = fork(path.resolve(__dirname, '../server/index.js'), [], {
+    env: {
+      ...process.env,
+      PORT: String(testPort),
+      SUPABASE_URL: mockDb.url,
+      SUPABASE_SERVICE_ROLE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.fake_key_for_r9',
+      ENABLE_AUTH: 'true',
+      ENABLE_TEST_USERS: 'false',
+      TAVILY_API_KEY: 'dummy-tavily',
+      NODE_ENV: 'production',
+      TRUST_PROXY_HOPS: '1',
+    },
+    stdio: 'pipe',
+  });
+
+  let stdoutLog = '';
+  let stderrLog = '';
+  serverProcess.stdout.on('data', (d) => {
+    stdoutLog += d.toString();
+  });
+  serverProcess.stderr.on('data', (d) => {
+    stderrLog += d.toString();
+  });
+
+  try {
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('Server start timed out')), 25000);
+      serverProcess.stdout.on('data', (d) => {
+        if (d.toString().includes(String(testPort)) || d.toString().includes('Research Studio')) {
+          clearTimeout(timer);
+          resolve();
+        }
+      });
+      serverProcess.once('exit', (code) => {
+        clearTimeout(timer);
+        reject(new Error(`Server exited early: ${code}\n${stderrLog}`));
+      });
+    });
+
+    const r1 = await fetch(`http://127.0.0.1:${testPort}/api/health`, {
+      headers: { 'X-Forwarded-For': '203.0.113.10' },
+    });
+    assert.strictEqual(r1.status, 200);
+
+    const r2 = await fetch(`http://127.0.0.1:${testPort}/api/health`, {
+      headers: { 'X-Forwarded-For': '198.51.100.20, 10.0.0.5' },
+    });
+    assert.strictEqual(r2.status, 200);
+
+    for (let i = 3; i <= 12; i++) {
+      await fetch(`http://127.0.0.1:${testPort}/api/health`, {
+        headers: { 'X-Forwarded-For': `192.0.2.${i}` },
+      });
+    }
+
+    assert.ok(stdoutLog.includes('[proxy-check 1/10] ip=203.0.113.xxx xff_hops=1'));
+    assert.ok(stdoutLog.includes('[proxy-check 2/10] ip=10.0.0.xxx xff_hops=2'));
+    assert.ok(!stdoutLog.includes('203.0.113.10'), 'Last octet of client IP must be masked in logs');
+    assert.ok(!stdoutLog.includes('10.0.0.5'), 'Last octet of proxy/client IP must be masked in logs');
+    assert.ok(stdoutLog.includes('[proxy-check 10/10]'));
+    assert.ok(!stdoutLog.includes('[proxy-check 11/10]'), 'Proxy logging must stop after 10 requests');
+    assert.ok(!stderrLog.includes('ValidationError'), `Unexpected rate-limit validation error: ${stderrLog}`);
+  } finally {
+    serverProcess.kill('SIGTERM');
+    await mockDb.close();
+  }
+});
+

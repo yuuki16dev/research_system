@@ -49,4 +49,6 @@ services:
         value: 150 # 為替レート (JPY/USD・仮値・R-6)
       - key: GEMINI_FALLBACK_MODELS
         sync: false # クラウド版の切り替え先モデル（未設定時は切り替えなし・R-6）
+      - key: TRUST_PROXY_HOPS
+        value: 1 # 信頼するリバースプロキシのホップ数（既定: 1・R-9）
 

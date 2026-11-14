@@ -79,9 +79,44 @@ const ROOT = path.join(__dirname, '..');
 const app = express();
 app.disable('x-powered-by');
 
-// B-8: クラウド環境下でのリバースプロキシ信頼設定
+function parseTrustProxyHops(raw) {
+  if (raw === undefined || raw === null || String(raw).trim() === '') {
+    return 1;
+  }
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    console.warn(`[proxy] 無効な TRUST_PROXY_HOPS="${raw}" のため既定値 1 を使用します`);
+    return 1;
+  }
+  return parsed;
+}
+
+function maskIpTail(ip) {
+  const raw = String(ip || '').trim();
+  if (!raw) return 'unknown';
+  const clean = raw.replace(/^::ffff:/i, '');
+  if (clean.includes('.')) {
+    const parts = clean.split('.');
+    if (parts.length === 4) {
+      return `${parts[0]}.${parts[1]}.${parts[2]}.xxx`;
+    }
+  }
+  if (raw.includes(':')) {
+    const parts = raw.split(':');
+    return parts.slice(0, Math.max(1, parts.length - 1)).join(':') + ':xxxx';
+  }
+  return 'xxx';
+}
+
+function countForwardedHops(headerVal) {
+  if (!headerVal) return 0;
+  const raw = Array.isArray(headerVal) ? headerVal.join(',') : String(headerVal);
+  return raw.split(',').map((s) => s.trim()).filter(Boolean).length;
+}
+
+// B-8 / R-9: クラウド環境下でのリバースプロキシ信頼設定
 if (env.IS_CLOUD) {
-  app.set('trust proxy', 1);
+  app.set('trust proxy', parseTrustProxyHops(process.env.TRUST_PROXY_HOPS));
 }
 
 // B-8: セキュリティヘッダー (Helmet + CSP)
@@ -105,21 +140,32 @@ app.use(
   })
 );
 
-// B-8: レート制限 (express-rate-limit)
+// R-9: クラウド環境では起動後の最初の10リクエストで req.ip（末尾マスク）と X-Forwarded-For 段数を記録
+if (env.IS_CLOUD) {
+  let proxyDiagCount = 0;
+  app.use((req, res, next) => {
+    if (proxyDiagCount < 10) {
+      proxyDiagCount += 1;
+      const xffHops = countForwardedHops(req.headers['x-forwarded-for']);
+      console.log(`[proxy-check ${proxyDiagCount}/10] ip=${maskIpTail(req.ip)} xff_hops=${xffHops}`);
+    }
+    next();
+  });
+}
+
+// B-8 / R-9: レート制限 (express-rate-limit)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15分
   max: 10, // 10回
   standardHeaders: true,
   legacyHeaders: false,
-  validate: false,
   message: { error: 'ログイン・登録試行回数の上限に達しました。15分後に再試行してください。', code: 'TOO_MANY_REQUESTS' },
 });
 
 const aiLimiter = rateLimit({
   windowMs: 60 * 1000, // 1分
   max: 10, // 10回
-  keyGenerator: (req) => (req.user && req.user.id) || req.ip,
-  validate: false,
+  keyGenerator: (req) => (req.user && req.user.id) || rateLimit.ipKeyGenerator(req.ip),
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'AIリクエストの回数上限に達しました（1分間に最大10回）。しばらく待ってから再試行してください。', code: 'RATE_LIMIT_EXCEEDED' },
@@ -128,7 +174,6 @@ const aiLimiter = rateLimit({
 const generalApiLimiter = rateLimit({
   windowMs: 60 * 1000, // 1分
   max: 120,
-  validate: false,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'リクエスト頻度が高すぎます。しばらく時間をおいて再試行してください。', code: 'RATE_LIMIT_EXCEEDED' },
