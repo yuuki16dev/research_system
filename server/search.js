@@ -1,6 +1,7 @@
 'use strict';
 
 const env = require('./env');
+const cache = require('./cache');
 const { domainOf } = require('./util');
 const { safeFetch } = require('./security');
 const { assertPublicUrl } = require('./url-guard');
@@ -49,6 +50,12 @@ function withTimeout(signal, ms) {
 /* ---------------------------------------------------------------- Tavily */
 
 async function tavilySearch({ apiKey, query, maxResults = 5, includeDomains, deep, timeRange, startDate, endDate, signal }) {
+  const cacheKey = cache.buildTavilyCacheKey({ query, maxResults, includeDomains, deep, timeRange, startDate, endDate });
+  const cached = cache.sharedCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
   const body = {
     query,
     max_results: maxResults,
@@ -82,13 +89,15 @@ async function tavilySearch({ apiKey, query, maxResults = 5, includeDomains, dee
   } catch {
     /* ignore */
   }
-  return (data.results || []).map((r) => ({
+  const results = (data.results || []).map((r) => ({
     title: r.title || r.url,
     url: r.url,
     snippet: r.content || '',
     rawContent: typeof r.raw_content === 'string' ? r.raw_content : '',
     publishedDate: r.published_date || '',
   }));
+  cache.sharedCache.set(cacheKey, results);
+  return results;
 }
 
 /* ------------------------------------------------------------ DuckDuckGo */
@@ -253,8 +262,15 @@ async function fetchPage(url, { signal, maxChars = 6000, timeoutMs = 7000, ...re
   if (!(process.env.NODE_ENV === 'test' && rest._dangerouslyBypassFirstHopForTest)) {
     await assertPublicUrl(url);
   }
+  const cacheKey = cache.buildPageCacheKey(url);
+  const cached = cache.sharedCache.get(cacheKey);
+  if (cached) {
+    return { title: cached.title, text: cached.text.slice(0, maxChars) };
+  }
+
   const { text: rawHtml } = await safeFetch(url, { signal, timeoutMs, maxBytes: 2_000_000, ...rest });
   const { title, text } = extractText(rawHtml);
+  cache.sharedCache.set(cacheKey, { title, text });
   return { title, text: text.slice(0, maxChars) };
 }
 
