@@ -11,4 +11,9 @@ research_studio_windows
 scratch
 .DS_Store
 Thumbs.db
+data
+docs
+test
+Claude outputs
+templates/*.pdf
 
