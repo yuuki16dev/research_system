@@ -238,6 +238,19 @@ app.get('/api/auth/config', (req, res) => {
   });
 });
 
+const AUTH_UNAVAILABLE_MESSAGE = '認証サーバーに接続できませんでした。しばらくしてから再度お試しください';
+
+function sendAuthRouteError(res, err, fallbackMessage) {
+  if (err?.statusCode === 503) {
+    return res.status(503).json({ error: AUTH_UNAVAILABLE_MESSAGE });
+  }
+  if (err?.statusCode && err.statusCode >= 400 && err.statusCode < 500) {
+    return res.status(err.statusCode).json({ error: err.message || fallbackMessage });
+  }
+  console.error('[auth] Unexpected route error:', err?.message || err);
+  return res.status(503).json({ error: AUTH_UNAVAILABLE_MESSAGE });
+}
+
 app.post('/api/auth/signup', authLimiter, async (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password) {
@@ -250,7 +263,7 @@ app.post('/api/auth/signup', authLimiter, async (req, res) => {
     const data = await auth.signupUser(email, password);
     res.json(data);
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    sendAuthRouteError(res, err, 'ユーザー登録に失敗しました');
   }
 });
 
@@ -263,7 +276,7 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
     const data = await auth.loginUser(email, password);
     res.json(data);
   } catch (err) {
-    res.status(401).json({ error: err.message });
+    sendAuthRouteError(res, err, 'メールアドレスまたはパスワードが正しくありません');
   }
 });
 

@@ -107,3 +107,116 @@ test('auth & quota: UI elements and DOM consistency in public/index.html', () =>
   assert.ok(html.includes('id="btn-account-logout"'), 'Must have btn-account-logout');
 });
 
+test('R-9 #1: /api/auth/login and /api/auth/signup return 503 with fixed message when Supabase is unreachable, and 401 on credential failure', async () => {
+  const http = require('http');
+  const net = require('net');
+  const path = require('path');
+  const { fork } = require('child_process');
+  const { handleDbCheckRequest } = require('./helpers/mock-supabase-db');
+
+  const server = http.createServer((req, res) => {
+    const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    req.resume();
+    if (handleDbCheckRequest(req, res, url)) return;
+    if (req.method === 'POST' && url.pathname === '/auth/v1/token') {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error_description: 'Invalid login credentials' }));
+      return;
+    }
+    res.writeHead(404, { 'Content-Type': 'application/json' });
+    res.end('{}');
+  });
+
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const mockPort = server.address().port;
+  const closeMock = () =>
+    new Promise((resolve) => {
+      server.closeAllConnections?.();
+      server.close(() => resolve());
+    });
+
+  const srvPort = await new Promise((resolve, reject) => {
+    const s = net.createServer();
+    s.listen(0, '127.0.0.1', () => {
+      const p = s.address().port;
+      s.close(() => resolve(p));
+    });
+    s.on('error', reject);
+  });
+
+  let mockClosed = false;
+  const child = fork(path.resolve(__dirname, '../server/index.js'), [], {
+    env: {
+      ...process.env,
+      PORT: String(srvPort),
+      NODE_ENV: 'production',
+      SUPABASE_URL: `http://127.0.0.1:${mockPort}`,
+      SUPABASE_ANON_KEY: 'dummy-anon-key',
+      SUPABASE_SERVICE_ROLE_KEY: 'dummy-service-role-key',
+      TAVILY_API_KEY: 'dummy-tavily-key',
+      ENABLE_TEST_USERS: 'false',
+    },
+    stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+  });
+
+  try {
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('Server start timed out')), 25000);
+      child.stdout.on('data', (chunk) => {
+        const text = chunk.toString();
+        if (text.includes('Research Studio') || text.includes(String(srvPort))) {
+          clearTimeout(timer);
+          resolve();
+        }
+      });
+      child.once('exit', (code) => {
+        clearTimeout(timer);
+        reject(new Error(`Server exited prematurely with code ${code}`));
+      });
+    });
+
+    // 1. 通常の認証失敗は 401 のまま
+    const failRes = await fetch(`http://127.0.0.1:${srvPort}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'user@example.com', password: 'wrongpassword' }),
+    });
+    assert.strictEqual(failRes.status, 401);
+    const failBody = await failRes.json();
+    assert.strictEqual(failBody.error, 'Invalid login credentials');
+
+    // 2. Supabase 停止後は接続エラー -> 503 と定型文のみ返し fetch failed を露出しない
+    await closeMock();
+    mockClosed = true;
+
+    const downLoginRes = await fetch(`http://127.0.0.1:${srvPort}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'user@example.com', password: 'password123' }),
+    });
+    assert.strictEqual(downLoginRes.status, 503);
+    const downLoginBody = await downLoginRes.json();
+    assert.strictEqual(
+      downLoginBody.error,
+      '認証サーバーに接続できませんでした。しばらくしてから再度お試しください'
+    );
+    assert.ok(!/fetch failed/i.test(downLoginBody.error));
+
+    const downSignupRes = await fetch(`http://127.0.0.1:${srvPort}/api/auth/signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'user@example.com', password: 'password123' }),
+    });
+    assert.strictEqual(downSignupRes.status, 503);
+    const downSignupBody = await downSignupRes.json();
+    assert.strictEqual(
+      downSignupBody.error,
+      '認証サーバーに接続できませんでした。しばらくしてから再度お試しください'
+    );
+  } finally {
+    child.kill('SIGTERM');
+    setTimeout(() => { try { child.kill('SIGKILL'); } catch {} }, 1000).unref();
+    if (!mockClosed) await closeMock();
+  }
+});
+

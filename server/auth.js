@@ -276,6 +276,57 @@ async function optionalAuth(req, res, next) {
   next();
 }
 
+const AUTH_UNAVAILABLE_MESSAGE = '認証サーバーに接続できませんでした。しばらくしてから再度お試しください';
+
+function createAuthError(message, statusCode) {
+  const err = new Error(message);
+  err.statusCode = statusCode;
+  return err;
+}
+
+async function postSupabaseAuth(endpoint, anonKey, payload, authFailureMessage, clientStatus) {
+  let res;
+  try {
+    res = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: anonKey,
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(6000),
+    });
+  } catch (err) {
+    console.error('[auth] Supabase auth connection error:', err?.message || err);
+    throw createAuthError(AUTH_UNAVAILABLE_MESSAGE, 503);
+  }
+
+  let data = null;
+  try {
+    data = await res.json();
+  } catch (err) {
+    if (res.status >= 500 || !res.ok) {
+      console.error('[auth] Supabase auth invalid response:', res.status, err?.message || err);
+      throw createAuthError(AUTH_UNAVAILABLE_MESSAGE, 503);
+    }
+    throw createAuthError(authFailureMessage, clientStatus);
+  }
+
+  if (res.status >= 500) {
+    console.error('[auth] Supabase auth server error:', res.status, data?.msg || data?.message || '');
+    throw createAuthError(AUTH_UNAVAILABLE_MESSAGE, 503);
+  }
+
+  if (!res.ok) {
+    throw createAuthError(
+      data?.error_description || data?.msg || data?.message || authFailureMessage,
+      clientStatus
+    );
+  }
+
+  return data;
+}
+
 /**
  * 新規ユーザー登録（テスト環境または Supabase）
  * @param {string} email
@@ -285,12 +336,12 @@ async function optionalAuth(req, res, next) {
 async function signupUser(email, password) {
   const normEmail = String(email || '').trim().toLowerCase();
   if (!normEmail || !password || String(password).length < 8) {
-    throw new Error('有効なメールアドレスと8文字以上のパスワードを入力してください');
+    throw createAuthError('有効なメールアドレスと8文字以上のパスワードを入力してください', 400);
   }
 
   // 既存テストアカウントとの重複チェック (TEST_USERS_ENABLED 有効時のみ)
   if (env.TEST_USERS_ENABLED && findTestUserByEmail(normEmail)) {
-    throw new Error('このメールアドレスは既に登録されています');
+    throw createAuthError('このメールアドレスは既に登録されています', 400);
   }
 
   // テストアカウント（@test.local）の場合はSupabase未設定でも即時作成 (TEST_USERS_ENABLED 有効時のみ)
@@ -321,28 +372,20 @@ async function signupUser(email, password) {
   const supabaseUrl = getSupabaseUrl();
   const anonKey = getSupabaseAnonKey();
   if (!env.IS_CLOUD || !anonKey) {
-    throw new Error('クラウド認証（Supabase）が設定されていません。' + (env.TEST_USERS_ENABLED ? '検証用のテストアカウント（@test.local）をご利用ください。' : ''));
+    throw createAuthError(
+      'クラウド認証（Supabase）が設定されていません。' + (env.TEST_USERS_ENABLED ? '検証用のテストアカウント（@test.local）をご利用ください。' : ''),
+      400
+    );
   }
 
   // Supabase Auth へプロキシ (B-1: data.plan を送信しない)
-  const res = await fetch(`${supabaseUrl}/auth/v1/signup`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      apikey: anonKey,
-    },
-    body: JSON.stringify({
-      email: normEmail,
-      password,
-    }),
-    signal: AbortSignal.timeout(6000),
-  });
-
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.msg || data.error_description || data.message || 'ユーザー登録に失敗しました');
-  }
-  return data;
+  return postSupabaseAuth(
+    `${supabaseUrl}/auth/v1/signup`,
+    anonKey,
+    { email: normEmail, password },
+    'ユーザー登録に失敗しました',
+    400
+  );
 }
 
 /**
@@ -354,7 +397,7 @@ async function signupUser(email, password) {
 async function loginUser(email, password) {
   const normEmail = String(email || '').trim().toLowerCase();
   if (!normEmail || !password) {
-    throw new Error('メールアドレスとパスワードを入力してください');
+    throw createAuthError('メールアドレスとパスワードを入力してください', 400);
   }
 
   // 1. テストユーザーの照合 (TEST_USERS_ENABLED 有効時のみ)
@@ -373,7 +416,7 @@ async function loginUser(email, password) {
           },
         };
       } else {
-        throw new Error('メールアドレスまたはパスワードが正しくありません');
+        throw createAuthError('メールアドレスまたはパスワードが正しくありません', 401);
       }
     }
   }
@@ -382,24 +425,19 @@ async function loginUser(email, password) {
   const supabaseUrl = getSupabaseUrl();
   const anonKey = getSupabaseAnonKey();
   if (!env.IS_CLOUD || !anonKey) {
-    throw new Error('クラウド認証（Supabase）が設定されていません。' + (env.TEST_USERS_ENABLED ? '検証用のテストアカウント（@test.local）をご利用ください。' : ''));
+    throw createAuthError(
+      'クラウド認証（Supabase）が設定されていません。' + (env.TEST_USERS_ENABLED ? '検証用のテストアカウント（@test.local）をご利用ください。' : ''),
+      401
+    );
   }
 
-  const res = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      apikey: anonKey,
-    },
-    body: JSON.stringify({ email: normEmail, password }),
-    signal: AbortSignal.timeout(6000),
-  });
-
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.error_description || data.msg || data.message || 'メールアドレスまたはパスワードが正しくありません');
-  }
-  return data;
+  return postSupabaseAuth(
+    `${supabaseUrl}/auth/v1/token?grant_type=password`,
+    anonKey,
+    { email: normEmail, password },
+    'メールアドレスまたはパスワードが正しくありません',
+    401
+  );
 }
 
 module.exports = {
