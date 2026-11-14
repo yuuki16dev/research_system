@@ -31,7 +31,7 @@ test('version consistency: CHANGELOG.md must contain current package version ent
   );
 });
 
-test('version consistency: public/index.html must not contain obsolete v0.1.0 and must have version placeholders', () => {
+test('version consistency: public/index.html must not contain obsolete v0.1.0 and must match cache-busted asset versions', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
   const html = fs.readFileSync(path.join(ROOT, 'public', 'index.html'), 'utf8');
 
@@ -39,6 +39,18 @@ test('version consistency: public/index.html must not contain obsolete v0.1.0 an
   assert.ok(html.includes('id="footer-version"'), 'public/index.html must have footer-version element');
   assert.ok(html.includes('id="settings-version-badge"'), 'public/index.html must have settings-version-badge element');
   assert.ok(html.includes(`v${pkg.version}`), `public/index.html must contain current version v${pkg.version}`);
+  assert.ok(
+    html.includes(`/js/app.js?v=${pkg.version}`),
+    `public/index.html must reference /js/app.js?v=${pkg.version} (match package.json version)`
+  );
+  assert.ok(
+    html.includes(`/css/styles.css?v=${pkg.version}`),
+    `public/index.html must reference /css/styles.css?v=${pkg.version} (match package.json version)`
+  );
+  assert.ok(
+    html.includes(`/css/print.css?v=${pkg.version}`),
+    `public/index.html must reference /css/print.css?v=${pkg.version} (match package.json version)`
+  );
 });
 
 test('port consistency: default ports in start.js and stop.js match expected 3939', () => {
