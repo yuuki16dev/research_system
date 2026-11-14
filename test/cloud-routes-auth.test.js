@@ -249,7 +249,7 @@ test('R-1: Production cloud defaults to requiring auth (401), and ALLOW_ANONYMOU
       const rRes = await fetch(`${srvAnon.base}/api/research`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ theme: 'R-1 test', depth: 'quick', forceMock: true }),
+        body: JSON.stringify({ theme: 'R-1 anonymous research SECRET_THEME_TAIL', depth: 'quick', forceMock: true }),
       });
       assert.equal(rRes.status, 202, 'POST /api/research without token must return 202 in anonymous cloud mode');
       const rResJson = await rRes.json();
@@ -264,9 +264,20 @@ test('R-1: Production cloud defaults to requiring auth (401), and ALLOW_ANONYMOU
       const rDeep = await fetch(`${srvAnon.base}/api/research/deep-dive`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reportId: rResJson.jobId, theme: 'R-1 test', question: 'test question', forceMock: true }),
+        body: JSON.stringify({
+          reportId: rResJson.jobId,
+          theme: 'R-1 anonymous research SECRET_THEME_TAIL',
+          question: 'What are the secret details SECRET_QUESTION_TAIL?',
+          forceMock: true,
+        }),
       });
       assert.equal(rDeep.status, 200, 'POST /api/research/deep-dive without token must return 200 in anonymous cloud mode');
+
+      const actionLogs = srvAnon.getLogs();
+      assert.ok(actionLogs.includes('R-1 anonymous resear... (40文字)'), `Theme log must be truncated to 20 chars + length: ${actionLogs}`);
+      assert.ok(!actionLogs.includes('SECRET_THEME_TAIL'), 'Full research theme must not appear in cloud logs');
+      assert.ok(actionLogs.includes('What are the secret ... (49文字)'), `Question log must be truncated to 20 chars + length: ${actionLogs}`);
+      assert.ok(!actionLogs.includes('SECRET_QUESTION_TAIL'), 'Full deep-dive question must not appear in cloud logs');
     } finally {
       await srvAnon.stop();
     }

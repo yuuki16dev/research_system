@@ -11,6 +11,7 @@
 'use strict';
 
 const { URL } = require('url');
+const env = require('./env');
 
 // 健全なクローラー宣言 User-Agent
 const CRAWLER_USER_AGENT =
@@ -187,10 +188,29 @@ const PROMPT_INJECTION_BARRIER = `
 ================================================================================
 `;
 
+/**
+ * クラウド版ログ向けに調査テーマや質問文を先頭20文字＋文字数へ整形する
+ * @param {string} value
+ * @param {number} [localSliceLen=0]
+ * @returns {string}
+ */
+function formatLogText(value, localSliceLen = 0) {
+  const str = String(value || '');
+  if (env.IS_CLOUD) {
+    const head = str.slice(0, 20);
+    return `${head}${str.length > 20 ? '...' : ''} (${str.length}文字)`;
+  }
+  if (localSliceLen > 0) {
+    return `${str.slice(0, localSliceLen)}...`;
+  }
+  return str;
+}
+
 module.exports = {
   safeFetch,
   validateThemeSafety,
   wrapUntrustedContent,
+  formatLogText,
   PROMPT_INJECTION_BARRIER,
   CRAWLER_USER_AGENT,
 };

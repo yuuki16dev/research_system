@@ -2,6 +2,8 @@
 
 const crypto = require('crypto');
 const { EventEmitter } = require('events');
+const env = require('./env');
+const { formatLogText } = require('./security');
 
 /** 実行中・直近のリサーチジョブ（メモリ保持）。イベントはバッファされ、後から接続したクライアントにも再生される。 */
 const jobs = new Map();
@@ -88,7 +90,17 @@ function createJob(params, runner, { onResult, onSettled, userId } = {}) {
     // 進行状況をリアルタイムにコンソールへ出力（デバッグ・進捗可視化）
     if (evt.type === 'log') {
       const icon = evt.kind === 'error' ? '❌' : evt.kind === 'warn' ? '⚠️' : evt.kind === 'done' ? '✅' : 'ℹ️';
-      console.log(`[リサーチ] ${icon} ${evt.message}${evt.detail ? ` (${evt.detail})` : ''}`);
+      let msg = String(evt.message || '');
+      let detail = evt.detail ? String(evt.detail) : '';
+      if (env.IS_CLOUD && params && params.theme) {
+        const themeStr = String(params.theme);
+        if (themeStr.length > 0) {
+          const masked = formatLogText(themeStr);
+          msg = msg.split(themeStr).join(masked);
+          if (detail) detail = detail.split(themeStr).join(masked);
+        }
+      }
+      console.log(`[リサーチ] ${icon} ${msg}${detail ? ` (${detail})` : ''}`);
     } else if (evt.type === 'progress') {
       console.log(`[リサーチ進捗 ${evt.value}%] ${evt.stage || ''}`);
     } else if (evt.type === 'error') {

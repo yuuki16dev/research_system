@@ -54,7 +54,7 @@ const { getFullUsageSummary } = require('./usage');
 const { buildMarkdown, buildPlainText } = require('./util');
 const auth = require('./auth');
 const quota = require('./quota');
-const { validateThemeSafety } = require('./security');
+const { validateThemeSafety, formatLogText } = require('./security');
 const env = require('./env');
 const dbCheck = require('./db-check');
 const helmet = require('helmet');
@@ -761,7 +761,7 @@ app.post('/api/research', auth.requireAuth, aiLimiter, requireDailyCostLimit, qu
     return res.status(capacity.status).json({ error: capacity.error, code: capacity.code });
   }
 
-  console.log(`[リサーチ受付] テーマ: "${sanitizedTheme}" (スコープ: ${scope}, 深度: ${depth}, スタイル: ${purpose}, ユーザー: ${userId}, プラン: ${userPlan})`);
+  console.log(`[リサーチ受付] テーマ: "${formatLogText(sanitizedTheme)}" (スコープ: ${scope}, 深度: ${depth}, スタイル: ${purpose}, ユーザー: ${userId}, プラン: ${userPlan})`);
   const params = { theme: sanitizedTheme, scope, depth, sites, period, customPeriod, purpose, customPurpose, referenceContext, referenceUrls, attachedFiles, focus, authoritative, forceMock: !!b.forceMock, userId };
   const job = createJob(params, (j) => runResearch(j, settings.load()), {
     userId,
@@ -814,7 +814,7 @@ app.post('/api/research/cross-synthesis', auth.requireAuth, aiLimiter, requireDa
 
   const themes = reports.map((r) => r.theme || '無題');
   const synthesizedTitle = `【統合クロス分析】${themes.join(' × ')}`;
-  console.log(`[クロス統合受付] 対象レポート: ${reports.length}件 ("${themes.join('", "')}") (ユーザー: ${userId})`);
+  console.log(`[クロス統合受付] 対象レポート: ${reports.length}件 (${themes.map((t) => `"${formatLogText(t)}"`).join(', ')}) (ユーザー: ${userId})`);
 
   const params = {
     theme: synthesizedTitle,
@@ -874,7 +874,7 @@ app.post('/api/research/delta', auth.requireAuth, aiLimiter, requireDailyCostLim
   const rawTheme = baseReport.theme || baseReport.title || '調査テーマ';
   const cleanTheme = rawTheme.replace(/^(【定点差分】)+/, '');
   const theme = `【定点差分】${cleanTheme}`;
-  console.log(`[定点差分受付] 元レポート: "${rawTheme}" -> "${theme}" (ID: ${baseReportId}, ユーザー: ${userId})`);
+  console.log(`[定点差分受付] 元レポート: "${formatLogText(rawTheme)}" -> "${formatLogText(theme)}" (ID: ${baseReportId}, ユーザー: ${userId})`);
 
   const params = {
     theme,
@@ -1051,7 +1051,7 @@ app.post('/api/research/deep-dive', auth.requireAuth, aiLimiter, requireDailyCos
     });
   }
 
-  console.log(`[深掘り対話] 質問: "${question.slice(0, 35)}..." を受信 (履歴: ${Array.isArray(chatHistory) ? chatHistory.length : 0}件)`);
+  console.log(`[深掘り対話] 質問: "${formatLogText(question, 35)}" を受信 (履歴: ${Array.isArray(chatHistory) ? chatHistory.length : 0}件)`);
   try {
     const result = await deepdive.runDeepDive({
       theme,
