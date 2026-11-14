@@ -132,7 +132,8 @@ async function safeFetch(rawUrl, options = {}) {
 }
 
 /**
- * 検索テーマおよびユーザー入力の安全性・不正攻撃チェック
+ * 検索テーマの長さと制御文字の検証・サニタイズ
+ * （テーマは実行されず画面表示時にエスケープされるため、コード・SQL等のパターン拒否は行わない）
  * @param {string} theme
  * @returns {{safe: boolean, reason?: string, sanitized: string}}
  */
@@ -149,27 +150,11 @@ function validateThemeSafety(theme) {
     return { safe: false, reason: 'テーマが長すぎます（最大500文字）', sanitized: raw.slice(0, 500) };
   }
 
-  // 明らかなサイバー攻撃・不正ペイロードのパターン検知
-  const dangerousPatterns = [
-    { pattern: /<script[\s\S]*?>[\s\S]*?<\/script>/i, label: '悪意あるスクリプトコード (XSS)' },
-    { pattern: /javascript\s*:/i, label: 'JavaScript擬似プロトコル' },
-    { pattern: /\b(union\s+select|insert\s+into|drop\s+table|delete\s+from)\b/i, label: 'SQLインジェクション構文' },
-    { pattern: /[;&|`$]\s*(cat\s+\/etc|rm\s+-rf|wget\s+|curl\s+|nc\s+|bash\s+-i)/i, label: 'OSコマンドインジェクション構文' },
-    { pattern: /<\?php|eval\s*\(/i, label: 'バックドア・スクリプト実行構文' },
-  ];
-
-  for (const dp of dangerousPatterns) {
-    if (dp.pattern.test(raw)) {
-      return {
-        safe: false,
-        reason: `不正な入力パターンが検出されました: ${dp.label}`,
-        sanitized: '',
-      };
-    }
-  }
-
   // 制御文字の除去（改行とタブ以外の不可視文字）
-  const sanitized = raw.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+  const sanitized = raw.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '').trim();
+  if (sanitized.length < 2) {
+    return { safe: false, reason: 'テーマを2文字以上で入力してください', sanitized: '' };
+  }
 
   return { safe: true, sanitized };
 }

@@ -59,22 +59,33 @@ test('security: isPublicUrl (url-guard) blocks SSRF target URLs and schemes', as
   assert.equal(await isPublicUrl('http://10.0.0.1/'), false);
 });
 
-test('security: validateThemeSafety sanitizes and rejects malicious payloads', () => {
-  // XSS 攻撃
-  const xss = validateThemeSafety('<script>alert("hacked")</script>');
-  assert.equal(xss.safe, false);
+test('security: validateThemeSafety allows technical/security research topics and checks length/control chars', () => {
+  // セキュリティ調査・プログラミング技術テーマは許可されること (R-9 #2)
+  const sqliTopic = validateThemeSafety('SQLインジェクション union select の対策');
+  assert.equal(sqliTopic.safe, true);
+  assert.equal(sqliTopic.sanitized, 'SQLインジェクション union select の対策');
 
-  // SQL インジェクション
-  const sqli = validateThemeSafety("AI動向' UNION SELECT * FROM users--");
-  assert.equal(sqli.safe, false);
+  const evalTopic = validateThemeSafety('JavaScript の eval( の危険性');
+  assert.equal(evalTopic.safe, true);
+  assert.equal(evalTopic.sanitized, 'JavaScript の eval( の危険性');
 
-  // コマンドインジェクション
-  const cmd = validateThemeSafety('AI技術; cat /etc/passwd');
-  assert.equal(cmd.safe, false);
+  const scriptTopic = validateThemeSafety('<script>alert("hacked")</script>');
+  assert.equal(scriptTopic.safe, true);
 
-  // 短すぎる入力
+  const cmdTopic = validateThemeSafety('AI技術; cat /etc/passwd');
+  assert.equal(cmdTopic.safe, true);
+
+  // 制御文字は除去されること
+  const withCtrl = validateThemeSafety('セキュリティ\x00対策\x07ガイド');
+  assert.equal(withCtrl.safe, true);
+  assert.equal(withCtrl.sanitized, 'セキュリティ対策ガイド');
+
+  // 長さ検証（短すぎる／長すぎる）は維持されること
   const short = validateThemeSafety('a');
   assert.equal(short.safe, false);
+
+  const tooLong = validateThemeSafety('a'.repeat(501));
+  assert.equal(tooLong.safe, false);
 
   // 正常な調査テーマ
   const ok1 = validateThemeSafety('生成AIのビジネス活用と費用対効果');
