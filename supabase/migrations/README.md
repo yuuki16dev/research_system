@@ -11,6 +11,7 @@ Supabase ダッシュボードの **SQL Editor** で、以下のファイル名�
 5. `20261112_usage_events_schema.sql` — `usage_events` テーブル・インデックス・RLS 有効化
 6. `20261113_credit_functions.sql` — 原子的クレジット確保・返却 RPC (`consume_credits`, `refund_credits`) と `service_role` 権限付与
 7. `20261113_usage_cost_since.sql` — 日次原価集計 RPC (`usage_cost_since`) と `service_role` 権限付与
+8. `20261114_lock_user_reports_writes.sql` — `user_reports` の利用者向け INSERT / UPDATE / DELETE RLS ポリシー削除（閲覧のみ維持）
 
 ---
 
@@ -85,4 +86,15 @@ WHERE schemaname = 'public'
 ```
 
 `FOR SELECT` のみが残り、`UPDATE` ポリシーが削除されていれば正常です。
+
+### 2-4. user_reports 書き込みポリシー削除の確認 (`20261114_lock_user_reports_writes.sql`)
+
+```sql
+SELECT policyname, cmd
+FROM pg_policies
+WHERE schemaname = 'public'
+  AND tablename = 'user_reports';
+```
+
+`SELECT` ポリシー（「ユーザーは自身のリサーチ履歴のみ閲覧可能」）のみが残り、`INSERT` / `UPDATE` / `DELETE` ポリシーがすべて削除されていれば正常です。
 

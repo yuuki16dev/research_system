@@ -643,6 +643,16 @@ test('v1.14.0 authoritative mode, export hub, and completion notifications consi
   assert.ok(deepdiveJs.includes('data-merge-summary-idx'), 'deep-dive.js must support merge-summary action');
 });
 
+test('supabase migration: 20261114_lock_user_reports_writes drops INSERT/UPDATE/DELETE policies and keeps SELECT', () => {
+  const migrationPath = path.join(ROOT, 'supabase', 'migrations', '20261114_lock_user_reports_writes.sql');
+  assert.ok(fs.existsSync(migrationPath), '20261114_lock_user_reports_writes.sql must exist');
+  const sql = fs.readFileSync(migrationPath, 'utf8');
+  assert.ok(sql.includes('DROP POLICY IF EXISTS "ユーザーは自身のリサーチ履歴を挿入可能" ON public.user_reports;'));
+  assert.ok(sql.includes('DROP POLICY IF EXISTS "ユーザーは自身のリサーチ履歴を更新可能" ON public.user_reports;'));
+  assert.ok(sql.includes('DROP POLICY IF EXISTS "ユーザーは自身のリサーチ履歴を削除可能" ON public.user_reports;'));
+  assert.ok(!/DROP POLICY[^\n]*ユーザーは自身のリサーチ履歴のみ閲覧可能/.test(sql), 'SELECT policy must not be dropped');
+});
+
 
 
 
