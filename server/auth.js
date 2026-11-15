@@ -48,10 +48,7 @@ async function getProfileFromSupabase(userId) {
 
   try {
     const res = await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=plan,subscription_status`, {
-      headers: {
-        apikey: serviceKey,
-        Authorization: `Bearer ${serviceKey}`,
-      },
+      headers: env.buildSupabaseHeaders(serviceKey),
       signal: AbortSignal.timeout(3000),
     });
 

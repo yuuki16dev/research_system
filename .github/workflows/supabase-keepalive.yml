@@ -1,0 +1,63 @@
+name: Supabase Keep-Alive
+
+on:
+  schedule:
+    # 2日に1回 (JST 03:00 = UTC 18:00) に実行し、Supabase Free プランの 7日無操作自動停止を防止
+    - cron: '0 18 */2 * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  keepalive:
+    name: Ping Supabase Database
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Send minimal database query or health ping
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          KEEPALIVE_HEALTH_URL: ${{ vars.KEEPALIVE_HEALTH_URL }}
+        run: |
+          set -euo pipefail
+
+          # 1) GitHub Secrets に Supabase 接続情報がある場合は直接 Supabase REST API へ最小クエリ
+          SUPABASE_KEY="${SUPABASE_SERVICE_ROLE_KEY:-${SUPABASE_ANON_KEY:-}}"
+          if [ -n "${SUPABASE_URL:-}" ] && [ -n "$SUPABASE_KEY" ]; then
+            BASE_URL="${SUPABASE_URL//[[:space:]]/}"
+            BASE_URL="${BASE_URL#\"}" ; BASE_URL="${BASE_URL%\"}"
+            BASE_URL="${BASE_URL#\'}" ; BASE_URL="${BASE_URL%\'}"
+            BASE_URL="${BASE_URL%/}"
+            BASE_URL="${BASE_URL%/rest/v1}"
+            BASE_URL="${BASE_URL%/}"
+
+            if [[ "$SUPABASE_KEY" == sb_* ]]; then
+              HTTP_CODE=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 20 \
+                "${BASE_URL}/rest/v1/profiles?select=id&limit=1" \
+                -H "apikey: ${SUPABASE_KEY}")
+            else
+              HTTP_CODE=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 20 \
+                "${BASE_URL}/rest/v1/profiles?select=id&limit=1" \
+                -H "apikey: ${SUPABASE_KEY}" \
+                -H "Authorization: Bearer ${SUPABASE_KEY}")
+            fi
+            echo "Direct Supabase REST keep-alive status: HTTP ${HTTP_CODE}"
+            if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+              echo "::error::Direct Supabase keep-alive failed with HTTP ${HTTP_CODE}"
+              exit 1
+            fi
+            exit 0
+          fi
+
+          # 2) GitHub Variables に KEEPALIVE_HEALTH_URL がある場合はアプリの /api/health/db を呼び出す
+          if [ -n "${KEEPALIVE_HEALTH_URL:-}" ]; then
+            TARGET_BASE="${KEEPALIVE_HEALTH_URL%/}"
+            RESPONSE=$(curl -f -sS --retry 2 --retry-delay 5 --max-time 60 "${TARGET_BASE}/api/health/db")
+            echo "App /api/health/db response: ${RESPONSE}"
+            exit 0
+          fi
+
+          echo "::notice::Supabase Keep-Alive skipped: configure GitHub variable KEEPALIVE_HEALTH_URL or secrets SUPABASE_URL + SUPABASE_ANON_KEY to enable."

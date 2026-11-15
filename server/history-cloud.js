@@ -68,12 +68,10 @@ async function requestSupabase(path, options = {}) {
   }
 
   const url = `${baseUrl}${path}`;
-  const headers = {
-    apikey: serviceKey,
-    Authorization: `Bearer ${serviceKey}`,
+  const headers = env.buildSupabaseHeaders(serviceKey, {
     'Content-Type': 'application/json',
     ...(options.headers || {}),
-  };
+  });
 
   const res = await fetch(url, {
     method: options.method || 'GET',

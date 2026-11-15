@@ -344,3 +344,169 @@ test('R-7 unit: verifyDatabaseSchema adds service role key hint on 401/403 authe
   }
 });
 
+test('R-7 unit: env.buildSupabaseHeaders omits Bearer header for modern sb_ opaque keys and retains it for JWT keys', () => {
+  const envModule = require('../server/env');
+  const sbHeaders = envModule.buildSupabaseHeaders('sb_secret_example_123', { 'Content-Type': 'application/json' });
+  assert.equal(sbHeaders.apikey, 'sb_secret_example_123');
+  assert.equal(sbHeaders.Authorization, undefined);
+  assert.equal(sbHeaders['Content-Type'], 'application/json');
+
+  const jwtHeaders = envModule.buildSupabaseHeaders('eyJhbGciOiJIUzI1NiJ9.payload.sig');
+  assert.equal(jwtHeaders.apikey, 'eyJhbGciOiJIUzI1NiJ9.payload.sig');
+  assert.equal(jwtHeaders.Authorization, 'Bearer eyJhbGciOiJIUzI1NiJ9.payload.sig');
+});
+
+test('Keep-Alive unit: pingDatabaseKeepAlive queries profiles limit=1, caches within cooldown, and backs off on error', async () => {
+  dbCheck._resetKeepAliveStateForTest();
+  let calls = 0;
+  let shouldFail = false;
+
+  const mockDb = await startCustomMockDb((req, res, url) => {
+    calls += 1;
+    if (shouldFail) {
+      res.writeHead(503, { 'Content-Type': 'application/json' });
+      return res.end('Unavailable');
+    }
+    assert.equal(req.method, 'GET');
+    assert.equal(`${url.pathname}${url.search}`, '/rest/v1/profiles?select=id&limit=1');
+    assert.equal(req.headers.apikey, 'sb_secret_keepalive_test');
+    assert.equal(req.headers.authorization, undefined);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end('[]');
+  });
+
+  const prevUrl = process.env.SUPABASE_URL;
+  const prevKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  process.env.SUPABASE_URL = mockDb.url;
+  process.env.SUPABASE_SERVICE_ROLE_KEY = 'sb_secret_keepalive_test';
+
+  try {
+    let fakeNow = 1_700_000_000_000;
+    const nowFn = () => fakeNow;
+
+    // 1回目: 実クエリが実行される
+    const r1 = await dbCheck.pingDatabaseKeepAlive({ now: nowFn, cooldownMs: 60_000 });
+    assert.equal(r1.ok, true);
+    assert.equal(r1.status, 'ok');
+    assert.equal(calls, 1);
+
+    // 2回目 (クールダウン内): DB には問い合わせず cached を返す
+    fakeNow += 10_000;
+    const r2 = await dbCheck.pingDatabaseKeepAlive({ now: nowFn, cooldownMs: 60_000 });
+    assert.equal(r2.ok, true);
+    assert.equal(r2.status, 'cached');
+    assert.equal(calls, 1);
+
+    // 3回目 (クールダウン経過後、障害発生時): unreachable を返す
+    fakeNow += 60_000;
+    shouldFail = true;
+    const r3 = await dbCheck.pingDatabaseKeepAlive({ now: nowFn, cooldownMs: 60_000, failureBackoffMs: 30_000 });
+    assert.equal(r3.ok, false);
+    assert.equal(r3.status, 'unreachable');
+    assert.equal(calls, 2);
+
+    // 4回目 (失敗バックオフ期間中): 連続リトライを抑止し backoff を返す
+    fakeNow += 5_000;
+    const r4 = await dbCheck.pingDatabaseKeepAlive({ now: nowFn, cooldownMs: 60_000, failureBackoffMs: 30_000 });
+    assert.equal(r4.ok, false);
+    assert.equal(r4.status, 'backoff');
+    assert.equal(calls, 2);
+  } finally {
+    dbCheck._resetKeepAliveStateForTest();
+    if (prevUrl === undefined) delete process.env.SUPABASE_URL;
+    else process.env.SUPABASE_URL = prevUrl;
+    if (prevKey === undefined) delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    else process.env.SUPABASE_SERVICE_ROLE_KEY = prevKey;
+    await mockDb.close();
+  }
+});
+
+test('Keep-Alive unit: triggerBackgroundKeepAlive is disabled in test env unless forced and runs non-blocking when forced', async () => {
+  dbCheck._resetKeepAliveStateForTest();
+  assert.equal(dbCheck.triggerBackgroundKeepAlive(), false, 'must stay skipped in NODE_ENV=test by default');
+
+  let pinged = 0;
+  const mockDb = await startCustomMockDb((req, res) => {
+    pinged += 1;
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end('[]');
+  });
+
+  const prevUrl = process.env.SUPABASE_URL;
+  const prevKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  process.env.SUPABASE_URL = mockDb.url;
+  process.env.SUPABASE_SERVICE_ROLE_KEY = 'sb_secret_bg_test';
+
+  try {
+    const scheduled = dbCheck.triggerBackgroundKeepAlive({ forceRun: true, intervalMs: 60_000 });
+    assert.equal(scheduled, true);
+    await new Promise((r) => setTimeout(r, 120));
+    assert.equal(pinged, 1);
+    assert.equal(dbCheck.triggerBackgroundKeepAlive({ forceRun: true, intervalMs: 60_000 }), false);
+  } finally {
+    dbCheck._resetKeepAliveStateForTest();
+    if (prevUrl === undefined) delete process.env.SUPABASE_URL;
+    else process.env.SUPABASE_URL = prevUrl;
+    if (prevKey === undefined) delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    else process.env.SUPABASE_SERVICE_ROLE_KEY = prevKey;
+    await mockDb.close();
+  }
+});
+
+test('Keep-Alive E2E: /api/health/db returns 200 ok in cloud mode using startup cache without leaking secrets', async () => {
+  const mockDb = await startCustomMockDb((req, res, url) => {
+    respondHealthyTablesAndRpcs(req, res, url);
+  });
+  const port = await getFreePort();
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rs-keepalive-e2e-'));
+
+  let child;
+  try {
+    const env = { ...process.env };
+    Object.assign(env, {
+      PORT: String(port),
+      NODE_ENV: 'production',
+      SUPABASE_URL: mockDb.url,
+      SUPABASE_ANON_KEY: 'sb_publishable_dummy',
+      SUPABASE_SERVICE_ROLE_KEY: 'sb_secret_dummy',
+      TAVILY_API_KEY: 'dummy-tavily',
+      RESEARCH_DATA_DIR: tmpDir,
+    });
+
+    child = spawn(process.execPath, [path.join(ROOT, 'server', 'index.js')], {
+      env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
+    });
+
+    const baseUrl = `http://127.0.0.1:${port}`;
+    const deadline = Date.now() + 10000;
+    let ready = false;
+    while (Date.now() < deadline) {
+      try {
+        const res = await fetch(`${baseUrl}/api/health`);
+        if (res.ok) {
+          ready = true;
+          break;
+        }
+      } catch {}
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    assert.equal(ready, true, 'Cloud server must start up cleanly with sb_secret_ key');
+
+    const dbRes = await fetch(`${baseUrl}/api/health/db`);
+    assert.equal(dbRes.status, 200);
+    const data = await dbRes.json();
+    assert.equal(data.status, 'ok');
+    assert.equal(data.supabase, 'cached');
+    assert.ok(data.checkedAt);
+    assert.equal(JSON.stringify(data).includes('sb_secret_dummy'), false);
+  } finally {
+    if (child) {
+      try { child.kill('SIGKILL'); } catch {}
+    }
+    await mockDb.close();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+

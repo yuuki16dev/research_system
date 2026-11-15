@@ -46,6 +46,25 @@ function getSupabaseServiceRoleKey() {
   return normalizeEnvValue(process.env.SUPABASE_SERVICE_ROLE_KEY);
 }
 
+/**
+ * Supabase REST/RPC 用認証ヘッダーを構築する
+ * 新形式キー (sb_publishable_* / sb_secret_*) は JWT ではないため Authorization: Bearer を付与しない
+ * @param {string} key
+ * @param {Record<string, string>} [extra]
+ * @returns {Record<string, string>}
+ */
+function buildSupabaseHeaders(key, extra = {}) {
+  const cleanKey = normalizeEnvValue(key);
+  const headers = {
+    apikey: cleanKey,
+    ...extra,
+  };
+  if (cleanKey && !cleanKey.startsWith('sb_')) {
+    headers.Authorization = `Bearer ${cleanKey}`;
+  }
+  return headers;
+}
+
 function getIsCloud() {
   return Boolean(getSupabaseUrl());
 }
@@ -65,6 +84,7 @@ const env = {
   getSupabaseUrl,
   getSupabaseAnonKey,
   getSupabaseServiceRoleKey,
+  buildSupabaseHeaders,
   get IS_CLOUD() {
     return getIsCloud();
   },

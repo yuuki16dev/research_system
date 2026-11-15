@@ -149,12 +149,10 @@ async function recordUsageEvent({
       if (baseUrl && serviceKey) {
         const res = await fetch(`${baseUrl}/rest/v1/usage_events`, {
           method: 'POST',
-          headers: {
-            apikey: serviceKey,
-            Authorization: `Bearer ${serviceKey}`,
+          headers: env.buildSupabaseHeaders(serviceKey, {
             'Content-Type': 'application/json',
             Prefer: 'return=representation',
-          },
+          }),
           body: JSON.stringify(record),
           signal: AbortSignal.timeout(5000),
         });
@@ -222,11 +220,9 @@ async function getTodayCostJpy() {
 
       const res = await fetch(`${baseUrl}/rest/v1/rpc/usage_cost_since`, {
         method: 'POST',
-        headers: {
-          apikey: serviceKey,
-          Authorization: `Bearer ${serviceKey}`,
+        headers: env.buildSupabaseHeaders(serviceKey, {
           'Content-Type': 'application/json',
-        },
+        }),
         body: JSON.stringify({ p_since: dayStartIso }),
         signal: AbortSignal.timeout(5000),
       });
@@ -301,11 +297,9 @@ async function countDeepDiveUsage(userId, reportId) {
       throw new Error('Supabase credentials missing for countDeepDiveUsage');
     }
 
-    const headers = {
-      apikey: serviceKey,
-      Authorization: `Bearer ${serviceKey}`,
+    const headers = env.buildSupabaseHeaders(serviceKey, {
       Prefer: 'count=exact',
-    };
+    });
 
     const reportUrl =
       `${baseUrl}/rest/v1/usage_events?user_id=eq.${encodeURIComponent(normUserId)}` +

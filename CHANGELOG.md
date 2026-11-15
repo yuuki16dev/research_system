@@ -7,6 +7,22 @@
 - **マイナー (1.X.0)**: 後方互換性のある新機能の追加
 - **パッチ (1.0.X)**: 後方互換性のあるバグ修正や安定化・改善
 
+## [v2.19.0] - 2026-11-15
+
+### 🔄 Supabase Keep-Alive 自動維持・起動時 DNS 診断強化・新形式 API キー対応 (Supabase Keep-Alive & Diagnostics Hardening)
+> **「Supabase Free プランの無操作自動停止を防止し、起動時接続診断と新形式キー互換性を大幅に強化」**  
+> Render 本番で発生しうる Supabase Free プラン自動一時停止（`ENOTFOUND`）や `sb_publishable_` / `sb_secret_` 新形式キー利用時の互換性問題に対処し、安定したクラウド継続運用を実現しました。
+
+- **Supabase Keep-Alive 機能追加 (`server/db-check.js`, `server/index.js`, `.github/workflows/supabase-keepalive.yml`)**:
+  - `GET /api/health` 受信時、クラウド本番環境では **24時間に最大1回のみ** 非同期・非ブロッキングで最小 DB クエリ（`profiles?select=id&limit=1`）を自動実行し、既存の定期ヘルスチェック（cron-job.org 等）のまま Supabase の 7日無操作タイマーを自動リセットできるように改善。
+  - 6時間クールダウン保護付きの新エンドポイント `GET /api/health/db` を追加（機密情報・接続詳細を外部へ露出しない安全設計）。
+  - GitHub Actions ワークフロー `.github/workflows/supabase-keepalive.yml`（2日に1回定期実行＋手動実行対応）を追加。
+- **Supabase 環境変数正規化＆新形式キー対応 (`server/env.js`, `server/auth.js`, `server/history-cloud.js`, `server/quota.js`, `server/usage-events.js`)**:
+  - 全モジュールの `SUPABASE_URL` / キー取得ロジックを `server/env.js` に一本化し、前後空白・引用符・末尾の `/rest/v1/` 誤貼り付けを自動正規化。
+  - `buildSupabaseHeaders()` により、新形式キー（`sb_publishable_*` / `sb_secret_*`）使用時に非 JWT トークンへ誤って `Authorization: Bearer` を付与しないよう完全対応（従来の JWT キーも引き続き互換維持）。
+- **起動時 DB 接続診断＆リトライ改善 (`server/db-check.js`, `docs/cloud-deployment-guide.md`)**:
+  - 一時的な接続・`502/503/504` エラーに対する起動時リトライ（既定 `[400ms, 800ms]`）と、DNS `ENOTFOUND` 時の重複ログ抑止＋復旧ガイダンス（Supabase `Paused` の `Resume project` 手順や `SUPABASE_URL` 確認）を実装。
+
 ## [v2.18.0] - 2026-11-15
 
 ### 🛡️ クラウド商用運用・原子的クレジット・コスト保護・高速キャッシュ基盤の統合強化 (R-1〜R-10)

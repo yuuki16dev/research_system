@@ -91,7 +91,7 @@ function pauseAndExit(code = 1) {
   }
 }
 
-let pkgVer = '2.18.0';
+let pkgVer = '2.19.0';
 try {
   pkgVer = require('../package.json').version || pkgVer;
 } catch {}

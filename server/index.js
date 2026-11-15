@@ -237,7 +237,7 @@ app.use(express.static(path.join(ROOT, 'public'), { extensions: ['html'] }));
 /* --------------------------------------------------------------- info */
 let currentPort = PORT;
 
-let pkgVer = '2.18.0';
+let pkgVer = '2.19.0';
 try {
   pkgVer = require('../package.json').version || pkgVer;
 } catch { }
@@ -269,6 +269,17 @@ function lanAddresses(port = currentPort) {
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', app: 'Research Studio', version: pkgVer, uptime: Math.floor(process.uptime()) });
+  dbCheck.triggerBackgroundKeepAlive();
+});
+
+app.get('/api/health/db', async (req, res) => {
+  const result = await dbCheck.pingDatabaseKeepAlive();
+  const statusCode = result.ok ? 200 : 503;
+  return res.status(statusCode).json({
+    status: result.ok ? 'ok' : 'error',
+    supabase: result.status,
+    checkedAt: result.checkedAt || null,
+  });
 });
 
 /* ------------------------------------------------------------- Auth & Quota */

@@ -124,10 +124,7 @@ async function getMonthlyQuota(userId = 'local-user', plan = 'admin') {
       const res = await fetch(
         `${supabaseUrl}/rest/v1/research_usage?user_id=eq.${encodeURIComponent(userId)}&year_month=eq.${encodeURIComponent(ym)}&select=used_count`,
         {
-          headers: {
-            apikey: serviceKey,
-            Authorization: `Bearer ${serviceKey}`,
-          },
+          headers: env.buildSupabaseHeaders(serviceKey),
           signal: AbortSignal.timeout(3000),
         }
       );
@@ -214,11 +211,9 @@ async function reserveCredits(userId, plan = 'free', action = 'research_quick') 
 
     const res = await fetch(`${supabaseUrl}/rest/v1/rpc/consume_credits`, {
       method: 'POST',
-      headers: {
-        apikey: serviceKey,
-        Authorization: `Bearer ${serviceKey}`,
+      headers: env.buildSupabaseHeaders(serviceKey, {
         'Content-Type': 'application/json',
-      },
+      }),
       body: JSON.stringify({
         p_user: userId,
         p_ym: ym,
@@ -303,11 +298,9 @@ async function refundCredits(userId, action = 'research_quick', yearMonth = getC
 
     const res = await fetch(`${supabaseUrl}/rest/v1/rpc/refund_credits`, {
       method: 'POST',
-      headers: {
-        apikey: serviceKey,
-        Authorization: `Bearer ${serviceKey}`,
+      headers: env.buildSupabaseHeaders(serviceKey, {
         'Content-Type': 'application/json',
-      },
+      }),
       body: JSON.stringify({
         p_user: userId,
         p_ym: ym,

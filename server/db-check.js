@@ -13,6 +13,10 @@ const env = require('./env');
 
 const DEFAULT_TIMEOUT_MS = 8000;
 const DEFAULT_RETRY_DELAYS_MS = [400, 800];
+const DEFAULT_KEEPALIVE_TIMEOUT_MS = 5000;
+const DEFAULT_KEEPALIVE_COOLDOWN_MS = 6 * 60 * 60 * 1000; // 6時間
+const DEFAULT_BACKGROUND_KEEPALIVE_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24時間
+const KEEPALIVE_FAILURE_BACKOFF_MS = 60 * 1000; // 60秒
 const DUMMY_UUID = '00000000-0000-0000-0000-000000000000';
 const DNS_ERROR_CODES = new Set(['ENOTFOUND', 'EAI_AGAIN', 'ENODATA']);
 const TRANSIENT_CONNECTION_CODES = new Set([
@@ -255,11 +259,9 @@ async function verifyDatabaseSchema(options = {}) {
     );
   }
 
-  const headers = {
-    apikey: serviceRoleKey,
-    Authorization: `Bearer ${serviceRoleKey}`,
+  const headers = env.buildSupabaseHeaders(serviceRoleKey, {
     'Content-Type': 'application/json',
-  };
+  });
 
   // 先頭テーブルで到達性を事前確認し、DNS/接続不能時に全7件の重複エラーログを防ぐ
   const firstTable = REQUIRED_TABLES[0];
@@ -295,6 +297,10 @@ async function verifyDatabaseSchema(options = {}) {
     throw err;
   }
 
+  keepAliveState.lastSuccessAt = Date.now();
+  keepAliveState.lastAttemptAt = keepAliveState.lastSuccessAt;
+  keepAliveState.lastOk = true;
+
   return {
     ok: true,
     checkedTables: REQUIRED_TABLES.map((t) => t.name),
@@ -302,9 +308,165 @@ async function verifyDatabaseSchema(options = {}) {
   };
 }
 
+const keepAliveState = {
+  lastSuccessAt: 0,
+  lastAttemptAt: 0,
+  lastOk: null,
+  inFlight: null,
+};
+
+function _resetKeepAliveStateForTest() {
+  keepAliveState.lastSuccessAt = 0;
+  keepAliveState.lastAttemptAt = 0;
+  keepAliveState.lastOk = null;
+  keepAliveState.inFlight = null;
+}
+
+/**
+ * Supabase Free プランの無操作自動一時停止を防ぐため、最小限の DB クエリ（profiles limit=1）を
+ * クールダウン制御付きで実行する。資格情報や詳細エラーは呼び出し元レスポンスへ露出させない。
+ */
+async function pingDatabaseKeepAlive(options = {}) {
+  const force = Boolean(options.force);
+  if (!force && !env.IS_CLOUD) {
+    return { ok: true, status: 'skipped', checkedAt: null };
+  }
+
+  const nowFn = typeof options.now === 'function' ? options.now : Date.now;
+  const now = nowFn();
+  const cooldownMs =
+    Number.isFinite(Number(options.cooldownMs)) && Number(options.cooldownMs) >= 0
+      ? Number(options.cooldownMs)
+      : DEFAULT_KEEPALIVE_COOLDOWN_MS;
+  const backoffMs =
+    Number.isFinite(Number(options.failureBackoffMs)) && Number(options.failureBackoffMs) >= 0
+      ? Number(options.failureBackoffMs)
+      : KEEPALIVE_FAILURE_BACKOFF_MS;
+
+  if (!force && keepAliveState.lastSuccessAt > 0 && now - keepAliveState.lastSuccessAt < cooldownMs) {
+    return {
+      ok: true,
+      status: 'cached',
+      checkedAt: new Date(keepAliveState.lastSuccessAt).toISOString(),
+    };
+  }
+
+  if (!force && keepAliveState.lastOk === false && keepAliveState.lastAttemptAt > 0 && now - keepAliveState.lastAttemptAt < backoffMs) {
+    return {
+      ok: false,
+      status: 'backoff',
+      checkedAt: null,
+    };
+  }
+
+  const baseUrl = env.normalizeSupabaseUrl(options.supabaseUrl || env.getSupabaseUrl());
+  const serviceRoleKey = env.normalizeEnvValue(options.serviceRoleKey) || env.getSupabaseServiceRoleKey();
+  if (!baseUrl || !serviceRoleKey || !parseHttpUrl(baseUrl)) {
+    return { ok: false, status: 'misconfigured', checkedAt: null };
+  }
+
+  if (keepAliveState.inFlight) {
+    return keepAliveState.inFlight;
+  }
+
+  const timeoutMs = Number(options.timeoutMs) > 0 ? Number(options.timeoutMs) : DEFAULT_KEEPALIVE_TIMEOUT_MS;
+  const endpoint = `${baseUrl}/rest/v1/profiles?select=id&limit=1`;
+  const headers = env.buildSupabaseHeaders(serviceRoleKey);
+
+  const task = (async () => {
+    const attemptAt = nowFn();
+    keepAliveState.lastAttemptAt = attemptAt;
+    try {
+      const res = await requestJson(endpoint, { method: 'GET', headers, timeoutMs });
+      if (res.status === 200 || res.status === 204 || res.status === 206) {
+        const successAt = nowFn();
+        keepAliveState.lastSuccessAt = successAt;
+        keepAliveState.lastOk = true;
+        return {
+          ok: true,
+          status: 'ok',
+          checkedAt: new Date(successAt).toISOString(),
+        };
+      }
+      keepAliveState.lastOk = false;
+      return {
+        ok: false,
+        status: 'unreachable',
+        httpStatus: res.status,
+        checkedAt: null,
+      };
+    } catch {
+      keepAliveState.lastOk = false;
+      return {
+        ok: false,
+        status: 'unreachable',
+        checkedAt: null,
+      };
+    } finally {
+      keepAliveState.inFlight = null;
+    }
+  })();
+
+  keepAliveState.inFlight = task;
+  return task;
+}
+
+/**
+ * `/api/health` 受信時に、クラウド本番環境かつ前回成功から 24 時間以上経過している場合のみ
+ * 非同期・非ブロッキングで Supabase DB の軽量 Keep-Alive を 1 回だけ実行する。
+ * @returns {boolean} バックグラウンド実行をスケジュールした場合 true
+ */
+function triggerBackgroundKeepAlive(options = {}) {
+  const forceRun = Boolean(options.forceRun);
+  if (!forceRun) {
+    if (!env.IS_CLOUD || process.env.NODE_ENV === 'test' || process.env.DISABLE_SUPABASE_KEEPALIVE === 'true') {
+      return false;
+    }
+  }
+
+  const nowFn = typeof options.now === 'function' ? options.now : Date.now;
+  const now = nowFn();
+  const intervalMs =
+    Number.isFinite(Number(options.intervalMs)) && Number(options.intervalMs) >= 0
+      ? Number(options.intervalMs)
+      : DEFAULT_BACKGROUND_KEEPALIVE_INTERVAL_MS;
+
+  if (!options.force && keepAliveState.lastSuccessAt > 0 && now - keepAliveState.lastSuccessAt < intervalMs) {
+    return false;
+  }
+  if (!options.force && keepAliveState.lastOk === false && keepAliveState.lastAttemptAt > 0 && now - keepAliveState.lastAttemptAt < KEEPALIVE_FAILURE_BACKOFF_MS) {
+    return false;
+  }
+  if (keepAliveState.inFlight) {
+    return false;
+  }
+
+  const timer = setImmediate(() => {
+    pingDatabaseKeepAlive({
+      ...options,
+      cooldownMs: intervalMs,
+    })
+      .then((res) => {
+        if (!res.ok) {
+          console.warn(`[keepalive] Supabase バックグラウンド Keep-Alive 応答異常: ${res.status}`);
+        }
+      })
+      .catch((err) => {
+        console.warn('[keepalive] Supabase バックグラウンド Keep-Alive エラー:', err?.message || err);
+      });
+  });
+  if (typeof timer.unref === 'function') {
+    timer.unref();
+  }
+  return true;
+}
+
 module.exports = {
   REQUIRED_TABLES,
   REQUIRED_RPCS,
   verifyDatabaseSchema,
   buildConnectionFatalError,
+  pingDatabaseKeepAlive,
+  triggerBackgroundKeepAlive,
+  _resetKeepAliveStateForTest,
 };

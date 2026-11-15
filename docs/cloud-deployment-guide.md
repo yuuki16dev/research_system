@@ -69,9 +69,13 @@
 ### 3.1 `getaddrinfo ENOTFOUND xxxx.supabase.co` で起動に失敗する
 - **原因 1（最も多い）: Supabase Free プランの自動停止（Paused）**
   - Supabase 無料プランでは、約 7 日間データベースへのアクセスがないとプロジェクトが自動的に **Paused（一時停止）** 状態になり、`*.supabase.co` の DNS 解決自体も停止（`ENOTFOUND`）します。
-  - **対処法**:
+  - **復旧手順**:
     1. [Supabase ダッシュボード](https://supabase.com/dashboard) を開き、対象プロジェクトが `Paused` になっていれば **「Resume project」**（または Restore）をクリックします。
     2. 復旧完了後、Render ダッシュボードの **「Manual Deploy」➔「Deploy latest commit」** を実行します。
+  - **自動一時停止を防ぐ仕組み（Keep-Alive / v2.19.0〜）**:
+    - **方式 1（自動・設定不要）**: `GET /api/health` が外部監視（cron-job.org 等）から呼ばれた際、本番クラウド環境では **24時間に最大1回だけ** バックグラウンドで軽量な DB 照会（`profiles?select=id&limit=1`）を自動実行し、無操作タイマーをリセットします。
+    - **方式 2（専用エンドポイント）**: `GET /api/health/db` を呼び出すと、6時間クールダウン付きで Supabase DB 到達性と Keep-Alive クエリを実行できます。
+    - **方式 3（GitHub Actions 定期実行・`.github/workflows/supabase-keepalive.yml`）**: リポジトリの Variables に `KEEPALIVE_HEALTH_URL`（例: Render の URL）、または Secrets に `SUPABASE_URL` と `SUPABASE_ANON_KEY` を設定すると、2日に1回自動で Keep-Alive が実行されます。
 - **原因 2: Render の `SUPABASE_URL` 誤設定・削除済みプロジェクト**
   - Render の **Environment** で `SUPABASE_URL` が `https://<project-ref>.supabase.co` と一致しているか確認してください（前後空白や引用符、誤って末尾に `/rest/v1/` を付けた場合はアプリ側で自動正規化されますが、ホスト名自体は正確である必要があります）。
 
