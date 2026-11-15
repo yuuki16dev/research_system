@@ -10,6 +10,7 @@
  */
 
 const crypto = require('crypto');
+const env = require('./env');
 
 const isId = (id) => typeof id === 'string' && /^[0-9a-f-]{36}$/i.test(id);
 
@@ -46,13 +47,8 @@ function sanitizeUpdatePatch(patch = {}) {
   return safe;
 }
 
-function getSupabaseUrl() {
-  return process.env.SUPABASE_URL ? process.env.SUPABASE_URL.replace(/\/+$/, '') : '';
-}
-
-function getServiceRoleKey() {
-  return process.env.SUPABASE_SERVICE_ROLE_KEY ? process.env.SUPABASE_SERVICE_ROLE_KEY.trim() : '';
-}
+const getSupabaseUrl = env.getSupabaseUrl;
+const getServiceRoleKey = env.getSupabaseServiceRoleKey;
 
 function getMaxItemsPerUser() {
   const val = parseInt(process.env.HISTORY_MAX_PER_USER, 10);

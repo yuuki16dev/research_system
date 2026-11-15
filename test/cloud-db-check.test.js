@@ -227,3 +227,120 @@ test('R-7 E2E: Server startup exits with code 1 and logs [FATAL] when Supabase i
   }
 });
 
+test('R-7 unit: env.normalizeSupabaseUrl cleans whitespace, quotes, trailing slashes, and /rest/v1 suffix', () => {
+  const envModule = require('../server/env');
+  assert.equal(
+    envModule.normalizeSupabaseUrl('  "https://kqbuzfyjzfiyltzecivg.supabase.co/rest/v1/"  '),
+    'https://kqbuzfyjzfiyltzecivg.supabase.co'
+  );
+  assert.equal(
+    envModule.normalizeSupabaseUrl("'https://example.supabase.co///'"),
+    'https://example.supabase.co'
+  );
+  assert.equal(envModule.normalizeEnvValue('  "secret_key_123"  '), 'secret_key_123');
+});
+
+test('R-7 unit: verifyDatabaseSchema rejects malformed SUPABASE_URL clearly', async () => {
+  await assert.rejects(
+    () =>
+      dbCheck.verifyDatabaseSchema({
+        force: true,
+        supabaseUrl: 'not-a-valid-url',
+        serviceRoleKey: 'service-role-secret',
+        retryDelaysMs: [],
+      }),
+    (err) => {
+      assert.match(err.message, /SUPABASE_URL の形式が不正です/);
+      return true;
+    }
+  );
+});
+
+test('R-7 unit: verifyDatabaseSchema retries transient 503 responses and succeeds when upstream recovers', async () => {
+  let profileAttempts = 0;
+  const mockDb = await startCustomMockDb((req, res, url) => {
+    if (url.pathname === '/rest/v1/profiles') {
+      profileAttempts += 1;
+      if (profileAttempts < 3) {
+        res.writeHead(503, { 'Content-Type': 'application/json' });
+        return res.end('Service Temporarily Unavailable');
+      }
+    }
+    respondHealthyTablesAndRpcs(req, res, url);
+  });
+
+  try {
+    const result = await dbCheck.verifyDatabaseSchema({
+      force: true,
+      supabaseUrl: mockDb.url,
+      serviceRoleKey: 'service-role-secret',
+      retryDelaysMs: [10, 10],
+    });
+    assert.equal(result.ok, true);
+    assert.equal(profileAttempts, 3);
+  } finally {
+    await mockDb.close();
+  }
+});
+
+test('R-7 unit: verifyDatabaseSchema stops after connectivity preflight on unreachable host instead of duplicating 7 errors', async () => {
+  const closedPort = await getFreePort();
+  await assert.rejects(
+    () =>
+      dbCheck.verifyDatabaseSchema({
+        force: true,
+        supabaseUrl: `http://127.0.0.1:${closedPort}`,
+        serviceRoleKey: 'service-role-secret',
+        retryDelaysMs: [],
+      }),
+    (err) => {
+      assert.match(err.message, /Supabase サーバー \(127\.0\.0\.1\) へ接続できません/);
+      assert.doesNotMatch(err.message, /usage_events/);
+      assert.doesNotMatch(err.message, /consume_credits/);
+      assert.equal(err.failures.length, 1);
+      return true;
+    }
+  );
+});
+
+test('R-7 unit: buildConnectionFatalError explains DNS ENOTFOUND and Supabase Pause recovery steps', () => {
+  const err = dbCheck.buildConnectionFatalError('kqbuzfyjzfiyltzecivg.supabase.co', {
+    ok: false,
+    kind: 'connection',
+    name: 'profiles(id,plan,subscription_status)',
+    errorCode: 'ENOTFOUND',
+    reason: '接続失敗: getaddrinfo ENOTFOUND kqbuzfyjzfiyltzecivg.supabase.co',
+  });
+  assert.equal(err.code, 'ENOTFOUND');
+  assert.match(err.message, /名前解決（DNS）に失敗しました/);
+  assert.match(err.message, /Paused/);
+  assert.match(err.message, /Resume project/);
+  assert.match(err.message, /SUPABASE_URL/);
+});
+
+test('R-7 unit: verifyDatabaseSchema adds service role key hint on 401/403 authentication errors', async () => {
+  const mockDb = await startCustomMockDb((req, res) => {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ message: 'Invalid API key' }));
+  });
+
+  try {
+    await assert.rejects(
+      () =>
+        dbCheck.verifyDatabaseSchema({
+          force: true,
+          supabaseUrl: mockDb.url,
+          serviceRoleKey: 'wrong-key',
+          retryDelaysMs: [],
+        }),
+      (err) => {
+        assert.match(err.message, /HTTP 401/);
+        assert.match(err.message, /SUPABASE_SERVICE_ROLE_KEY/);
+        return true;
+      }
+    );
+  } finally {
+    await mockDb.close();
+  }
+});
+

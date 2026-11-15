@@ -22,15 +22,9 @@ function isAuthRequired() {
   return process.env.ENABLE_AUTH === 'true';
 }
 
-function getSupabaseUrl() {
-  return process.env.SUPABASE_URL ? process.env.SUPABASE_URL.replace(/\/+$/, '') : '';
-}
-function getSupabaseAnonKey() {
-  return process.env.SUPABASE_ANON_KEY || '';
-}
-function getSupabaseServiceRoleKey() {
-  return process.env.SUPABASE_SERVICE_ROLE_KEY ? process.env.SUPABASE_SERVICE_ROLE_KEY.trim() : '';
-}
+const getSupabaseUrl = env.getSupabaseUrl;
+const getSupabaseAnonKey = env.getSupabaseAnonKey;
+const getSupabaseServiceRoleKey = env.getSupabaseServiceRoleKey;
 
 // プロファイルキャッシュ（利用者ID -> { plan, subscriptionStatus, expiresAt }）60秒TTL (B-1)
 const profileCache = new Map();

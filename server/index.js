@@ -60,7 +60,7 @@ const dbCheck = require('./db-check');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 
-if (env.IS_CLOUD && (!process.env.SUPABASE_SERVICE_ROLE_KEY || !process.env.SUPABASE_SERVICE_ROLE_KEY.trim())) {
+if (env.IS_CLOUD && !env.getSupabaseServiceRoleKey()) {
   console.error('[FATAL] クラウド環境（SUPABASE_URL設定時）では SUPABASE_SERVICE_ROLE_KEY が必須です');
   process.exit(1);
 }

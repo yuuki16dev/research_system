@@ -62,4 +62,25 @@
 3. Payload URL に Render の Deploy Hook URL を貼り付け、Content type を `application/json` に設定して登録します。
 4. これにより、今後は `git push origin main` を行うだけで、GitHub から Render へ直接デプロイ命令が送信され、100% 確実に自動デプロイが実行されます。
 
+---
+
+## 3. トラブルシューティング（Render / Supabase）
+
+### 3.1 `getaddrinfo ENOTFOUND xxxx.supabase.co` で起動に失敗する
+- **原因 1（最も多い）: Supabase Free プランの自動停止（Paused）**
+  - Supabase 無料プランでは、約 7 日間データベースへのアクセスがないとプロジェクトが自動的に **Paused（一時停止）** 状態になり、`*.supabase.co` の DNS 解決自体も停止（`ENOTFOUND`）します。
+  - **対処法**:
+    1. [Supabase ダッシュボード](https://supabase.com/dashboard) を開き、対象プロジェクトが `Paused` になっていれば **「Resume project」**（または Restore）をクリックします。
+    2. 復旧完了後、Render ダッシュボードの **「Manual Deploy」➔「Deploy latest commit」** を実行します。
+- **原因 2: Render の `SUPABASE_URL` 誤設定・削除済みプロジェクト**
+  - Render の **Environment** で `SUPABASE_URL` が `https://<project-ref>.supabase.co` と一致しているか確認してください（前後空白や引用符、誤って末尾に `/rest/v1/` を付けた場合はアプリ側で自動正規化されますが、ホスト名自体は正確である必要があります）。
+
+### 3.2 `Supabase DB の起動時検証に失敗しました。不足または接続エラー項目: ...` と表示される
+- クラウド起動時（`R-7`）に必須テーブル・列（`profiles`, `research_usage`, `user_reports`, `usage_events`）および RPC 関数（`consume_credits`, `refund_credits`, `usage_cost_since`）の存在を検証しています。
+- 名前が列挙された項目について、`supabase/migrations/` 内の未適用 SQL マイグレーションファイルを Supabase の **SQL Editor** で順番に実行してください。
+- `HTTP 401` / `HTTP 403` が表示される場合は、Render 環境変数 `SUPABASE_SERVICE_ROLE_KEY` の設定値を確認してください。
+
+### 3.3 `render.yaml` の変更が既存 Render サービスに反映されない
+- `render.yaml` の `autoDeploy: false` や既定環境変数は、新規 Blueprint デプロイ時にのみ初期設定として参照されます。すでに Render ダッシュボード上で作成済みの Web Service では、Render ダッシュボードの **Settings（Build & Deploy）** および **Environment** 画面から直接設定を確認・更新してください。
+
 

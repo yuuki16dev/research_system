@@ -16,13 +16,8 @@ const { checkJobCapacity } = require('./jobs');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-function getSupabaseUrl() {
-  return process.env.SUPABASE_URL ? process.env.SUPABASE_URL.replace(/\/+$/, '') : '';
-}
-
-function getSupabaseServiceRoleKey() {
-  return process.env.SUPABASE_SERVICE_ROLE_KEY ? process.env.SUPABASE_SERVICE_ROLE_KEY.trim() : '';
-}
+const getSupabaseUrl = env.getSupabaseUrl;
+const getSupabaseServiceRoleKey = env.getSupabaseServiceRoleKey;
 
 function isUuid(value) {
   return typeof value === 'string' && UUID_RE.test(value.trim());

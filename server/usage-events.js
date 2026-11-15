@@ -43,13 +43,8 @@ function getJstDateString(date = new Date()) {
   return `${y}-${m}-${day}`;
 }
 
-function getSupabaseUrl() {
-  return process.env.SUPABASE_URL ? process.env.SUPABASE_URL.replace(/\/+$/, '') : '';
-}
-
-function getServiceRoleKey() {
-  return process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-}
+const getSupabaseUrl = env.getSupabaseUrl;
+const getServiceRoleKey = env.getSupabaseServiceRoleKey;
 
 /**
  * Tavily クレジット消費量を計算

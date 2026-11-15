@@ -12,7 +12,21 @@ const https = require('https');
 const env = require('./env');
 
 const DEFAULT_TIMEOUT_MS = 8000;
+const DEFAULT_RETRY_DELAYS_MS = [400, 800];
 const DUMMY_UUID = '00000000-0000-0000-0000-000000000000';
+const DNS_ERROR_CODES = new Set(['ENOTFOUND', 'EAI_AGAIN', 'ENODATA']);
+const TRANSIENT_CONNECTION_CODES = new Set([
+  'ENOTFOUND',
+  'EAI_AGAIN',
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'ETIMEDOUT',
+  'ENETUNREACH',
+  'EHOSTUNREACH',
+  'EPIPE',
+  'UND_ERR_CONNECT_TIMEOUT',
+]);
+const TRANSIENT_HTTP_STATUSES = new Set([502, 503, 504]);
 
 const REQUIRED_TABLES = [
   {
@@ -48,12 +62,50 @@ const REQUIRED_RPCS = [
   },
 ];
 
-function getSupabaseUrl() {
-  return process.env.SUPABASE_URL ? process.env.SUPABASE_URL.replace(/\/+$/, '') : '';
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function getServiceRoleKey() {
-  return process.env.SUPABASE_SERVICE_ROLE_KEY ? process.env.SUPABASE_SERVICE_ROLE_KEY.trim() : '';
+function parseHttpUrl(rawUrl) {
+  try {
+    const parsed = new URL(rawUrl);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function resolveRetryDelays(options = {}) {
+  if (Array.isArray(options.retryDelaysMs)) {
+    return options.retryDelaysMs.filter((n) => Number.isFinite(n) && n >= 0);
+  }
+  if (process.env.DB_CHECK_RETRY_DELAYS_MS !== undefined) {
+    return String(process.env.DB_CHECK_RETRY_DELAYS_MS)
+      .split(',')
+      .map((s) => Number(s.trim()))
+      .filter((n) => Number.isFinite(n) && n >= 0);
+  }
+  return DEFAULT_RETRY_DELAYS_MS;
+}
+
+function isTransientFailure(result) {
+  if (!result || result.ok) return false;
+  if (result.kind === 'connection') {
+    return !result.errorCode || TRANSIENT_CONNECTION_CODES.has(result.errorCode);
+  }
+  return TRANSIENT_HTTP_STATUSES.has(result.httpStatus);
+}
+
+async function checkWithRetry(runCheck, retryDelaysMs) {
+  let result = await runCheck();
+  for (let i = 0; i < retryDelaysMs.length && isTransientFailure(result); i++) {
+    await sleep(retryDelaysMs[i]);
+    result = await runCheck();
+  }
+  return result;
 }
 
 function requestJson(endpoint, { method = 'GET', headers = {}, body = null, timeoutMs = DEFAULT_TIMEOUT_MS }) {
@@ -90,7 +142,9 @@ function requestJson(endpoint, { method = 'GET', headers = {}, body = null, time
     );
 
     req.on('timeout', () => {
-      req.destroy(new Error(`Timeout after ${timeoutMs}ms`));
+      const err = new Error(`Timeout after ${timeoutMs}ms`);
+      err.code = 'ETIMEDOUT';
+      req.destroy(err);
     });
     req.on('error', (err) => {
       reject(err);
@@ -103,67 +157,81 @@ function requestJson(endpoint, { method = 'GET', headers = {}, body = null, time
   });
 }
 
-async function checkTable(baseUrl, headers, table, timeoutMs) {
-  const select = table.columns.join(',');
-  const endpoint = `${baseUrl}/rest/v1/${table.name}?select=${select}&limit=0`;
-  const label = `${table.name}(${select})`;
-
+async function probeEndpoint({ endpoint, method, headers, body = null, kind, name, okStatuses, timeoutMs }) {
   try {
-    const res = await requestJson(endpoint, { method: 'GET', headers, timeoutMs });
-    if (res.status === 200) {
-      return { ok: true, kind: 'table', name: label };
+    const res = await requestJson(endpoint, { method, headers, body, timeoutMs });
+    if (okStatuses.includes(res.status)) {
+      return { ok: true, kind, name };
     }
     const detail = res.text ? res.text.slice(0, 160).replace(/\s+/g, ' ').trim() : '';
     return {
       ok: false,
-      kind: 'table',
-      name: label,
+      kind,
+      name,
+      httpStatus: res.status,
       reason: `HTTP ${res.status}${detail ? `: ${detail}` : ''}`,
     };
   } catch (err) {
     return {
       ok: false,
       kind: 'connection',
-      name: label,
-      reason: `接続失敗: ${err.message}`,
+      name,
+      errorCode: err && err.code ? String(err.code) : '',
+      reason: `接続失敗: ${err && err.message ? err.message : String(err)}`,
     };
   }
 }
 
-async function checkRpc(baseUrl, headers, rpc, timeoutMs) {
-  const endpoint = `${baseUrl}/rest/v1/rpc/${rpc.name}`;
+async function checkTable(baseUrl, headers, table, timeoutMs) {
+  const select = table.columns.join(',');
+  return probeEndpoint({
+    endpoint: `${baseUrl}/rest/v1/${table.name}?select=${select}&limit=0`,
+    method: 'GET',
+    headers,
+    kind: 'table',
+    name: `${table.name}(${select})`,
+    okStatuses: [200],
+    timeoutMs,
+  });
+}
 
-  try {
-    const res = await requestJson(endpoint, {
-      method: 'POST',
-      headers,
-      body: rpc.body,
-      timeoutMs,
-    });
-    // consume_credits / usage_cost_since は 200、returns void の refund_credits は PostgREST 上 204 または 200
-    if (res.status === 200 || res.status === 204) {
-      return { ok: true, kind: 'rpc', name: rpc.name };
-    }
-    const detail = res.text ? res.text.slice(0, 160).replace(/\s+/g, ' ').trim() : '';
-    return {
-      ok: false,
-      kind: 'rpc',
-      name: rpc.name,
-      reason: `HTTP ${res.status}${detail ? `: ${detail}` : ''}`,
-    };
-  } catch (err) {
-    return {
-      ok: false,
-      kind: 'connection',
-      name: rpc.name,
-      reason: `接続失敗: ${err.message}`,
-    };
+async function checkRpc(baseUrl, headers, rpc, timeoutMs) {
+  // consume_credits / usage_cost_since は 200、returns void の refund_credits は PostgREST 上 204 または 200
+  return probeEndpoint({
+    endpoint: `${baseUrl}/rest/v1/rpc/${rpc.name}`,
+    method: 'POST',
+    headers,
+    body: rpc.body,
+    kind: 'rpc',
+    name: rpc.name,
+    okStatuses: [200, 204],
+    timeoutMs,
+  });
+}
+
+function buildConnectionFatalError(hostname, failure, allFailures = [failure]) {
+  let msg;
+  if (DNS_ERROR_CODES.has(failure.errorCode)) {
+    msg =
+      `Supabase サーバー (${hostname}) の名前解決（DNS）に失敗しました [${failure.reason}]。` +
+      '考えられる原因: (1) Supabase Free プランで一定期間の無操作によりプロジェクトが一時停止（Paused）状態' +
+      '（停止中は *.supabase.co が DNS 解決できなくなります）➔ Supabase ダッシュボードで「Resume project」を実行してください / ' +
+      '(2) 環境変数 SUPABASE_URL の設定誤り・プロジェクト削除 ➔ Render/実行環境の SUPABASE_URL（https://<project-ref>.supabase.co）を確認してください';
+  } else {
+    msg =
+      `Supabase サーバー (${hostname}) へ接続できません [${failure.reason}]。` +
+      'Supabase プロジェクトが稼働中か、および SUPABASE_URL の設定を確認してください';
   }
+  const err = new Error(msg);
+  err.code = failure.errorCode || 'SUPABASE_UNREACHABLE';
+  err.failures = allFailures;
+  return err;
 }
 
 /**
  * クラウド版の起動時に Supabase 上の必須テーブル・列・RPC の存在を検証する。
- * 不足や接続不能があればすべての失敗項目を列挙した Error を throw する。
+ * DNS・接続不能時は重複エラーを出さず原因・復旧手順を示し、
+ * スキーマ不足時はすべての失敗項目を列挙した Error を throw する。
  */
 async function verifyDatabaseSchema(options = {}) {
   const force = Boolean(options.force);
@@ -171,12 +239,20 @@ async function verifyDatabaseSchema(options = {}) {
     return { ok: true, skipped: true };
   }
 
-  const baseUrl = (options.supabaseUrl || getSupabaseUrl()).replace(/\/+$/, '');
-  const serviceRoleKey = options.serviceRoleKey || getServiceRoleKey();
+  const baseUrl = env.normalizeSupabaseUrl(options.supabaseUrl || env.getSupabaseUrl());
+  const serviceRoleKey = env.normalizeEnvValue(options.serviceRoleKey) || env.getSupabaseServiceRoleKey();
   const timeoutMs = Number(options.timeoutMs) > 0 ? Number(options.timeoutMs) : DEFAULT_TIMEOUT_MS;
+  const retryDelaysMs = resolveRetryDelays(options);
 
   if (!baseUrl || !serviceRoleKey) {
     throw new Error('SUPABASE_URL または SUPABASE_SERVICE_ROLE_KEY が未設定のため DB 状態確認を実行できません');
+  }
+
+  const parsedUrl = parseHttpUrl(baseUrl);
+  if (!parsedUrl) {
+    throw new Error(
+      `SUPABASE_URL の形式が不正です ("${baseUrl}")。https://<project-ref>.supabase.co の形式で指定してください`
+    );
   }
 
   const headers = {
@@ -185,15 +261,36 @@ async function verifyDatabaseSchema(options = {}) {
     'Content-Type': 'application/json',
   };
 
-  const results = await Promise.all([
-    ...REQUIRED_TABLES.map((t) => checkTable(baseUrl, headers, t, timeoutMs)),
-    ...REQUIRED_RPCS.map((r) => checkRpc(baseUrl, headers, r, timeoutMs)),
+  // 先頭テーブルで到達性を事前確認し、DNS/接続不能時に全7件の重複エラーログを防ぐ
+  const firstTable = REQUIRED_TABLES[0];
+  const firstResult = await checkWithRetry(
+    () => checkTable(baseUrl, headers, firstTable, timeoutMs),
+    retryDelaysMs
+  );
+  if (!firstResult.ok && firstResult.kind === 'connection') {
+    throw buildConnectionFatalError(parsedUrl.hostname, firstResult);
+  }
+
+  const restResults = await Promise.all([
+    ...REQUIRED_TABLES.slice(1).map((t) =>
+      checkWithRetry(() => checkTable(baseUrl, headers, t, timeoutMs), retryDelaysMs)
+    ),
+    ...REQUIRED_RPCS.map((r) =>
+      checkWithRetry(() => checkRpc(baseUrl, headers, r, timeoutMs), retryDelaysMs)
+    ),
   ]);
 
-  const failures = results.filter((r) => !r.ok);
+  const failures = [firstResult, ...restResults].filter((r) => !r.ok);
   if (failures.length > 0) {
+    if (failures.every((f) => f.kind === 'connection')) {
+      throw buildConnectionFatalError(parsedUrl.hostname, failures[0], failures);
+    }
     const summary = failures.map((f) => `${f.name} [${f.reason}]`).join('; ');
-    const err = new Error(`Supabase DB の起動時検証に失敗しました。不足または接続エラー項目: ${summary}`);
+    const hasAuthFailure = failures.some((f) => f.httpStatus === 401 || f.httpStatus === 403);
+    const authHint = hasAuthFailure
+      ? '（認証エラー: SUPABASE_SERVICE_ROLE_KEY の設定値または権限を確認してください）'
+      : '';
+    const err = new Error(`Supabase DB の起動時検証に失敗しました。不足または接続エラー項目: ${summary}${authHint}`);
     err.failures = failures;
     throw err;
   }
@@ -209,4 +306,5 @@ module.exports = {
   REQUIRED_TABLES,
   REQUIRED_RPCS,
   verifyDatabaseSchema,
+  buildConnectionFatalError,
 };
