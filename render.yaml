@@ -11,7 +11,7 @@ services:
     region: oregon # or tokyo if available
     dockerfilePath: ./Dockerfile
     healthCheckPath: /api/health
-    autoDeploy: true
+    autoDeploy: false
     envVars:
       - key: PORT
         value: 3939
@@ -36,7 +36,7 @@ services:
       - key: HISTORY_RETENTION_DAYS
         value: 0
       - key: ENABLE_TEST_USERS
-        value: "true" # 検証用テストアカウントを配置・有効化
+        value: "false" # 本番安全デフォルト（検証時のみ Render 管理画面で "true" に変更）
       - key: ALLOW_ANONYMOUS_CLOUD
         sync: false # テスト公開時のみ "true" を設定（既定は未設定＝ログイン必須）
       - key: DAILY_COST_LIMIT_JPY
