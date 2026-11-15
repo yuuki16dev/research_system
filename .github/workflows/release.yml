@@ -62,7 +62,7 @@ jobs:
         run: node scripts/package-release.js
 
       - name: Create or Update GitHub Release and Upload Assets
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.release_info.outputs.tag }}
           name: Research Studio ${{ steps.release_info.outputs.tag }} (Windows ワンクリック簡易版)
