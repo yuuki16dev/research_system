@@ -9,9 +9,6 @@ const { DATA_DIR } = require('./settings');
 
 const FILE = path.join(DATA_DIR, 'usage.json');
 
-// 参考価格・レート（C-2: server/model-config.js から参照）
-const GEMINI_PRICING = getModelPricing(DEFAULT_GEMINI_MODEL);
-
 let cloudMemoryUsage = null;
 
 function createEmptyUsage() {
@@ -105,13 +102,16 @@ function recordGemini({ model, promptTokens = 0, candidatesTokens = 0, totalToke
   data.gemini.totalTokens += (totalTokens || (promptTokens + candidatesTokens));
   data.gemini.lastUsed = new Date().toISOString();
 
-  // コスト換算
+  // コスト換算（各呼び出しのモデル単価で累積加算）
   const activePricing = getModelPricing(model || DEFAULT_GEMINI_MODEL);
   const usdJpyRate = modelConfig.getUsdJpyRate ? modelConfig.getUsdJpyRate() : USD_JPY_RATE;
-  const promptCost = (data.gemini.totalPromptTokens / 1_000_000) * activePricing.inputPerMillion;
-  const candCost = (data.gemini.totalCandidatesTokens / 1_000_000) * activePricing.outputPerMillion;
-  data.gemini.estimatedCostUsd = Number((promptCost + candCost).toFixed(5));
-  data.gemini.estimatedCostJpy = Math.round(data.gemini.estimatedCostUsd * usdJpyRate * 100) / 100;
+  const callPromptCost = (promptTokens / 1_000_000) * activePricing.inputPerMillion;
+  const callCandCost = (candidatesTokens / 1_000_000) * activePricing.outputPerMillion;
+  const callCostUsd = callPromptCost + callCandCost;
+  const prevCostUsd = Number(data.gemini.estimatedCostUsd) || 0;
+  const prevCostJpy = Number(data.gemini.estimatedCostJpy) || 0;
+  data.gemini.estimatedCostUsd = Number((prevCostUsd + callCostUsd).toFixed(6));
+  data.gemini.estimatedCostJpy = Math.round((prevCostJpy + callCostUsd * usdJpyRate) * 100) / 100;
 
   // 履歴ログ (直近30件)
   if (!Array.isArray(data.gemini.history)) data.gemini.history = [];
@@ -374,11 +374,14 @@ async function getFullUsageSummary(settingsObj = {}, options = {}) {
   const tavilyKey = settingsObj.tavilyApiKey;
   const tavilyData = await fetchLiveTavilyUsage(tavilyKey, options);
   const resetInfo = getNextQuotaReset();
+  const activeGeminiModel = settingsObj.geminiModel || DEFAULT_GEMINI_MODEL;
+  const activePricing = getModelPricing(activeGeminiModel);
+  const usdJpyRate = modelConfig.getUsdJpyRate ? modelConfig.getUsdJpyRate() : USD_JPY_RATE;
 
   return {
     gemini: {
       configured: !!settingsObj.geminiApiKey,
-      model: settingsObj.geminiModel || DEFAULT_GEMINI_MODEL,
+      model: activeGeminiModel,
       totalRequests: local.gemini.totalRequests,
       todayRequests: local.gemini.todayRequests,
       totalPromptTokens: local.gemini.totalPromptTokens,
@@ -392,7 +395,7 @@ async function getFullUsageSummary(settingsObj = {}, options = {}) {
         rpd: '1,500 回 / 日（無料枠・Flash系）',
         rpm: '15 回 / 分（Flash系）',
         tpm: '1,000,000 トークン / 分',
-        pricing: `入力: $${GEMINI_PRICING.inputPerMillion} / 100万tok (~¥${(GEMINI_PRICING.inputPerMillion * USD_JPY_RATE / 1000).toFixed(3)}/千tok) / 出力: $${GEMINI_PRICING.outputPerMillion} / 100万tok (~¥${(GEMINI_PRICING.outputPerMillion * USD_JPY_RATE / 1000).toFixed(3)}/千tok)`,
+        pricing: `入力: $${activePricing.inputPerMillion} / 100万tok (~¥${(activePricing.inputPerMillion * usdJpyRate / 1000).toFixed(3)}/千tok) / 出力: $${activePricing.outputPerMillion} / 100万tok (~¥${(activePricing.outputPerMillion * usdJpyRate / 1000).toFixed(3)}/千tok)`,
       },
       resetInfo,
       officialUrls: {

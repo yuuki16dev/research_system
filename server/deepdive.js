@@ -1,5 +1,6 @@
 'use strict';
 
+const env = require('./env');
 const { generateJSON } = require('./gemini');
 const search = require('./search');
 const settings = require('./settings');
@@ -82,16 +83,16 @@ async function runDeepDive({ theme, question, reportContext = '', period = 'year
     };
   }
 
-  // 1. プロバイダーの決定
-  let provider = 'duckduckgo';
-  if (currentSettings.searchProvider !== 'duckduckgo' && currentSettings.tavilyApiKey) {
-    provider = 'tavily';
-  }
+  // 1. プロバイダーの決定 (クラウド版は Tavily に強制)
+  const provider = env.IS_CLOUD
+    ? 'tavily'
+    : ((currentSettings.searchProvider !== 'duckduckgo' && currentSettings.tavilyApiKey) ? 'tavily' : 'duckduckgo');
 
   // 2. ピンポイント最適化検索 (1クエリ、maxResults: 4)
   const searchQuery = cleanSearchQuery(question, theme, quote, chatHistory);
 
   let searchResults = [];
+  let searchSucceeded = false;
   try {
     searchResults = await search.run({
       provider,
@@ -101,7 +102,9 @@ async function runDeepDive({ theme, question, reportContext = '', period = 'year
       deep: false,
       signal,
     });
+    searchSucceeded = true;
   } catch (err) {
+    if (signal && signal.aborted) throw err;
     searchResults = [];
   }
 
@@ -162,6 +165,7 @@ ${snippetBlock}
 }`;
 
   let tokenUsage = { promptTokens: 0, candidatesTokens: 0, totalTokens: 0, calls: 0 };
+  let actualModel = currentSettings.geminiModel;
   let generated;
   try {
     generated = await generateJSON({
@@ -176,17 +180,18 @@ ${snippetBlock}
           tokenUsage.candidatesTokens += (u.candidatesTokens || 0);
           tokenUsage.totalTokens += (u.totalTokens || 0);
           tokenUsage.calls += 1;
+          if (u.model) actualModel = u.model;
         }
       },
     });
 
-    // C-3: 正常完了時のイベント記録 (Tavily 1クレジット)
-    const tavilyCredits = provider === 'tavily' ? 1 : 0;
+    // C-3: 正常完了時のイベント記録 (Tavily 1クレジット: 成功時のみ計上)
+    const tavilyCredits = provider === 'tavily' && searchSucceeded ? 1 : 0;
     await usageEvents.recordUsageEvent({
       userId: userId || 'owner-user',
       kind: 'deepdive',
       jobId: reportId || null,
-      model: currentSettings.geminiModel,
+      model: actualModel,
       promptTokens: tokenUsage.promptTokens,
       outputTokens: tokenUsage.candidatesTokens,
       geminiCalls: tokenUsage.calls,
@@ -199,7 +204,7 @@ ${snippetBlock}
       userId: userId || 'owner-user',
       kind: 'deepdive',
       jobId: reportId || null,
-      model: currentSettings.geminiModel,
+      model: actualModel,
       status: isCancelled ? 'cancelled' : 'error',
     });
     throw err;

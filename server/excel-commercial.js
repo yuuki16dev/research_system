@@ -3,8 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.COLOR = exports.dispWidth = exports.SHEETS = void 0;
-exports.splitForRows = splitForRows;
+exports.SHEETS = void 0;
 exports.generateCommercialExcel = generateCommercialExcel;
 exports.verifyNoDataLoss = verifyNoDataLoss;
 /**
@@ -25,13 +24,14 @@ const exceljs_1 = __importDefault(require("exceljs"));
 /* =====================================================================
    デザイントークン
    ===================================================================== */
-exports.SHEETS = {
+const DEFAULT_SHEETS = {
     summary: '01_Executive_Summary',
     matrix: '02_Comparison_Matrix',
     report: '03_Detailed_Report',
     sources: '04_Sources_Data',
 };
-const COLOR = {
+exports.SHEETS = DEFAULT_SHEETS;
+const DEFAULT_COLOR = {
     ink: '0F172A', // 見出し・ブランド
     slate: '1E293B', // 表ヘッダー背景／本文
     band: 'F1F5F9', // サブヘッダー・帯
@@ -43,7 +43,6 @@ const COLOR = {
     hold: { bg: 'FEF9C3', fg: '854D0E' },
     nogo: { bg: 'FEE2E2', fg: '991B1B' },
 };
-exports.COLOR = COLOR;
 const PT = { h1: 16, h2: 12, th: 10, body: 9.5, meta: 8, kpi: 16 };
 const MAX_ROW_PT = 409; // Excel の行高さ上限
 const MAX_CELL_CHARS = 32000; // 32,767 に安全マージン
@@ -51,8 +50,6 @@ const LINE = 1.6; // 行送り（游ゴシックは字面が高いため 1.6 倍
 const UNIT = 0.92; // 9.5pt の半角1文字 ≒ 列幅 0.92 単位（Calibri 11pt の "0" 基準）
 const argb = (hex) => 'FF' + hex;
 const solid = (hex) => ({ type: 'pattern', pattern: 'solid', fgColor: { argb: argb(hex) } });
-const thin = { style: 'thin', color: { argb: argb(COLOR.border) } };
-const box = { top: thin, left: thin, bottom: thin, right: thin };
 /* =====================================================================
    文字幅・行高さの見積もり
    ===================================================================== */
@@ -60,12 +57,11 @@ const WIDE = /[ᄀ-ᅟ←-⇿①-⓿─-➿⺀-〾ぁ-꓏가-힣豈-﫿︰-﹏�
 const isWide = (ch) => WIDE.test(ch) || (ch.codePointAt(0) ?? 0) > 0xffff;
 /** 表示幅（半角=1・全角=2） */
 const dispWidth = (s) => Array.from(s).reduce((w, ch) => w + (isWide(ch) ? 2 : 1), 0);
-exports.dispWidth = dispWidth;
-const maxLineWidth = (s) => Math.max(0, ...s.split('\n').map(exports.dispWidth));
+const maxLineWidth = (s) => Math.max(0, ...s.split('\n').map(dispWidth));
 /** 列幅 widthUnits のセルで text を折り返したときの行数 */
 function lineCount(text, widthUnits, pt) {
     const perLine = Math.max(1, (widthUnits - 1.5) / (UNIT * pt / PT.body));
-    return text.split('\n').reduce((n, l) => n + Math.max(1, Math.ceil((0, exports.dispWidth)(l) / perLine)), 0);
+    return text.split('\n').reduce((n, l) => n + Math.max(1, Math.ceil(dispWidth(l) / perLine)), 0);
 }
 /** 折り返しに必要な行高さ（pt）。上限 409pt */
 function rowHeight(text, widthUnits, pt, min = 18) {
@@ -204,9 +200,10 @@ function flatten(value, key, depth = 0) {
 const extras = (obj, known) => isPlainObject(obj) ? Object.fromEntries(Object.entries(obj).filter(([k, v]) => !known.includes(k) && v !== undefined)) : {};
 const LATIN = /[ -~ -ɏ -‧‰-⁞]/;
 function makeWriter(ctx) {
+    const colors = ctx.colors || DEFAULT_COLOR;
     const font = (s, name) => ({
         name, size: s.size ?? PT.body, bold: !!s.bold, italic: !!s.italic, underline: s.underline,
-        color: { argb: argb(s.color ?? COLOR.slate) },
+        color: { argb: argb(s.color ?? colors.slate) },
     });
     /** 日本語は和文フォント、英数字は欧文フォントでリッチテキスト化 */
     function richValue(text, s) {
@@ -226,17 +223,22 @@ function makeWriter(ctx) {
         return { richText: segs.map((g) => ({ text: g.t, font: font(s, g.latin ? ctx.latin : ctx.jp) })) };
     }
     function put(cell, v, s = {}) {
-        if (v !== null && typeof v === 'object') { // 数式・ハイパーリンク・日付はそのまま
+        const isExcelObj = v !== null && typeof v === 'object' && (
+            (v instanceof Date) || ('formula' in v) || ('sharedFormula' in v) || ('hyperlink' in v) || ('richText' in v) || ('error' in v)
+        );
+        if (isExcelObj) { // 数式・ハイパーリンク・日付はそのまま
             cell.value = v;
             const shown = str(v.result ?? v.text ?? '');
             cell.font = font(s, shown && !Array.from(shown).every((ch) => LATIN.test(ch) || /\s/.test(ch)) ? ctx.jp : ctx.latin);
         }
         else {
-            const t = typed(v);
+            const rawScalar = (v !== null && typeof v === 'object') ? str(v) : v;
+            const t = typed(rawScalar);
             if (typeof t.value === 'string') {
-                const allLatin = Array.from(t.value).every((ch) => LATIN.test(ch) || /\s/.test(ch));
-                cell.value = richValue(t.value, s);
-                cell.font = font(s, allLatin && t.value ? ctx.latin : ctx.jp);
+                const safeStr = t.value.length > MAX_CELL_CHARS ? t.value.slice(0, MAX_CELL_CHARS) : t.value;
+                const allLatin = Array.from(safeStr).every((ch) => LATIN.test(ch) || /\s/.test(ch));
+                cell.value = richValue(safeStr, s);
+                cell.font = font(s, allLatin && safeStr ? ctx.latin : ctx.jp);
             }
             else {
                 cell.value = t.value;
@@ -274,24 +276,31 @@ function makeWriter(ctx) {
      * ExcelJS の内部リンク（"#Sheet!A1"）は外部リンク用リレーションと "#" 付き location を同時に書き出すため、
      * Excel / LibreOffice で「参照が正しくありません」になることがある。関数なら保存方法に依存せず確実に動く。
      */
-    const jump = (text, sheet, addr) => ({ formula: `HYPERLINK("#'${sheet}'!${addr}","${text.replace(/"/g, '""')}")`, result: text });
+    const jump = (text, sheet, addr) => {
+        const cleanText = String(text ?? '');
+        const maxLabel = Math.max(10, 230 - String(sheet).length - String(addr).length);
+        const bounded = cleanText.length > maxLabel ? cleanText.slice(0, maxLabel - 1) + '…' : cleanText;
+        return { formula: `HYPERLINK("#'${sheet}'!${addr}","${bounded.replace(/"/g, '""')}")`, result: bounded };
+    };
     return { put, merge, link, jump, font };
 }
 /* 各シート共通：タイトル（16pt）・メタ行（8pt）・目次への導線 */
-function sheetHeader(ws, w, lastCol, title, meta, withBackLink) {
+function sheetHeader(ws, w, ctx, lastCol, title, meta, withBackLink) {
+    const colors = ctx.colors || DEFAULT_COLOR;
     ws.getRow(1).height = 30;
-    w.merge(ws, 1, 2, 1, lastCol, title, { size: PT.h1, bold: true, color: COLOR.ink, align: { vertical: 'middle', wrapText: false } });
+    w.merge(ws, 1, 2, 1, lastCol, title, { size: PT.h1, bold: true, color: colors.ink, align: { vertical: 'middle', wrapText: false } });
     ws.getRow(2).height = 16;
-    w.merge(ws, 2, 2, 2, lastCol, meta, { size: PT.meta, color: COLOR.muted, align: { vertical: 'middle', wrapText: false } });
+    w.merge(ws, 2, 2, 2, lastCol, meta, { size: PT.meta, color: colors.muted, align: { vertical: 'middle', wrapText: false } });
     if (withBackLink) {
         ws.getRow(3).height = 18;
         // 遷移先（目次の行）はサマリー作成後に確定するため、仮に A1 を設定
-        w.put(ws.getCell(3, 2), w.jump('◀ 目次へ戻る（01_Executive_Summary）', exports.SHEETS.summary, 'A1'), { size: PT.meta, color: COLOR.link, underline: true, align: { vertical: 'middle', wrapText: false } });
+        w.put(ws.getCell(3, 2), w.jump('◀ 目次へ戻る（01_Executive_Summary）', ctx.sheets.summary, 'A1'), { size: PT.meta, color: colors.link, underline: true, align: { vertical: 'middle', wrapText: false } });
     }
 }
-function sectionBand(ws, w, row, c1, c2, text) {
+function sectionBand(ws, w, ctx, row, c1, c2, text) {
+    const colors = ctx.colors || DEFAULT_COLOR;
     ws.getRow(row).height = 24;
-    w.merge(ws, row, c1, row, c2, text, { size: PT.h2, bold: true, color: COLOR.ink, fill: COLOR.band, border: { bottom: thin }, align: { vertical: 'middle', indent: 1, wrapText: false } });
+    w.merge(ws, row, c1, row, c2, text, { size: PT.h2, bold: true, color: colors.ink, fill: colors.band, border: { bottom: ctx.thin }, align: { vertical: 'middle', indent: 1, wrapText: false } });
 }
 function printSetup(ws, ctx, title, orientation, titleRows) {
     ws.pageSetup = {
@@ -306,7 +315,7 @@ function printSetup(ws, ctx, title, orientation, titleRows) {
     };
 }
 /* 条件付き書式（値を編集しても色が追従する） */
-function cfStatus(ws, ref, topLeft) {
+function cfStatus(ws, colors, ref, topLeft) {
     const x = `TRIM(${topLeft})`;
     const rule = (formula, c, priority) => ({
         type: 'expression', priority, formulae: [formula],
@@ -315,13 +324,13 @@ function cfStatus(ws, ref, topLeft) {
     ws.addConditionalFormatting({
         ref,
         rules: [
-            rule(`OR(LEFT(${x},1)="×",LEFT(${x},1)="✕",LEFT(${x},2)="懸念",LEFT(${x},2)="不可",LEFT(${x},3)="不採用",LEFT(${x},3)="非推奨",LEFT(UPPER(${x}),5)="NO-GO",LEFT(UPPER(${x}),4)="NOGO")`, COLOR.nogo, 1),
-            rule(`OR(LEFT(${x},1)="△",LEFT(${x},1)="▲",LEFT(${x},2)="留意",LEFT(${x},2)="保留",LEFT(${x},3)="要検討",LEFT(${x},3)="条件付",LEFT(UPPER(${x}),4)="HOLD")`, COLOR.hold, 2),
-            rule(`OR(LEFT(${x},1)="◎",LEFT(${x},2)="推奨",LEFT(${x},2)="採用",UPPER(${x})="GO",LEFT(UPPER(${x}),3)="GO ",LEFT(UPPER(${x}),3)="GO（",LEFT(UPPER(${x}),3)="GO(")`, COLOR.go, 3),
+            rule(`OR(LEFT(${x},1)="×",LEFT(${x},1)="✕",LEFT(${x},2)="懸念",LEFT(${x},2)="不可",LEFT(${x},3)="不採用",LEFT(${x},3)="非推奨",LEFT(UPPER(${x}),5)="NO-GO",LEFT(UPPER(${x}),4)="NOGO")`, colors.nogo, 1),
+            rule(`OR(LEFT(${x},1)="△",LEFT(${x},1)="▲",LEFT(${x},2)="留意",LEFT(${x},2)="保留",LEFT(${x},3)="要検討",LEFT(${x},3)="条件付",LEFT(UPPER(${x}),4)="HOLD")`, colors.hold, 2),
+            rule(`OR(LEFT(${x},1)="◎",LEFT(${x},2)="推奨",LEFT(${x},2)="採用",UPPER(${x})="GO",LEFT(UPPER(${x}),3)="GO ",LEFT(UPPER(${x}),3)="GO（",LEFT(UPPER(${x}),3)="GO(")`, colors.go, 3),
         ],
     });
 }
-function cfScore(ws, ref, topLeft) {
+function cfScore(ws, colors, ref, topLeft) {
     const rule = (formula, c, priority) => ({
         type: 'expression', priority, formulae: [formula],
         style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: argb(c.bg) } }, font: { color: { argb: argb(c.fg) }, bold: true } },
@@ -329,9 +338,9 @@ function cfScore(ws, ref, topLeft) {
     ws.addConditionalFormatting({
         ref,
         rules: [
-            rule(`AND(ISNUMBER(${topLeft}),${topLeft}>=85)`, COLOR.go, 1),
-            rule(`AND(ISNUMBER(${topLeft}),${topLeft}>=70,${topLeft}<85)`, COLOR.hold, 2),
-            rule(`AND(ISNUMBER(${topLeft}),${topLeft}<70)`, COLOR.nogo, 3),
+            rule(`AND(ISNUMBER(${topLeft}),${topLeft}>=85)`, colors.go, 1),
+            rule(`AND(ISNUMBER(${topLeft}),${topLeft}>=70,${topLeft}<85)`, colors.hold, 2),
+            rule(`AND(ISNUMBER(${topLeft}),${topLeft}<70)`, colors.nogo, 3),
         ],
     });
 }
@@ -347,9 +356,12 @@ const autoWidth = (header, values, lo = 12, hi = 50) => clamp(Math.ceil(Math.max
    メイン
    ===================================================================== */
 async function generateCommercialExcel(rawInput, options = {}) {
-    if (options.colors) Object.assign(COLOR, options.colors);
+    const C = { ...DEFAULT_COLOR, ...(options.colors || {}) };
+    const thinLine = { style: 'thin', color: { argb: argb(C.border) } };
+    const boxBorder = { top: thinLine, left: thinLine, bottom: thinLine, right: thinLine };
     // スキーマ正規化：rawInput が { meta: { title, ... } } のラップ形式でも、直接 { title, ... } でも両方透過的に処理
     const data = (rawInput && rawInput.meta) ? {
+        ...rawInput,
         title: rawInput.meta.title || rawInput.title,
         theme: rawInput.meta.theme || rawInput.theme,
         generatedAt: rawInput.meta.date || rawInput.generatedAt || rawInput.createdAt || rawInput.meta.createdAt,
@@ -365,7 +377,6 @@ async function generateCommercialExcel(rawInput, options = {}) {
         } : undefined),
         sections: rawInput.sections,
         sources: rawInput.sources,
-        ...rawInput
     } : {
         ...(rawInput || {}),
         generatedAt: rawInput?.generatedAt || rawInput?.createdAt || (rawInput?.meta && (rawInput.meta.date || rawInput.meta.createdAt)),
@@ -381,20 +392,14 @@ async function generateCommercialExcel(rawInput, options = {}) {
         }
     }
 
-    // シート命名の決定
+    // シート命名の決定（モジュールグローバルは書き換えずリクエスト毎に独立管理）
     const useLegacy = options.sheetNaming === 'legacy' || options.numberedSheets === false;
     const SHEETS = useLegacy ? {
         summary: 'Executive_Summary',
         matrix: 'Comparison_Matrix',
         report: 'Detailed_Report',
         sources: 'Source_Index',
-    } : {
-        summary: '01_Executive_Summary',
-        matrix: '02_Comparison_Matrix',
-        report: '03_Detailed_Report',
-        sources: '04_Sources_Data',
-    };
-    Object.assign(exports.SHEETS, SHEETS);
+    } : { ...DEFAULT_SHEETS };
 
     const ctx = {
         jp: options.fonts?.jp ?? '游ゴシック',
@@ -402,6 +407,10 @@ async function generateCommercialExcel(rawInput, options = {}) {
         mixed: (options.fontMode ?? 'mixed') === 'mixed',
         tz: options.timeZone ?? 'Asia/Tokyo',
         classification: options.classification ?? (rawInput?.meta?.classification) ?? 'CONFIDENTIAL',
+        colors: C,
+        sheets: SHEETS,
+        thin: thinLine,
+        box: boxBorder,
     };
     const w = makeWriter(ctx);
     const title = str(data.title) || 'Research Report';
@@ -436,8 +445,8 @@ async function generateCommercialExcel(rawInput, options = {}) {
 
     // シートは表示順に作成し、目次のリンク先（行番号）が確定する順に中身を書く
     const view = (ySplit, xSplit = 0) => [{ state: 'frozen', xSplit, ySplit, topLeftCell: `${colLetter(xSplit + 1)}${ySplit + 1}`, showGridLines: true, zoomScale: 100 }];
-    const wsSum = wb.addWorksheet(SHEETS.summary, { properties: { tabColor: { argb: argb(COLOR.ink) } } });
-    const wsMat = wb.addWorksheet(SHEETS.matrix, { properties: { tabColor: { argb: argb(COLOR.slate) } } });
+    const wsSum = wb.addWorksheet(SHEETS.summary, { properties: { tabColor: { argb: argb(C.ink) } } });
+    const wsMat = wb.addWorksheet(SHEETS.matrix, { properties: { tabColor: { argb: argb(C.slate) } } });
     const wsRep = wb.addWorksheet(SHEETS.report, { properties: { tabColor: { argb: argb('475569') } } });
     const wsSrc = wb.addWorksheet(SHEETS.sources, { properties: { tabColor: { argb: argb('94A3B8') } } });
     const longCells = []; // 表示枠を超える長文セル（付録に全文を再掲）
@@ -467,10 +476,10 @@ async function generateCommercialExcel(rawInput, options = {}) {
         const widths = columns.map((h, i) => autoWidth(h, colVals[i]));
         widths.forEach((wd, i) => { ws.getColumn(i + 2).width = wd; });
         const lastCol = Math.max(nCols + 1, 5);
-        sheetHeader(ws, w, lastCol, str(tbl.caption) || '比較分析表', `${title}　｜　${rows.length}行 × ${columns.length}列　｜　値はAIが収集した原文のまま（正規化・丸め・要約なし）`, true);
+        sheetHeader(ws, w, ctx, lastCol, str(tbl.caption) || '比較分析表', `${title}　｜　${rows.length}行 × ${columns.length}列　｜　値はAIが収集した原文のまま（正規化・丸め・要約なし）`, true);
         ws.getRow(4).height = 6;
         if (!columns.length) {
-            w.merge(ws, matHeaderRow, 2, matHeaderRow, lastCol, '比較表データはありません。', { color: COLOR.muted });
+            w.merge(ws, matHeaderRow, 2, matHeaderRow, lastCol, '比較表データはありません。', { color: C.muted });
         }
         else {
             const statusCol = colVals.map((vals) => {
@@ -480,7 +489,7 @@ async function generateCommercialExcel(rawInput, options = {}) {
             const hr = ws.getRow(matHeaderRow);
             hr.height = Math.max(24, ...columns.map((h, i) => rowHeight(h, widths[i], PT.th, 24)));
             columns.forEach((h, i) => w.put(ws.getCell(matHeaderRow, i + 2), h, {
-                size: PT.th, bold: true, color: COLOR.white, fill: COLOR.slate, border: box,
+                size: PT.th, bold: true, color: C.white, fill: C.slate, border: boxBorder,
                 align: { vertical: 'middle', horizontal: statusCol[i] ? 'center' : 'left', indent: statusCol[i] ? 0 : 1 },
             }));
             rows.forEach((r, ri) => {
@@ -491,11 +500,11 @@ async function generateCommercialExcel(rawInput, options = {}) {
                     const t = typed(v);
                     const isNum = typeof t.value === 'number';
                     w.put(ws.getCell(rowNo, ci + 2), v, {
-                        bold: ci === 0, color: ci === 0 ? COLOR.ink : COLOR.slate, border: box, plain: statusCol[ci],
+                        bold: ci === 0, color: ci === 0 ? C.ink : C.slate, border: boxBorder, plain: statusCol[ci],
                         align: { vertical: 'middle', horizontal: statusCol[ci] ? 'center' : isNum ? 'right' : 'left', indent: statusCol[ci] ? 0 : 1 },
                     });
                     if (lineCount(text, widths[ci], PT.body) > maxLinesPerRow(PT.body) || text.length > MAX_CELL_CHARS) {
-                        longCells.push({ where: `${exports.SHEETS.matrix}!${colLetter(ci + 2)}${rowNo}（${columns[ci]}）`, text });
+                        longCells.push({ where: `${SHEETS.matrix}!${colLetter(ci + 2)}${rowNo}（${columns[ci]}）`, text });
                         ws.getCell(rowNo, ci + 2).note = '長文のためセル内の表示は途中までです。数式バー、または 03_Detailed_Report の付録で全文を確認できます。';
                     }
                     h = Math.min(50, Math.max(h, rowHeight(text, widths[ci], PT.body, 20)));
@@ -507,20 +516,20 @@ async function generateCommercialExcel(rawInput, options = {}) {
             ws.autoFilter = `B${matHeaderRow}:${L}${last}`;
             statusCol.forEach((isS, i) => { if (isS && rows.length) {
                 const c = colLetter(i + 2);
-                cfStatus(ws, `${c}${matHeaderRow + 1}:${c}${last}`, `${c}${matHeaderRow + 1}`);
+                cfStatus(ws, C, `${c}${matHeaderRow + 1}:${c}${last}`, `${c}${matHeaderRow + 1}`);
             } });
             let r = last + 2;
             if (statusCol.some(Boolean)) {
-                w.merge(ws, r, 2, r, lastCol, '判定セルの色：◎・推奨・Go＝緑　｜　△・留意・Hold＝黄　｜　×・懸念・No-Go＝赤　｜　○・適合＝着色なし（標準）　※先頭の記号・語で判定し、値を編集すると色も追従します', { size: PT.meta, color: COLOR.muted, align: { wrapText: true } });
+                w.merge(ws, r, 2, r, lastCol, '判定セルの色：◎・推奨・Go＝緑　｜　△・留意・Hold＝黄　｜　×・懸念・No-Go＝赤　｜　○・適合＝着色なし（標準）　※先頭の記号・語で判定し、値を編集すると色も追従します', { size: PT.meta, color: C.muted, align: { wrapText: true } });
                 ws.getRow(r).height = rowHeight('判定セルの色：◎・推奨・Go＝緑　｜　△・留意・Hold＝黄　｜　×・懸念・No-Go＝赤　｜　○・適合＝着色なし（標準）　※先頭の記号・語で判定し、値を編集すると色も追従します', widths.reduce((a, b) => a + b, 0), PT.meta, 16);
                 r += 1;
             }
             // table の追加フィールド（出典メモ・注記など）
             flatten(extras(tbl, ['caption', 'columns', 'rows'])).forEach((line) => {
-                w.merge(ws, r, 2, r, lastCol, line.text, { size: PT.meta, color: COLOR.muted, align: { indent: line.depth } });
+                w.merge(ws, r, 2, r, lastCol, line.text, { size: PT.meta, color: C.muted, align: { indent: line.depth } });
                 r += 1;
             });
-            w.put(ws.getCell(r + 1, 2), w.jump('↑ 先頭へ戻る', exports.SHEETS.matrix, 'A1'), { size: PT.meta, color: COLOR.link, underline: true, align: { wrapText: false } });
+            w.put(ws.getCell(r + 1, 2), w.jump('↑ 先頭へ戻る', SHEETS.matrix, 'A1'), { size: PT.meta, color: C.link, underline: true, align: { wrapText: false } });
         }
         ws.views = view(matHeaderRow, 2);
         printSetup(ws, ctx, title, 'landscape', `${matHeaderRow}:${matHeaderRow}`);
@@ -592,11 +601,11 @@ async function generateCommercialExcel(rawInput, options = {}) {
         });
         widths.forEach((wd, i) => { ws.getColumn(i + 2).width = wd; });
         const lastCol = srcCols.length + 1;
-        sheetHeader(ws, w, lastCol, '一次出典・エビデンス一覧', `${title}　｜　出典 ${sources.length}件　｜　URL はクリックでブラウザが開きます`, true);
+        sheetHeader(ws, w, ctx, lastCol, '一次出典・エビデンス一覧', `${title}　｜　出典 ${sources.length}件　｜　URL はクリックでブラウザが開きます`, true);
         ws.getRow(4).height = 6;
         ws.getRow(srcHeaderRow).height = 24;
         srcCols.forEach((h, i) => w.put(ws.getCell(srcHeaderRow, i + 2), h, {
-            size: PT.th, bold: true, color: COLOR.white, fill: COLOR.slate, border: box,
+            size: PT.th, bold: true, color: C.white, fill: C.slate, border: boxBorder,
             align: { vertical: 'middle', horizontal: h === 'ID' || h === '信頼性スコア' || h === 'カテゴリ' ? 'center' : 'left', indent: h === 'ID' || h === '信頼性スコア' || h === 'カテゴリ' ? 0 : 1, wrapText: false },
         }));
         sources.forEach((s, ri) => {
@@ -626,9 +635,9 @@ async function generateCommercialExcel(rawInput, options = {}) {
                 const isCenter = colName === 'ID' || colName === '信頼性スコア' || colName === 'カテゴリ';
                 const isScore = colName === '信頼性スコア';
                 w.put(ws.getCell(r, ci + 2), v, {
-                    border: box,
+                    border: boxBorder,
                     bold: colName === 'ID',
-                    color: isUrl ? COLOR.link : colName === 'ID' ? COLOR.ink : COLOR.slate,
+                    color: isUrl ? C.link : colName === 'ID' ? C.ink : C.slate,
                     underline: isUrl,
                     numFmt: isScore ? '0' : undefined,
                     plain: isScore,
@@ -646,12 +655,12 @@ async function generateCommercialExcel(rawInput, options = {}) {
         const last = srcHeaderRow + Math.max(sources.length, 1);
         ws.autoFilter = `B${srcHeaderRow}:${colLetter(lastCol)}${last}`;
         if (sources.length)
-            cfScore(ws, `${scoreColLetter}${srcHeaderRow + 1}:${scoreColLetter}${last}`, `${scoreColLetter}${srcHeaderRow + 1}`);
+            cfScore(ws, C, `${scoreColLetter}${srcHeaderRow + 1}:${scoreColLetter}${last}`, `${scoreColLetter}${srcHeaderRow + 1}`);
         else
-            w.put(ws.getCell(srcHeaderRow + 1, 3), '出典データはありません。', { color: COLOR.muted });
+            w.put(ws.getCell(srcHeaderRow + 1, 3), '出典データはありません。', { color: C.muted });
         const lr = last + 2;
-        w.merge(ws, lr, 2, lr, lastCol, '信頼性スコア：85以上＝緑（高）　｜　70〜84＝黄（中）　｜　70未満＝赤（要確認）　※値を編集すると色も追従します', { size: PT.meta, color: COLOR.muted, align: { wrapText: false } });
-        w.put(ws.getCell(lr + 2, 2), w.jump('↑ 先頭へ戻る', exports.SHEETS.sources, 'A1'), { size: PT.meta, color: COLOR.link, underline: true, align: { wrapText: false } });
+        w.merge(ws, lr, 2, lr, lastCol, '信頼性スコア：85以上＝緑（高）　｜　70〜84＝黄（中）　｜　70未満＝赤（要確認）　※値を編集すると色も追従します', { size: PT.meta, color: C.muted, align: { wrapText: false } });
+        w.put(ws.getCell(lr + 2, 2), w.jump('↑ 先頭へ戻る', SHEETS.sources, 'A1'), { size: PT.meta, color: C.link, underline: true, align: { wrapText: false } });
         ws.views = view(srcHeaderRow, 2);
         printSetup(ws, ctx, title, 'landscape', `${srcHeaderRow}:${srcHeaderRow}`);
     }
@@ -668,7 +677,7 @@ async function generateCommercialExcel(rawInput, options = {}) {
         const ws = wsRep;
         ws.getColumn(1).width = 2;
         ws.getColumn(2).width = BODY_W;
-        sheetHeader(ws, w, 2, '詳細レポート（全セクション・全文）', `${title}　｜　${sections.length}セクション　｜　本文は要約せず、AIが記述した原文をそのまま掲載`, true);
+        sheetHeader(ws, w, ctx, 2, '詳細レポート（全セクション・全文）', `${title}　｜　${sections.length}セクション　｜　本文は要約せず、AIが記述した原文をそのまま掲載`, true);
         let r = 5;
         const writeText = (text, s, indent = 0) => {
             for (const chunk of splitForRows(text, BODY_W - indent * 2, s.size ?? PT.body)) {
@@ -681,33 +690,33 @@ async function generateCommercialExcel(rawInput, options = {}) {
             const heading = str(sec.heading) || `セクション ${i + 1}`;
             sectionRows.push({ heading, row: r });
             ws.getRow(r).height = Math.max(26, rowHeight(heading, BODY_W, PT.h2, 26));
-            w.put(ws.getCell(r, 2), heading, { size: PT.h2, bold: true, color: COLOR.ink, fill: COLOR.band, border: { bottom: thin }, align: { vertical: 'middle', indent: 1 } });
+            w.put(ws.getCell(r, 2), heading, { size: PT.h2, bold: true, color: C.ink, fill: C.band, border: { bottom: thinLine }, align: { vertical: 'middle', indent: 1 } });
             r += 1;
             ws.getRow(r).height = 6;
             r += 1;
             // 段落ごとに1行（空行で段落分け）。長い段落は文の切れ目で複数行に分割
             str(sec.body).split(/\n{2,}/).map((p) => p.replace(/^\n+|\n+$/g, '')).filter((p) => p.trim()).forEach((p) => {
-                writeText(p, { color: COLOR.slate }, 1);
+                writeText(p, { color: C.slate }, 1);
             });
             const bullets = Array.isArray(sec.bullets) ? sec.bullets : [];
             if (bullets.length) {
                 ws.getRow(r).height = 6;
                 r += 1;
-                bullets.forEach((b) => writeText('・' + str(b), { color: COLOR.slate }, 2));
+                bullets.forEach((b) => writeText('・' + str(b), { color: C.slate }, 2));
             }
             const ex = extras(sec, ['heading', 'body', 'bullets']);
             if (Object.keys(ex).length) {
                 ws.getRow(r).height = 6;
                 r += 1;
-                writeText('補足データ（原文のまま）', { size: PT.meta, bold: true, color: COLOR.muted }, 1);
-                flatten(ex).forEach((line) => writeText(line.text, { size: PT.meta, color: COLOR.slate }, 2 + Math.min(line.depth, 6)));
+                writeText('補足データ（原文のまま）', { size: PT.meta, bold: true, color: C.muted }, 1);
+                flatten(ex).forEach((line) => writeText(line.text, { size: PT.meta, color: C.slate }, 2 + Math.min(line.depth, 6)));
             }
-            w.put(ws.getCell(r, 2), w.jump('↑ 先頭へ戻る', exports.SHEETS.report, 'A1'), { size: PT.meta, color: COLOR.link, underline: true, align: { horizontal: 'right', wrapText: false } });
+            w.put(ws.getCell(r, 2), w.jump('↑ 先頭へ戻る', SHEETS.report, 'A1'), { size: PT.meta, color: C.link, underline: true, align: { horizontal: 'right', wrapText: false } });
             ws.getRow(r).height = 16;
             r += 2;
         });
         if (!sections.length) {
-            w.put(ws.getCell(r, 2), '詳細セクションのデータはありません。', { color: COLOR.muted });
+            w.put(ws.getCell(r, 2), '詳細セクションのデータはありません。', { color: C.muted });
             r += 2;
         }
         // 付録：スキーマ外のトップレベル項目／表示枠を超えた長文セル
@@ -718,17 +727,17 @@ async function generateCommercialExcel(rawInput, options = {}) {
         const extraLines = flatten(topExtras);
         if (extraLines.length || longCells.length) {
             appendixRow = r;
-            w.put(ws.getCell(r, 2), '付録：その他の調査データ（原文のまま）', { size: PT.h2, bold: true, color: COLOR.ink, fill: COLOR.band, border: { bottom: thin }, align: { vertical: 'middle', indent: 1 } });
+            w.put(ws.getCell(r, 2), '付録：その他の調査データ（原文のまま）', { size: PT.h2, bold: true, color: C.ink, fill: C.band, border: { bottom: thinLine }, align: { vertical: 'middle', indent: 1 } });
             ws.getRow(r).height = 26;
             r += 2;
-            extraLines.forEach((line) => writeText(line.text, { color: COLOR.slate }, 1 + Math.min(line.depth, 6)));
+            extraLines.forEach((line) => writeText(line.text, { color: C.slate }, 1 + Math.min(line.depth, 6)));
             longCells.forEach((lc) => {
                 r += 1;
-                writeText(`長文セルの全文：${lc.where}`, { size: PT.meta, bold: true, color: COLOR.muted }, 1);
-                lc.text.split(/\n{2,}/).filter((p) => p.trim()).forEach((p) => writeText(p, { color: COLOR.slate }, 2));
+                writeText(`長文セルの全文：${lc.where}`, { size: PT.meta, bold: true, color: C.muted }, 1);
+                lc.text.split(/\n{2,}/).filter((p) => p.trim()).forEach((p) => writeText(p, { color: C.slate }, 2));
             });
             r += 1;
-            w.put(ws.getCell(r, 2), w.jump('↑ 先頭へ戻る', exports.SHEETS.report, 'A1'), { size: PT.meta, color: COLOR.link, underline: true, align: { horizontal: 'right', wrapText: false } });
+            w.put(ws.getCell(r, 2), w.jump('↑ 先頭へ戻る', SHEETS.report, 'A1'), { size: PT.meta, color: C.link, underline: true, align: { horizontal: 'right', wrapText: false } });
         }
         ws.views = view(3, 0);
         printSetup(ws, ctx, title, 'portrait', '1:2');
@@ -743,13 +752,13 @@ async function generateCommercialExcel(rawInput, options = {}) {
         ws.getColumn(1).width = 2;
         for (let c = C1; c <= C2; c++)
             ws.getColumn(c).width = CW;
-        sheetHeader(ws, w, C2, title, metaLine || 'Research Report', false);
+        sheetHeader(ws, w, ctx, C2, title, metaLine || 'Research Report', false);
         let r = 4;
         // ---- レポート情報 ----
-        sectionBand(ws, w, r, C1, C2, 'レポート情報');
+        sectionBand(ws, w, ctx, r, C1, C2, 'レポート情報');
         r += 1;
-        const label = (row, col, text) => w.put(ws.getCell(row, col), text, { size: PT.meta, bold: true, color: COLOR.muted, fill: COLOR.band, border: box, align: { vertical: 'middle', indent: 1 } });
-        const value = (row, c1, c2, v, s = {}) => w.merge(ws, row, c1, row, c2, v, { border: box, ...s, align: { vertical: 'middle', horizontal: 'left', indent: 1, ...(s.align ?? {}) } });
+        const label = (row, col, text) => w.put(ws.getCell(row, col), text, { size: PT.meta, bold: true, color: C.muted, fill: C.band, border: boxBorder, align: { vertical: 'middle', indent: 1 } });
+        const value = (row, c1, c2, v, s = {}) => w.merge(ws, row, c1, row, c2, v, { border: boxBorder, ...s, align: { vertical: 'middle', horizontal: 'left', indent: 1, ...(s.align ?? {}) } });
         ws.getRow(r).height = 22;
         label(r, 2, '調査テーマ');
         value(r, 3, 5, data.theme ?? '');
@@ -767,29 +776,29 @@ async function generateCommercialExcel(rawInput, options = {}) {
         label(r, 6, '総合信頼度');
         value(r, 7, 9, score ?? '', { bold: true, size: PT.th, numFmt: '0" / 100"', plain: true });
         if (typeof score === 'number')
-            cfScore(ws, `G${r}:I${r}`, `G${r}`);
+            cfScore(ws, C, `G${r}:I${r}`, `G${r}`);
         r += 1;
         ws.getRow(r).height = 22;
         label(r, 2, '出典数');
-        value(r, 3, 5, { formula: `COUNTA('${exports.SHEETS.sources}'!B${srcFirst}:B${srcLast})`, result: sources.length }, { numFmt: '0"件"' });
+        value(r, 3, 5, { formula: `COUNTA('${SHEETS.sources}'!B${srcFirst}:B${srcLast})`, result: sources.length }, { numFmt: '0"件"' });
         label(r, 6, '平均信頼性');
         const nums = sources.map((s) => Number(s.score)).filter(Number.isFinite);
-        value(r, 7, 9, { formula: `IFERROR(AVERAGE('${exports.SHEETS.sources}'!${scoreColLetter}${srcFirst}:${scoreColLetter}${srcLast}),"—")`, result: nums.length ? Math.round((nums.reduce((a, b) => a + b, 0) / nums.length) * 10) / 10 : '—' }, { numFmt: '0.0" / 100"' });
+        value(r, 7, 9, { formula: `IFERROR(AVERAGE('${SHEETS.sources}'!${scoreColLetter}${srcFirst}:${scoreColLetter}${srcLast}),"—")`, result: nums.length ? Math.round((nums.reduce((a, b) => a + b, 0) / nums.length) * 10) / 10 : '—' }, { numFmt: '0.0" / 100"' });
         r += 1;
         if (data.generatedAt) {
-            w.merge(ws, r, 2, r, C2, `調査日時の原データ：${data.generatedAt}　｜　出典数・平均信頼性は 04_Sources_Data からの集計式（出典を追加・修正すると自動更新）`, { size: PT.meta, color: COLOR.muted, align: { wrapText: false } });
+            w.merge(ws, r, 2, r, C2, `調査日時の原データ：${data.generatedAt}　｜　出典数・平均信頼性は 04_Sources_Data からの集計式（出典を追加・修正すると自動更新）`, { size: PT.meta, color: C.muted, align: { wrapText: false } });
             r += 1;
         }
         r += 1;
         // ---- エグゼクティブサマリー ----
         if (str(data.summary).trim()) {
-            sectionBand(ws, w, r, C1, C2, 'エグゼクティブサマリー');
+            sectionBand(ws, w, ctx, r, C1, C2, 'エグゼクティブサマリー');
             r += 1;
             ws.getRow(r).height = 6;
             r += 1;
             str(data.summary).split(/\n{2,}/).filter((p) => p.trim()).forEach((p) => {
                 for (const chunk of splitForRows(p, FULL_W - 2, PT.body)) {
-                    w.merge(ws, r, C1, r, C2, chunk, { color: COLOR.slate, align: { vertical: 'top', wrapText: true, indent: 1 } });
+                    w.merge(ws, r, C1, r, C2, chunk, { color: C.slate, align: { vertical: 'top', wrapText: true, indent: 1 } });
                     ws.getRow(r).height = rowHeight(chunk, FULL_W - 2, PT.body, 18);
                     r += 1;
                 }
@@ -799,7 +808,7 @@ async function generateCommercialExcel(rawInput, options = {}) {
         // ---- 主要KPI（2列×4枚のカード。件数に応じて行を追加） ----
         const metrics = Array.isArray(data.metrics) ? data.metrics : [];
         if (metrics.length) {
-            sectionBand(ws, w, r, C1, C2, '主要KPI・数値ハイライト');
+            sectionBand(ws, w, ctx, r, C1, C2, '主要KPI・数値ハイライト');
             r += 1;
             ws.getRow(r).height = 6;
             r += 1;
@@ -811,9 +820,9 @@ async function generateCommercialExcel(rawInput, options = {}) {
                 ws.getRow(r + 2).height = Math.max(18, ...notes.map((n) => rowHeight(n, CW * 2, PT.meta, 18)));
                 group.forEach((m, k) => {
                     const c = C1 + k * 2;
-                    w.merge(ws, r, c, r, c + 1, m.label, { size: PT.meta, bold: true, color: COLOR.muted, fill: COLOR.band, border: { top: thin, left: thin, right: thin }, align: { vertical: 'middle', indent: 1 } });
-                    w.merge(ws, r + 1, c, r + 1, c + 1, m.value, { size: PT.kpi, bold: true, color: COLOR.ink, border: { left: thin, right: thin }, align: { vertical: 'middle', horizontal: 'left', indent: 1 } });
-                    w.merge(ws, r + 2, c, r + 2, c + 1, notes[k], { size: PT.meta, color: COLOR.muted, border: { left: thin, right: thin, bottom: thin }, align: { vertical: 'top', indent: 1 } });
+                    w.merge(ws, r, c, r, c + 1, m.label, { size: PT.meta, bold: true, color: C.muted, fill: C.band, border: { top: thinLine, left: thinLine, right: thinLine }, align: { vertical: 'middle', indent: 1 } });
+                    w.merge(ws, r + 1, c, r + 1, c + 1, m.value, { size: PT.kpi, bold: true, color: C.ink, border: { left: thinLine, right: thinLine }, align: { vertical: 'middle', horizontal: 'left', indent: 1 } });
+                    w.merge(ws, r + 2, c, r + 2, c + 1, notes[k], { size: PT.meta, color: C.muted, border: { left: thinLine, right: thinLine, bottom: thinLine }, align: { vertical: 'top', indent: 1 } });
                 });
                 r += 4;
             }
@@ -821,7 +830,7 @@ async function generateCommercialExcel(rawInput, options = {}) {
         // ---- 意思決定の示唆・推奨アクション ----
         const dec = isPlainObject(data.decision) ? data.decision : null;
         if (dec) {
-            sectionBand(ws, w, r, C1, C2, '意思決定の示唆・推奨アクション');
+            sectionBand(ws, w, ctx, r, C1, C2, '意思決定の示唆・推奨アクション');
             r += 1;
             ws.getRow(r).height = 6;
             r += 1;
@@ -830,19 +839,19 @@ async function generateCommercialExcel(rawInput, options = {}) {
             ws.getRow(r).height = Math.max(26, rowHeight(qText, CW * 5, PT.body, 26));
             label(r, 2, '判定');
             const vc = w.merge(ws, r, 3, r, 4, vk ? VERDICT_LABEL[vk] : str(dec.verdict) || '—', {
-                size: PT.th, bold: true, plain: true, border: box,
-                fill: vk ? COLOR[vk].bg : undefined, color: vk ? COLOR[vk].fg : COLOR.slate, align: { vertical: 'middle', horizontal: 'center' },
+                size: PT.th, bold: true, plain: true, border: boxBorder,
+                fill: vk ? C[vk].bg : undefined, color: vk ? C[vk].fg : C.slate, align: { vertical: 'middle', horizontal: 'center' },
             });
             if (vk && dec.verdict !== undefined)
                 vc.note = `原データ：${str(dec.verdict)}`;
-            w.merge(ws, r, 5, r, C2, qText ? `論点：${qText}` : '', { color: COLOR.ink, bold: true, border: box, align: { vertical: 'middle', indent: 1 } });
+            w.merge(ws, r, 5, r, C2, qText ? `論点：${qText}` : '', { color: C.ink, bold: true, border: boxBorder, align: { vertical: 'middle', indent: 1 } });
             r += 1;
             const asks = Array.isArray(dec.asks) ? dec.asks : [];
             if (asks.length) {
                 const start = r;
                 asks.forEach((a) => {
                     for (const chunk of splitForRows('・' + str(a), CW * 7 - 2, PT.body)) {
-                        w.merge(ws, r, 3, r, C2, chunk, { color: COLOR.slate, border: { bottom: thin, right: thin }, align: { vertical: 'middle', indent: 1 } });
+                        w.merge(ws, r, 3, r, C2, chunk, { color: C.slate, border: { bottom: thinLine, right: thinLine }, align: { vertical: 'middle', indent: 1 } });
                         ws.getRow(r).height = rowHeight(chunk, CW * 7 - 2, PT.body, 22);
                         r += 1;
                     }
@@ -851,13 +860,13 @@ async function generateCommercialExcel(rawInput, options = {}) {
                 label(start, 2, '推奨アクション\n承認依頼事項');
                 for (let k = start; k < r; k++) {
                     const cl = ws.getCell(k, 2);
-                    cl.fill = solid(COLOR.band);
-                    cl.border = box;
+                    cl.fill = solid(C.band);
+                    cl.border = boxBorder;
                 }
             }
             flatten(extras(dec, ['verdict', 'question', 'asks'])).forEach((line) => {
                 ws.getRow(r).height = rowHeight(line.text, CW * 7 - 2, PT.body, 22);
-                w.merge(ws, r, 3, r, C2, line.text, { color: COLOR.slate, border: box, align: { vertical: 'middle', indent: 1 + Math.min(line.depth, 6) } });
+                w.merge(ws, r, 3, r, C2, line.text, { color: C.slate, border: boxBorder, align: { vertical: 'middle', indent: 1 + Math.min(line.depth, 6) } });
                 label(r, 2, '補足');
                 r += 1;
             });
@@ -865,26 +874,26 @@ async function generateCommercialExcel(rawInput, options = {}) {
         }
         // ---- 目次（シート・セクションへのリンク） ----
         tocRow = r;
-        sectionBand(ws, w, r, C1, C2, '目次（クリックで各シート・各セクションへ移動）');
+        sectionBand(ws, w, ctx, r, C1, C2, '目次（クリックで各シート・各セクションへ移動）');
         r += 1;
         const tocLine = (text, target, desc, indent = 0) => {
             ws.getRow(r).height = 20;
-            w.merge(ws, r, 2, r, 4, w.jump(text, target[0], target[1]), { color: COLOR.link, underline: true, border: { bottom: thin }, align: { vertical: 'middle', indent: 1 + indent, wrapText: false } });
-            w.merge(ws, r, 5, r, C2, desc, { size: PT.meta, color: COLOR.muted, border: { bottom: thin }, align: { vertical: 'middle', indent: 1, wrapText: false } });
+            w.merge(ws, r, 2, r, 4, w.jump(text, target[0], target[1]), { color: C.link, underline: true, border: { bottom: thinLine }, align: { vertical: 'middle', indent: 1 + indent, wrapText: false } });
+            w.merge(ws, r, 5, r, C2, desc, { size: PT.meta, color: C.muted, border: { bottom: thinLine }, align: { vertical: 'middle', indent: 1, wrapText: false } });
             r += 1;
         };
-        tocLine('02  比較分析表', [exports.SHEETS.matrix, 'A1'], `${str(tbl.caption) || '比較表'}（${rows.length}行 × ${columns.length}列・フィルター付き）`);
-        tocLine('03  詳細レポート（全文）', [exports.SHEETS.report, 'A1'], `${sections.length}セクションの本文を要約せずに掲載`);
+        tocLine('02  比較分析表', [SHEETS.matrix, 'A1'], `${str(tbl.caption) || '比較表'}（${rows.length}行 × ${columns.length}列・フィルター付き）`);
+        tocLine('03  詳細レポート（全文）', [SHEETS.report, 'A1'], `${sections.length}セクションの本文を要約せずに掲載`);
         sectionRows.forEach((s) => {
             ws.getRow(r).height = 18;
-            w.merge(ws, r, 3, r, C2, w.jump(s.heading, exports.SHEETS.report, `B${s.row}`), { size: PT.meta, color: COLOR.link, underline: true, align: { vertical: 'middle', indent: 1, wrapText: false } });
+            w.merge(ws, r, 3, r, C2, w.jump(s.heading, SHEETS.report, `B${s.row}`), { size: PT.meta, color: C.link, underline: true, align: { vertical: 'middle', indent: 1, wrapText: false } });
             r += 1;
         });
         if (appendixRow)
-            tocLine('　　付録：その他の調査データ', [exports.SHEETS.report, `B${appendixRow}`], 'スキーマ外の項目・長文セルの全文');
-        tocLine('04  一次出典・エビデンス', [exports.SHEETS.sources, 'A1'], `出典 ${sources.length}件（URLはクリックで開く）`);
+            tocLine('　　付録：その他の調査データ', [SHEETS.report, `B${appendixRow}`], 'スキーマ外の項目・長文セルの全文');
+        tocLine('04  一次出典・エビデンス', [SHEETS.sources, 'A1'], `出典 ${sources.length}件（URLはクリックで開く）`);
         r += 1;
-        w.merge(ws, r, 2, r + 1, C2, '本ブックは、AIが収集した事実・論述を原文のまま格納しています。本シートは要約であり、根拠と詳細は 03_Detailed_Report（全文）と 04_Sources_Data（一次出典）で確認できます。内容の正確性は出典の原文で確認してください。', { size: PT.meta, color: COLOR.muted, align: { vertical: 'top', wrapText: true } });
+        w.merge(ws, r, 2, r + 1, C2, '本ブックは、AIが収集した事実・論述を原文のまま格納しています。本シートは要約であり、根拠と詳細は 03_Detailed_Report（全文）と 04_Sources_Data（一次出典）で確認できます。内容の正確性は出典の原文で確認してください。', { size: PT.meta, color: C.muted, align: { vertical: 'top', wrapText: true } });
         ws.getRow(r).height = 14;
         ws.getRow(r + 1).height = 14;
         ws.views = view(2, 0);
@@ -892,7 +901,7 @@ async function generateCommercialExcel(rawInput, options = {}) {
     }
     // 各シートの「目次へ戻る」をサマリーの目次行に向け直す
     [wsMat, wsRep, wsSrc].forEach((ws) => {
-        ws.getCell(3, 2).value = w.jump('◀ 目次へ戻る（01_Executive_Summary）', exports.SHEETS.summary, `B${tocRow}`);
+        ws.getCell(3, 2).value = w.jump('◀ 目次へ戻る（01_Executive_Summary）', SHEETS.summary, `B${tocRow}`);
     });
     return wb;
 }

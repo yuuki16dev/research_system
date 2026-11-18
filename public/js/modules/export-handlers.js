@@ -32,6 +32,34 @@ let pdfPreviewZoom = 1.0;
 let isSlideEditMode = false;
 let currentPdfTemplate = 'slide-deck';
 
+function getBaseStageWidth() {
+  return (currentPdfTemplate === 'decision-brief' || currentPdfTemplate === 'research-report') ? 820 : 1140;
+}
+
+function getTemplateDisplayLabel(tpl) {
+  if (tpl === 'research-report') return '調査白書';
+  if (tpl === 'decision-brief') return 'ペーパー';
+  return 'スライド';
+}
+
+function getEditButtonLabel(tpl) {
+  if (tpl === 'research-report') return '白書直接編集';
+  if (tpl === 'decision-brief') return 'ペーパー直接編集';
+  return 'スライド直接編集';
+}
+
+function updateZoom(z) {
+  const stageInner = $('#pdf-stage-inner');
+  const zoomText = $('#zoom-level-text');
+  pdfPreviewZoom = Math.max(0.4, Math.min(2.0, z));
+  if (stageInner) {
+    stageInner.style.transform = `scale(${pdfPreviewZoom})`;
+  }
+  if (zoomText) {
+    zoomText.textContent = `${Math.round(pdfPreviewZoom * 100)}%`;
+  }
+}
+
 function getBrandConfig() {
   const s = appState.settings || {};
   return {
@@ -131,7 +159,12 @@ export function bindExportActions(onOpenHistory) {
     btnEhPptx.addEventListener('click', async () => {
       if (!appState.currentResult) return;
       closeModal('modal-export-hub');
-      exportPowerPoint(appState.currentResult, getBrandConfig());
+      try {
+        await exportPowerPoint(appState.currentResult, getBrandConfig());
+      } catch (err) {
+        console.error('Hub PPTX export error:', err);
+        toast(`PPTX出力に失敗しました: ${err.message || ''}`, 'error');
+      }
     });
   }
 
@@ -141,7 +174,12 @@ export function bindExportActions(onOpenHistory) {
     btnEhXlsx.addEventListener('click', async () => {
       if (!appState.currentResult) return;
       closeModal('modal-export-hub');
-      exportExcel(appState.currentResult, getBrandConfig());
+      try {
+        await exportExcel(appState.currentResult, getBrandConfig());
+      } catch (err) {
+        console.error('Hub Excel export error:', err);
+        toast(`Excel出力に失敗しました: ${err.message || ''}`, 'error');
+      }
     });
   }
 
@@ -432,6 +470,60 @@ export function syncSlideDomToState(stageInner) {
   const doc = stageInner.querySelector('.doc');
   const deck = stageInner.querySelector('.deck');
 
+  // 調査白書 (.doc.research-report) の同期
+  if (doc && doc.classList.contains('research-report')) {
+    const cvTitle = doc.querySelector('.cv-title');
+    if (cvTitle && cvTitle.innerText.trim()) r.title = cvTitle.innerText.trim();
+    const cvSub = doc.querySelector('.cv-sub');
+    if (cvSub) r.subtitle = cvSub.innerText.trim();
+    const leadEl = doc.querySelector('.lead');
+    if (leadEl && leadEl.innerText.trim()) r.summary = leadEl.innerText.trim();
+
+    const kpiCards = doc.querySelectorAll('.kpi');
+    if (kpiCards.length && Array.isArray(r.metrics)) {
+      kpiCards.forEach((card, idx) => {
+        if (!r.metrics[idx]) r.metrics[idx] = {};
+        const l = card.querySelector('.lbl');
+        const v = card.querySelector('.v');
+        const c = card.querySelector('.cap');
+        if (l) r.metrics[idx].label = l.innerText.trim();
+        if (v) r.metrics[idx].value = v.innerText.trim();
+        if (c) r.metrics[idx].note = c.innerText.trim();
+      });
+    }
+
+    const kpItems = doc.querySelectorAll('.points li');
+    if (kpItems.length && Array.isArray(r.keyPoints)) {
+      kpItems.forEach((li, idx) => {
+        if (idx < r.keyPoints.length) {
+          r.keyPoints[idx] = li.innerText.replace(/^[•・]\s*/, '').trim();
+        }
+      });
+    }
+
+    const chapterBodies = doc.querySelectorAll('.chapter-body');
+    if (chapterBodies.length && Array.isArray(r.sections)) {
+      chapterBodies.forEach((bodyEl, idx) => {
+        if (!r.sections[idx]) r.sections[idx] = {};
+        r.sections[idx].body = bodyEl.innerText.trim();
+        const prev = bodyEl.previousElementSibling;
+        const h2 = prev && prev.matches('.sec-head') ? prev.querySelector('h2') : null;
+        if (h2 && h2.innerText.trim()) r.sections[idx].heading = h2.innerText.trim();
+      });
+    }
+
+    const matrixRows = doc.querySelectorAll('.tbl.criteria tbody tr');
+    if (matrixRows.length && r.table && Array.isArray(r.table.rows)) {
+      matrixRows.forEach((tr, rIdx) => {
+        if (!r.table.rows[rIdx]) r.table.rows[rIdx] = [];
+        tr.querySelectorAll('td').forEach((td, cIdx) => {
+          r.table.rows[rIdx][cIdx] = td.innerText.trim();
+        });
+      });
+    }
+    return;
+  }
+
   // A4縦意思決定ペーパー (.doc) の同期
   if (doc) {
     const titleEl = doc.querySelector('.mh-title');
@@ -593,6 +685,19 @@ function setSlideEditable(container, editable) {
     '.sources-list .t',
     '.checks li',
     '.fineprint',
+    // Research Report (White Paper)
+    '.cv-title',
+    '.cv-sub',
+    '.lead',
+    '.kpi .lbl',
+    '.kpi .v',
+    '.kpi .cap',
+    '.points li',
+    '.sec-head h2',
+    '.chapter-body',
+    '.tbl.criteria th',
+    '.tbl.criteria td',
+    '.disclaimer-box',
   ];
 
   const targets = container.querySelectorAll(editableSelectors.join(', '));
@@ -609,21 +714,6 @@ function setSlideEditable(container, editable) {
 /** 商用レポートPDF プレビューモーダル */
 export function bindPdfPreviewModal() {
   const stageInner = $('#pdf-stage-inner');
-  const zoomText = $('#zoom-level-text');
-
-  function updateZoom(z) {
-    pdfPreviewZoom = Math.max(0.4, Math.min(2.0, z));
-    if (stageInner) {
-      stageInner.style.transform = `scale(${pdfPreviewZoom})`;
-    }
-    if (zoomText) {
-      zoomText.textContent = `${Math.round(pdfPreviewZoom * 100)}%`;
-    }
-  }
-
-  function getBaseStageWidth() {
-    return currentPdfTemplate === 'decision-brief' ? 820 : 1140;
-  }
 
   const btnZoomIn = $('#btn-zoom-in');
   if (btnZoomIn) {
@@ -662,14 +752,9 @@ export function bindPdfPreviewModal() {
       const rec = resolveOptimalPdfTemplate(appState.currentResult);
       const aiBadge = $('#pdf-template-ai-badge');
       if (aiBadge) {
-        if (currentPdfTemplate === rec.template) {
-          aiBadge.style.display = 'inline-flex';
-          const tplLabel = rec.template === 'research-report' ? '調査白書' : (rec.template === 'decision-brief' ? 'ペーパー' : 'スライド');
-    aiBadge.textContent = `✨ AI推奨: ${tplLabel}`;
-        } else {
-          aiBadge.style.display = 'inline-flex';
-          aiBadge.textContent = `💡 AI推奨は${rec.template === 'decision-brief' ? 'ペーパー' : 'スライド'}`;
-        }
+        aiBadge.style.display = 'inline-flex';
+        const tplLabel = getTemplateDisplayLabel(rec.template);
+        aiBadge.textContent = currentPdfTemplate === rec.template ? `✨ AI推奨: ${tplLabel}` : `💡 AI推奨は${tplLabel}`;
       }
 
       // 編集モードのリセットとラベル更新
@@ -678,7 +763,7 @@ export function bindPdfPreviewModal() {
       const btnSlideEditLabel = $('#btn-slide-toggle-edit-label');
       if (btnSlideEdit) btnSlideEdit.classList.remove('active');
       if (btnSlideEditLabel) {
-        btnSlideEditLabel.textContent = currentPdfTemplate === 'decision-brief' ? 'ペーパー直接編集' : 'スライド直接編集';
+        btnSlideEditLabel.textContent = getEditButtonLabel(currentPdfTemplate);
       }
 
       // 自動ズーム調整
@@ -699,7 +784,7 @@ export function bindPdfPreviewModal() {
       const container = stageInner ? (stageInner.querySelector('.doc') || stageInner.querySelector('.deck')) : null;
       if (!container) return;
 
-      const editTypeName = currentPdfTemplate === 'decision-brief' ? 'ペーパー' : 'スライド';
+      const editTypeName = getTemplateDisplayLabel(currentPdfTemplate);
 
       isSlideEditMode = !isSlideEditMode;
       if (isSlideEditMode) {
@@ -711,7 +796,7 @@ export function bindPdfPreviewModal() {
         syncSlideDomToState(stageInner);
         btnSlideEdit.classList.remove('active');
         if (btnSlideEditLabel) {
-          btnSlideEditLabel.textContent = currentPdfTemplate === 'decision-brief' ? 'ペーパー直接編集' : 'スライド直接編集';
+          btnSlideEditLabel.textContent = getEditButtonLabel(currentPdfTemplate);
         }
         setSlideEditable(container, false);
         toast(`💾 ${editTypeName}の編集内容を保存しました！PDF出力に即時反映されます`, 'success');
@@ -782,16 +867,13 @@ export function openPdfPreview(data, publisher, forceTemplate = null) {
   const aiBadge = $('#pdf-template-ai-badge');
   if (aiBadge) {
     aiBadge.style.display = 'inline-flex';
-    const tplLabel = rec.template === 'research-report' ? '調査白書' : (rec.template === 'decision-brief' ? 'ペーパー' : 'スライド');
+    const tplLabel = getTemplateDisplayLabel(rec.template);
     aiBadge.textContent = `✨ AI推奨: ${tplLabel}`;
     aiBadge.title = rec.reason;
   }
 
   stageInner.innerHTML = buildPdfHtml(data, publisher, currentPdfTemplate);
-  pdfPreviewZoom = 1.0;
-  stageInner.style.transform = 'scale(1.0)';
-  const zoomText = $('#zoom-level-text');
-  if (zoomText) zoomText.textContent = '100%';
+  updateZoom(1.0);
 
   // 編集モードのリセット
   isSlideEditMode = false;
@@ -799,7 +881,7 @@ export function openPdfPreview(data, publisher, forceTemplate = null) {
   const btnSlideEditLabel = $('#btn-slide-toggle-edit-label');
   if (btnSlideEdit) btnSlideEdit.classList.remove('active');
   if (btnSlideEditLabel) {
-    btnSlideEditLabel.textContent = currentPdfTemplate === 'decision-brief' ? 'ペーパー直接編集' : 'スライド直接編集';
+    btnSlideEditLabel.textContent = getEditButtonLabel(currentPdfTemplate);
   }
   const container = stageInner.querySelector('.doc') || stageInner.querySelector('.deck');
   if (container) setSlideEditable(container, false);
@@ -809,8 +891,7 @@ export function openPdfPreview(data, publisher, forceTemplate = null) {
   setTimeout(() => {
     const stage = $('#pdf-stage');
     if (stage) {
-      const baseWidth = currentPdfTemplate === 'decision-brief' ? 820 : 1140;
-      const fitScale = Math.min(1.0, Math.max(0.35, (stage.clientWidth - 48) / baseWidth));
+      const fitScale = Math.min(1.0, Math.max(0.35, (stage.clientWidth - 48) / getBaseStageWidth()));
       updateZoom(fitScale);
     }
   }, 80);

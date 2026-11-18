@@ -1,5 +1,7 @@
 'use strict';
 
+import { hydrateIcons } from '../ui.js';
+
 /**
  * Research Studio — スマートスクロール・ヘッダーマネージャー (v1.19.2)
  * スクロール時に画面上部の専有面積を約77%削減し、レポート閲覧領域を最大化
@@ -71,12 +73,20 @@ export function initSmartHeader() {
         exportBar.classList.remove('is-sticky-slim');
         exportBar.classList.add('is-expanded');
         isManualExpanded = true;
-        if (toggleIcon) toggleIcon.setAttribute('data-icon', 'chevron-up');
+        if (toggleIcon) {
+          toggleIcon.setAttribute('data-icon', 'chevron-up');
+          delete toggleIcon.dataset.hydrated;
+          hydrateIcons(toggleBtn);
+        }
       } else {
         exportBar.classList.add('is-sticky-slim');
         exportBar.classList.remove('is-expanded');
         isManualExpanded = false;
-        if (toggleIcon) toggleIcon.setAttribute('data-icon', 'chevron-down');
+        if (toggleIcon) {
+          toggleIcon.setAttribute('data-icon', 'chevron-down');
+          delete toggleIcon.dataset.hydrated;
+          hydrateIcons(toggleBtn);
+        }
       }
     });
   }

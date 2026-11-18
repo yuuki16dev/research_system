@@ -21,16 +21,14 @@ const filesToInclude = [
   { src: path.join(ROOT, 'stop.bat'), dest: path.join(pkgDir, 'stop.bat') },
   { src: path.join(ROOT, '.env.example'), dest: path.join(pkgDir, '.env.example') },
   { src: path.join(ROOT, 'はじめにお読みください.txt'), dest: path.join(pkgDir, 'はじめにお読みください.txt') },
-  { src: path.join(ROOT, 'はじめにお読みください.txt'), dest: path.join(pkgDir, 'README_FIRST.txt') },
 ];
 
 for (const file of filesToInclude) {
-  if (fs.existsSync(file.src)) {
-    fs.copyFileSync(file.src, file.dest);
-    console.log(`  + Added: ${path.basename(file.dest)}`);
-  } else {
-    console.warn(`  ! Missing source file: ${file.src}`);
+  if (!fs.existsSync(file.src)) {
+    throw new Error(`Missing required release source file: ${file.src}`);
   }
+  fs.copyFileSync(file.src, file.dest);
+  console.log(`  + Added: ${path.basename(file.dest)}`);
 }
 
 if (fs.existsSync(zipPath)) {

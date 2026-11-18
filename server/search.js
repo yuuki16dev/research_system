@@ -2,25 +2,9 @@
 
 const env = require('./env');
 const cache = require('./cache');
-const { domainOf } = require('./util');
+const { domainOf, combineSignals } = require('./util');
 const { safeFetch } = require('./security');
 const { assertPublicUrl } = require('./url-guard');
-
-// Node.js 18.x 互換用 AbortSignal.any ポリフィル
-if (typeof AbortSignal.any !== 'function') {
-  AbortSignal.any = function (signals) {
-    const controller = new AbortController();
-    for (const signal of signals) {
-      if (!signal) continue;
-      if (signal.aborted) {
-        controller.abort(signal.reason);
-        return controller.signal;
-      }
-      signal.addEventListener('abort', () => controller.abort(signal.reason), { once: true });
-    }
-    return controller.signal;
-  };
-}
 
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
@@ -43,8 +27,7 @@ function stripTags(s = '') {
 }
 
 function withTimeout(signal, ms) {
-  const t = AbortSignal.timeout(ms);
-  return signal ? AbortSignal.any([signal, t]) : t;
+  return combineSignals([signal, AbortSignal.timeout(ms)]);
 }
 
 /* ---------------------------------------------------------------- Tavily */
@@ -167,13 +150,15 @@ async function ddgSearch({ query, maxResults = 5, df, signal }) {
     }
   }
 
-  // 3. パース処理
-  const anchorRe = /<a[^>]*class="[^"]*result__a[^"]*"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
-  const matches = [...html.matchAll(anchorRe)];
+  // 3. パース処理 (属性順 href / class 非依存)
+  const anchorRe = /<a\b([^>]*)>([\s\S]*?)<\/a>/gi;
+  const matches = [...html.matchAll(anchorRe)].filter((m) => /class=["'][^"']*result__a\b/i.test(m[1]));
   const results = [];
   for (let i = 0; i < matches.length && results.length < maxResults; i++) {
     const m = matches[i];
-    const url = unwrapDdgUrl(m[1]);
+    const hrefMatch = /href=["']([^"']+)["']/i.exec(m[1]);
+    if (!hrefMatch) continue;
+    const url = unwrapDdgUrl(hrefMatch[1]);
     if (!/^https?:\/\//.test(url) || /duckduckgo\.com\/y\.js/.test(url)) continue;
     const segEnd = i + 1 < matches.length ? matches[i + 1].index : m.index + 4000;
     const seg = html.slice(m.index, segEnd);
@@ -223,14 +208,6 @@ async function run({ provider, apiKey, query, site, sns, maxResults, deep, timeR
 }
 
 /* ------------------------------------------------------------ page fetch */
-
-function detectCharset(contentType, headBytes) {
-  const m = /charset=([\w-]+)/i.exec(contentType || '');
-  if (m) return m[1].toLowerCase();
-  const head = Buffer.from(headBytes).toString('latin1');
-  const mm = /<meta[^>]+charset=["']?([\w-]+)/i.exec(head);
-  return mm ? mm[1].toLowerCase() : 'utf-8';
-}
 
 function extractText(html) {
   const titleM = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html);

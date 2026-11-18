@@ -2,7 +2,7 @@
 // Research Studio — 閲覧専用シェアレポート クライアントスクリプト (v2.10.0)
 // ==========================================================================
 
-import { hydrateIcons, toast } from './ui.js';
+import { hydrateIcons, toast, downloadBlob, safeFilename } from './ui.js';
 import { renderReport } from './render.js';
 import { exportPDF, exportExcel, buildMarkdown, buildPlainText } from './exporters.js';
 
@@ -11,21 +11,14 @@ let currentReportData = null;
 function getReportIdFromUrl() {
   const parts = window.location.pathname.split('/share/');
   if (parts.length > 1) {
-    return parts[1].replace(/\/+$/, '').trim();
+    const raw = parts[1].replace(/\/+$/, '').trim();
+    try {
+      return decodeURIComponent(raw);
+    } catch {
+      return raw;
+    }
   }
   return '';
-}
-
-function downloadFile(filename, text, mime = 'text/plain;charset=utf-8') {
-  const blob = new Blob([text], { type: mime });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function bindExportActions(report) {
@@ -50,8 +43,7 @@ function bindExportActions(report) {
     btnXlsx.addEventListener('click', async () => {
       try {
         toast('Excelファイルを生成中…', 'info');
-        await exportExcel(report, { publisher: report.publisher || 'Research Studio' });
-        toast('Excelを保存しました', 'success');
+        await exportExcel(report, { publisherName: report.publisher || 'Research Studio' });
       } catch (err) {
         console.error('Excel export error:', err);
         toast('Excelの出力に失敗しました', 'error');
@@ -63,8 +55,8 @@ function bindExportActions(report) {
     btnMd.addEventListener('click', () => {
       try {
         const md = buildMarkdown(report);
-        const filename = `${report.theme || 'research'}_report.md`;
-        downloadFile(filename, md, 'text/markdown;charset=utf-8');
+        const filename = `${safeFilename(report.title || report.theme)}_report.md`;
+        downloadBlob(new Blob([md], { type: 'text/markdown;charset=utf-8' }), filename);
         toast('Markdownを保存しました', 'success');
       } catch (err) {
         console.error('MD export error:', err);
@@ -77,8 +69,8 @@ function bindExportActions(report) {
     btnTxt.addEventListener('click', () => {
       try {
         const txt = buildPlainText(report);
-        const filename = `${report.theme || 'research'}_report.txt`;
-        downloadFile(filename, txt, 'text/plain;charset=utf-8');
+        const filename = `${safeFilename(report.title || report.theme)}_report.txt`;
+        downloadBlob(new Blob([txt], { type: 'text/plain;charset=utf-8' }), filename);
         toast('テキストを保存しました', 'success');
       } catch (err) {
         console.error('Text export error:', err);
@@ -104,7 +96,7 @@ async function initSharePage() {
   }
 
   try {
-    const res = await fetch(`/api/share/${reportId}`);
+    const res = await fetch(`/api/share/${encodeURIComponent(reportId)}`);
     if (!res.ok) {
       throw new Error(`Report not found (${res.status})`);
     }

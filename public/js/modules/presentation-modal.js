@@ -3,7 +3,8 @@
 // 企画書テキスト ＆ ファイル読み込み（txt, md, xlsx, pdf等）からスライドを生成
 // ==========================================================================
 
-import { $, toast, copyText, openModal, closeModal } from '../ui.js';
+import { $, esc, toast, copyText, hydrateIcons, openModal, closeModal } from '../ui.js';
+import { getAuthHeaders } from '../api.js';
 import { appState } from './state.js';
 import { openPdfPreview } from './export-handlers.js';
 
@@ -55,7 +56,13 @@ export function initPresentationModal() {
 
     const title = res.title || res.theme || 'リサーチ結果';
     const summary = res.summary || '';
-    const insights = (res.insights || []).map((ins, i) => `${i + 1}. 【${ins.badge || '要点'}】${ins.title}\n   ${ins.desc || ins.body || ''}`).join('\n\n');
+    const insights = (res.insights || [])
+      .map((ins, i) =>
+        typeof ins === 'string'
+          ? `${i + 1}. ${ins}`
+          : `${i + 1}. 【${ins.badge || ins.priority || '要点'}】${ins.title || ''}\n   ${ins.desc || ins.body || ''}`
+      )
+      .join('\n\n');
     const tableInfo = res.table && res.table.columns && res.table.rows ? `\n\n【構造化データ】:\n${res.table.columns.join(' | ')}\n${res.table.rows.map(r => r.join(' | ')).join('\n')}` : '';
 
     docInput.value = `# タイトル: ${title}
@@ -97,7 +104,7 @@ ${insights}${tableInfo}
       .map(
         (f, idx) => `
         <span class="pres-file-tag">
-          <span>📄 ${f.name}</span>
+          <span>📄 ${esc(f.name)}</span>
           <span class="file-size">(${formatBytes(f.size)})</span>
           <button type="button" class="btn-remove-file" data-idx="${idx}" title="削除" aria-label="ファイルを削除">×</button>
         </span>
@@ -287,11 +294,11 @@ ${insights}${tableInfo}
 
       try {
         btnGenPrompt.disabled = true;
-        btnGenPrompt.innerHTML = '<span class="loading-spinner sm"></span> 生成中…';
+        btnGenPrompt.innerHTML = '<span class="rs-spinner-sm"></span> 生成中…';
 
         const res = await fetch('/api/presentation/prompt', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({
             document: doc,
             audience,
@@ -318,6 +325,7 @@ ${insights}${tableInfo}
       } finally {
         btnGenPrompt.disabled = false;
         btnGenPrompt.innerHTML = '<span data-icon="copy"></span> プロンプトを生成・コピー';
+        hydrateIcons(btnGenPrompt);
       }
     });
   }
@@ -342,7 +350,7 @@ ${insights}${tableInfo}
 
         const res = await fetch('/api/presentation/generate', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({
             document: doc,
             audience,

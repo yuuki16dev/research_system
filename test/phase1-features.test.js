@@ -58,29 +58,30 @@ test('query-polisher: generateQuerySuggestions produces multi-angle search chips
   });
 });
 
-test('share-formats: buildSlackFormat produces formatted chat summary', async () => {
-  const { buildSlackFormat } = await import('../public/js/modules/share-formats.js');
+test('exporters: buildSlackSummary produces formatted chat summary', async () => {
+  const { buildSlackSummary } = await import('../public/js/exporters.js');
 
-  const text = buildSlackFormat(mockReport);
+  const text = buildSlackSummary(mockReport);
   assert.ok(text.includes('企業における生成AI業務活用の最新動向とROI分析'));
-  assert.ok(text.includes('エグゼクティブ要約'));
-  assert.ok(text.includes('主要ポイント'));
-  assert.ok(text.includes('重要指標'));
+  assert.ok(text.includes('エグゼクティブサマリー'));
+  assert.ok(text.includes('最重要ハイライト'));
+  assert.ok(text.includes('主要データ指標'));
   assert.ok(text.includes('工数削減効果'));
   assert.ok(text.includes('32%'));
   assert.ok(text.includes('推奨アクション'));
 });
 
-test('share-formats: buildEmailFormat produces business email draft', async () => {
-  const { buildEmailFormat } = await import('../public/js/modules/share-formats.js');
+test('exporters: buildEmailDraft produces business email draft', async () => {
+  const { buildEmailDraft } = await import('../public/js/exporters.js');
 
-  const email = buildEmailFormat(mockReport);
+  const email = buildEmailDraft(mockReport);
   assert.ok(email.includes('件名: 【調査報告】'));
-  assert.ok(email.includes('関係者各位'));
-  assert.ok(email.includes('■ 1. 調査結論・エグゼクティブサマリー'));
-  assert.ok(email.includes('■ 2. 主要ファクト・判明した重要ポイント'));
-  assert.ok(email.includes('■ 3. 重要数値・比較指標'));
-  assert.ok(email.includes('■ 4. 今後の推奨方針・ネクストアクション'));
+  assert.ok(email.includes('各位'));
+  assert.ok(email.includes('■ 1. 調査概要'));
+  assert.ok(email.includes('■ 2. 結論（エグゼクティブサマリー）'));
+  assert.ok(email.includes('【重要ポイント】'));
+  assert.ok(email.includes('【定量データ・指標】'));
+  assert.ok(email.includes('■ 4. 今後の示唆・推奨アクション'));
 });
 
 test('speech: getAudioSummaryScript extracts clean executive speech script', async () => {

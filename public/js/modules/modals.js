@@ -9,6 +9,13 @@ import { appState } from './state.js';
 import { refreshAppInfo } from './theme.js';
 import { historyState } from './history.js';
 
+function formatCompareInsightItem(ins) {
+  if (typeof ins === 'string') {
+    return `<li><span style="color: var(--text-body);">${esc(ins)}</span></li>`;
+  }
+  return `<li><strong style="color: var(--text);">${esc(ins?.title || '')}</strong>: <span style="color: var(--text-body);">${esc(ins?.body || ins?.desc || '')}</span></li>`;
+}
+
 export function bindCompareModal() {
   const btnCompare = $('#btn-compare');
   if (btnCompare) {
@@ -175,7 +182,7 @@ function renderComparisonGrid(a, b, container) {
           <div class="compare-diff-card">
             <h4><span data-icon="bulb"></span>主要提言・示唆</h4>
             <ul style="padding-left: 18px; margin: 0; display: grid; gap: 10px;">
-              ${a.insights.map((ins) => `<li><strong style="color: var(--text);">${esc(ins.title)}</strong>: <span style="color: var(--text-body);">${esc(ins.body)}</span></li>`).join('')}
+              ${a.insights.map(formatCompareInsightItem).join('')}
             </ul>
           </div>
         `
@@ -229,7 +236,7 @@ function renderComparisonGrid(a, b, container) {
           <div class="compare-diff-card">
             <h4><span data-icon="bulb"></span>主要提言・示唆</h4>
             <ul style="padding-left: 18px; margin: 0; display: grid; gap: 10px;">
-              ${b.insights.map((ins) => `<li><strong style="color: var(--text);">${esc(ins.title)}</strong>: <span style="color: var(--text-body);">${esc(ins.body)}</span></li>`).join('')}
+              ${b.insights.map(formatCompareInsightItem).join('')}
             </ul>
           </div>
         `

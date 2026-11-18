@@ -11,16 +11,24 @@ import { setEvidenceSources } from './modules/evidence-inspector.js';
 
 let currentReportSources = [];
 let currentSourcesMap = new Map();
+let activeTocObserver = null;
+
+function safeHref(url) {
+  const raw = String(url || '').trim();
+  if (!raw) return '#';
+  if (/^(https?:\/\/|mailto:|#|\/)/i.test(raw)) return raw;
+  return '#';
+}
 
 /** 本文中の [1][2] 等の引用番号を、Perplexity風ホバープレビュー可能なリンクに置換する */
 export function linkifyCitations(text) {
   if (!text) return '';
   const escaped = esc(text);
   return escaped.replace(/\[([Ss]?\d+)\]/g, (match, n) => {
-    const numOnly = n.replace(/\D/g, '');
+    const numOnly = n.replace(/\D/g, '') || n;
     const src = currentSourcesMap.get(Number(numOnly)) || currentSourcesMap.get(n);
     const titleAttr = src ? esc(src.title) : `ソース [${n}]`;
-    return `<a class="cite" href="#src-${numOnly}" data-cite="${n}" title="${titleAttr}">[${n}]</a>`;
+    return `<a class="cite" href="#src-${numOnly}" data-cite="${numOnly}" title="${titleAttr}">[${n}]</a>`;
   });
 }
 
@@ -36,12 +44,16 @@ function scoreClass(score) {
  */
 export function renderReport(data, container) {
   if (!data || !container) return;
+  hideHoverCard();
   if (data.reportTheme) applyReportTheme(data.reportTheme, false);
 
   currentReportSources = data.sources || [];
   currentSourcesMap = new Map();
   if (data.sources) {
-    data.sources.forEach((s) => currentSourcesMap.set(Number(s.index), s));
+    data.sources.forEach((s, idx) => {
+      const idxNum = Number(String(s.index ?? idx + 1).replace(/\D/g, '')) || (idx + 1);
+      currentSourcesMap.set(idxNum, { ...s, _resolvedIndex: idxNum });
+    });
     setEvidenceSources(data.sources);
   }
 
@@ -577,7 +589,7 @@ export function renderReport(data, container) {
               dd.sources && dd.sources.length
                 ? `
               <div class="dd-sources">
-                ${dd.sources.map((s) => `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title || s.domain)} ↗</a>`).join('')}
+                ${dd.sources.map((s) => `<a href="${esc(safeHref(s.url))}" target="_blank" rel="noopener noreferrer">${esc(s.title || s.domain)} ↗</a>`).join('')}
               </div>`
                 : ''
             }
@@ -600,16 +612,18 @@ export function renderReport(data, container) {
       </div>
       <ul class="sources">
         ${data.sources
-          .map((src) => {
+          .map((src, idx) => {
             const sc = scoreClass(src.score);
+            const idxNum = Number(String(src.index ?? idx + 1).replace(/\D/g, '')) || (idx + 1);
+            const fallbackChar = esc(((src.domain || '?').slice(0, 1) || '?').toUpperCase());
             return `
-          <li class="source" id="src-${src.index}">
-            <span class="src-n">[${src.index}]</span>
+          <li class="source" id="src-${idxNum}">
+            <span class="src-n">[${esc(String(src.index ?? idxNum))}]</span>
             <div class="src-fav">
-              <img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(src.domain)}&sz=32" alt="" loading="lazy" onerror="this.style.display='none';this.parentElement.textContent='${esc(src.domain.slice(0, 1).toUpperCase())}'" />
+              <img class="src-fav-img" src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(src.domain || '')}&sz=32" alt="" loading="lazy" data-fallback="${fallbackChar}" />
             </div>
             <div class="src-main">
-              <a class="src-title" href="${esc(src.url)}" target="_blank" rel="noopener noreferrer">${esc(src.title)}</a>
+              <a class="src-title" href="${esc(safeHref(src.url))}" target="_blank" rel="noopener noreferrer">${esc(src.title)}</a>
               <div class="src-domain">
                 <span>${esc(src.domain)}</span>
                 ${src.categoryBadge ? `<span class="tag tag-category" title="ドメイン分類: ${esc(src.categoryLabel || '')}"><span class="badge-icon">${esc(src.categoryBadge)}</span>${esc(src.categoryLabel || '')}</span>` : ''}
@@ -681,6 +695,12 @@ export function renderReport(data, container) {
 
   container.innerHTML = html;
   hydrateIcons(container);
+  container.querySelectorAll('.src-fav-img').forEach((img) => {
+    img.addEventListener('error', () => {
+      img.style.display = 'none';
+      if (img.parentElement) img.parentElement.textContent = img.dataset.fallback || '?';
+    });
+  });
 
   // 目次の生成
   buildTOC(data);
@@ -845,6 +865,10 @@ function buildTOC(data) {
   });
 
   // スクロール監視（#sec-hero も 01 要約・ハイライト の領域として連動）
+  if (activeTocObserver) {
+    activeTocObserver.disconnect();
+    activeTocObserver = null;
+  }
   const observer = new IntersectionObserver(
     (entries) => {
       entries.forEach((entry) => {
@@ -868,16 +892,19 @@ function buildTOC(data) {
     const el = document.getElementById(s.id);
     if (el) observer.observe(el);
   });
+  activeTocObserver = observer;
 }
 
 /** 出典クリック時のスクロールとハイライトアニメーション */
 function bindCitationClicks(container) {
+  if (container.dataset.citeClicksBound === '1') return;
+  container.dataset.citeClicksBound = '1';
   container.addEventListener('click', (e) => {
     const a = e.target.closest('a[data-cite]');
     if (!a) return;
     e.preventDefault();
-    const citeNum = a.dataset.cite;
-    const target = document.getElementById(`src-${citeNum}`);
+    const citeNum = String(a.dataset.cite || '').replace(/\D/g, '');
+    const target = citeNum ? document.getElementById(`src-${citeNum}`) : null;
     if (target) {
       target.scrollIntoView({ behavior: 'smooth', block: 'center' });
       target.classList.remove('flash');
@@ -1001,25 +1028,26 @@ function bindCitationPopover(container) {
   cites.forEach((a) => {
     a.addEventListener('mouseenter', () => {
       clearTimeout(hoverTimer);
-      const citeNum = Number(a.dataset.cite);
+      const citeNum = Number(String(a.dataset.cite || '').replace(/\D/g, ''));
       const src = currentSourcesMap.get(citeNum);
       if (!src) return;
 
       const sc = scoreClass(src.score);
+      const resolvedHref = safeHref(src.url);
       card.innerHTML = `
         <div class="cp-header">
-          <div class="cp-num">[${src.index}]</div>
+          <div class="cp-num">[${esc(String(src.index ?? citeNum))}]</div>
           <div class="cp-domain-group">
             <span class="cp-domain">${esc(src.domain)}</span>
             ${src.categoryBadge ? `<span class="tag tag-category">${esc(src.categoryBadge)} ${esc(src.categoryLabel || '')}</span>` : ''}
           </div>
           <div class="cp-score ${sc.text}">信頼度: <strong>${src.score}</strong></div>
         </div>
-        <a class="cp-title" href="${esc(src.url)}" target="_blank" rel="noopener noreferrer">${esc(src.title)}</a>
+        <a class="cp-title" href="${esc(resolvedHref)}" target="_blank" rel="noopener noreferrer">${esc(src.title)}</a>
         ${src.snippet ? `<div class="cp-snippet">${esc(src.snippet.slice(0, 160))}…</div>` : ''}
         <div class="cp-footer">
           <span>クリックでページ下部の出典詳細へ移動</span>
-          <a href="${esc(src.url)}" target="_blank" rel="noopener noreferrer" class="cp-link">サイトを開く ↗</a>
+          <a href="${esc(resolvedHref)}" target="_blank" rel="noopener noreferrer" class="cp-link">サイトを開く ↗</a>
         </div>
       `;
 

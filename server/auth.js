@@ -9,11 +9,8 @@
  * 4. ユーザーごとのリサーチ履歴・月間クォータ分離に対応
  */
 
+const crypto = require('crypto');
 const env = require('./env');
-
-function isAuthEnforced() {
-  return process.env.ENABLE_AUTH === 'true';
-}
 
 function isAuthRequired() {
   if (env.IS_CLOUD) {
@@ -28,9 +25,18 @@ const getSupabaseServiceRoleKey = env.getSupabaseServiceRoleKey;
 
 // プロファイルキャッシュ（利用者ID -> { plan, subscriptionStatus, expiresAt }）60秒TTL (B-1)
 const profileCache = new Map();
+const MAX_PROFILE_CACHE_SIZE = 1000;
 
 function clearProfileCache() {
   profileCache.clear();
+}
+
+function setProfileCache(userId, entry) {
+  if (profileCache.size >= MAX_PROFILE_CACHE_SIZE) {
+    const oldestKey = profileCache.keys().next().value;
+    if (oldestKey !== undefined) profileCache.delete(oldestKey);
+  }
+  profileCache.set(userId, entry);
 }
 
 async function getProfileFromSupabase(userId) {
@@ -60,17 +66,17 @@ async function getProfileFromSupabase(userId) {
           subscriptionStatus: rows[0].subscription_status || 'active',
           expiresAt: now + 60000,
         };
-        profileCache.set(userId, item);
+        setProfileCache(userId, item);
         return item;
       }
+      return { plan: 'free', subscriptionStatus: 'active', expiresAt: now + 60000 };
     }
   } catch (err) {
     console.warn('[auth] Failed to fetch profile from Supabase:', err.message);
   }
 
-  const fallback = { plan: 'free', subscriptionStatus: 'active', expiresAt: now + 60000 };
-  profileCache.set(userId, fallback);
-  return fallback;
+  // 一時障害時はキャッシュせず次回リクエストで再取得できるようにする
+  return { plan: 'free', subscriptionStatus: 'active', expiresAt: now + 60000 };
 }
 
 // プリセットのテストアカウント一覧
@@ -337,7 +343,7 @@ async function signupUser(email, password) {
 
   // テストアカウント（@test.local）の場合はSupabase未設定でも即時作成 (TEST_USERS_ENABLED 有効時のみ)
   if (env.TEST_USERS_ENABLED && normEmail.endsWith('@test.local')) {
-    const newId = `user-${Date.now().toString(36)}`;
+    const newId = `user-${crypto.randomUUID().slice(0, 8)}`;
     const userObj = {
       id: newId,
       email: normEmail,
@@ -434,12 +440,10 @@ async function loginUser(email, password) {
 module.exports = {
   PRESET_TEST_USERS,
   buildAnonymousUser,
-  isAuthEnforced,
   isAuthRequired,
   requireAuth,
   optionalAuth,
   verifyToken,
-  verifySupabaseToken: verifyToken, // 後方互換性
   signupUser,
   loginUser,
   clearProfileCache,

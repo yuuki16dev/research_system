@@ -2,6 +2,72 @@
 
 const { resolveTheme } = require('./themes');
 
+function ensureAbortSignalAny() {
+  if (typeof AbortSignal.any !== 'function') {
+    AbortSignal.any = function (signals) {
+      const controller = new AbortController();
+      for (const signal of signals) {
+        if (!signal) continue;
+        if (signal.aborted) {
+          controller.abort(signal.reason);
+          return controller.signal;
+        }
+        signal.addEventListener('abort', () => controller.abort(signal.reason), { once: true });
+      }
+      return controller.signal;
+    };
+  }
+}
+
+ensureAbortSignalAny();
+
+function combineSignals(signals) {
+  const valid = Array.isArray(signals) ? signals.filter(Boolean) : [];
+  if (valid.length === 0) return undefined;
+  if (valid.length === 1) return valid[0];
+  ensureAbortSignalAny();
+  return AbortSignal.any(valid);
+}
+
+function delay(ms, signal, maxTestMs = 250) {
+  const actualMs = process.env.NODE_ENV === 'test' ? Math.min(ms, maxTestMs) : ms;
+  return new Promise((resolve, reject) => {
+    if (signal && signal.aborted) return reject(new Error('キャンセルされました'));
+    let onAbort = null;
+    const t = setTimeout(() => {
+      if (signal && onAbort) signal.removeEventListener('abort', onAbort);
+      resolve();
+    }, actualMs);
+    if (signal) {
+      onAbort = () => {
+        clearTimeout(t);
+        reject(new Error('キャンセルされました'));
+      };
+      signal.addEventListener('abort', onAbort, { once: true });
+    }
+  });
+}
+
+function detectHtmlCharset(contentType, headBytes) {
+  const m = /charset=["']?([\w-]+)/i.exec(contentType || '');
+  if (m) return m[1].toLowerCase();
+  if (headBytes && headBytes.length) {
+    const head = Buffer.from(headBytes).subarray(0, 4096).toString('latin1');
+    const mm = /<meta[^>]+charset=["']?\s*([\w-]+)/i.exec(head);
+    if (mm) return mm[1].toLowerCase();
+  }
+  return 'utf-8';
+}
+
+function decodeBufferWithCharset(buffer, contentType) {
+  const charset = detectHtmlCharset(contentType, buffer);
+  try {
+    return new TextDecoder(charset, { fatal: false }).decode(buffer);
+  } catch {
+    return new TextDecoder('utf-8', { fatal: false }).decode(buffer);
+  }
+}
+
 /** 調査範囲ラベル */
 const SCOPE_LABELS = {
   web: 'Web全体',
@@ -372,6 +438,22 @@ function fmtDate(iso) {
   }
 }
 
+function sanitizeMdCell(v) {
+  return String(v ?? '').replace(/\r?\n/g, ' ').replace(/\|/g, '\\|');
+}
+
+function sanitizeMdUrl(rawUrl) {
+  const uStr = String(rawUrl || '').trim();
+  if (!/^https?:\/\//i.test(uStr)) return '';
+  try {
+    const u = new URL(uStr);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return '';
+    return u.href.replace(/\(/g, '%28').replace(/\)/g, '%29').replace(/[\r\n\s]/g, '');
+  } catch {
+    return '';
+  }
+}
+
 /** Markdown形式 (.md) の生成 */
 function buildMarkdown(data) {
   if (!data) return '';
@@ -380,10 +462,10 @@ function buildMarkdown(data) {
   if (data.subtitle) md += `> **${data.subtitle}**\n\n`;
 
   md += `| 項目 | 内容 |\n|---|---|\n`;
-  md += `| **リサーチテーマ** | ${data.theme || ''} |\n`;
-  md += `| **調査対象期間** | ${data.periodLabel || '直近1年（最新推奨）'} |\n`;
-  md += `| **調査範囲** | ${data.scopeLabel || ''} (${data.depthLabel || ''}) |\n`;
-  md += `| **作成日時** | ${fmtDate(data.createdAt)} |\n`;
+  md += `| **リサーチテーマ** | ${sanitizeMdCell(data.theme || '')} |\n`;
+  md += `| **調査対象期間** | ${sanitizeMdCell(data.periodLabel || '直近1年（最新推奨）')} |\n`;
+  md += `| **調査範囲** | ${sanitizeMdCell(data.scopeLabel || '')} (${sanitizeMdCell(data.depthLabel || '')}) |\n`;
+  md += `| **作成日時** | ${sanitizeMdCell(fmtDate(data.createdAt))} |\n`;
   md += `| **収集ソース件数** | ${data.sources ? data.sources.length : 0} 件 |\n\n`;
 
   md += `## エグゼクティブサマリー\n\n${data.summary || ''}\n\n`;
@@ -406,10 +488,10 @@ function buildMarkdown(data) {
 
   if (data.table && data.table.columns && data.table.rows) {
     md += `## ${data.table.caption || '構造化比較マトリクス'}\n\n`;
-    md += `| ${data.table.columns.join(' | ')} |\n`;
+    md += `| ${data.table.columns.map(sanitizeMdCell).join(' | ')} |\n`;
     md += `| ${data.table.columns.map(() => '---').join(' | ')} |\n`;
     data.table.rows.forEach((r) => {
-      md += `| ${r.join(' | ')} |\n`;
+      md += `| ${(Array.isArray(r) ? r : []).map(sanitizeMdCell).join(' | ')} |\n`;
     });
     md += '\n';
   }
@@ -484,7 +566,10 @@ function buildMarkdown(data) {
   if (data.sources && data.sources.length) {
     md += `## 収集ソース一覧\n\n`;
     data.sources.forEach((s) => {
-      md += `${s.index}. [${s.title}](${s.url}) - **${s.domain}** (信頼度スコア: ${s.score}/100)\n`;
+      const safeUrl = sanitizeMdUrl(s.url);
+      const safeTitle = String(s.title || safeUrl || '参照ソース').replace(/[\r\n]/g, ' ').replace(/[\[\]]/g, '\\$&');
+      const linkPart = safeUrl ? `[${safeTitle}](${safeUrl})` : safeTitle;
+      md += `${s.index}. ${linkPart} - **${s.domain}** (信頼度スコア: ${s.score}/100)\n`;
       if (s.snippet) md += `   > ${s.snippet.replace(/\n/g, ' ')}\n`;
     });
     md += '\n';
@@ -609,17 +694,52 @@ function buildPlainText(data) {
   return txt;
 }
 
+const ALLOWED_REPORT_UPDATE_FIELDS = [
+  'title',
+  'subtitle',
+  'summary',
+  'tags',
+  'pinned',
+  'keyPoints',
+  'metrics',
+  'table',
+  'sections',
+  'insights',
+  'deepDives',
+  'theme',
+  'reportTheme',
+  'scope',
+  'scopeLabel',
+  'period',
+  'periodLabel',
+  'sources',
+  'chart',
+];
+
+function sanitizeReportPatch(patch = {}) {
+  const safe = {};
+  for (const key of ALLOWED_REPORT_UPDATE_FIELDS) {
+    if (patch[key] !== undefined) {
+      safe[key] = patch[key];
+    }
+  }
+  return safe;
+}
+
 module.exports = {
   SCOPE_LABELS,
-  DEPTH_LABELS,
-  PERIOD_LABELS,
   PURPOSE_LABELS,
   FOCUS_LABELS,
   SNS_DOMAINS,
+  ALLOWED_REPORT_UPDATE_FIELDS,
+  sanitizeReportPatch,
+  ensureAbortSignalAny,
+  combineSignals,
+  delay,
+  detectHtmlCharset,
+  decodeBufferWithCharset,
   domainOf,
-  classifyDomain,
   parseSites,
-  scoreDomain,
   normalizeResult,
   buildMarkdown,
   buildPlainText,

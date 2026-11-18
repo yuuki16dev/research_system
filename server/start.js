@@ -1,6 +1,7 @@
 'use strict';
 
 const { spawn, execSync } = require('child_process');
+const http = require('http');
 const path = require('path');
 const net = require('net');
 const logger = require('./logger');
@@ -24,18 +25,32 @@ function isPortInUse(port) {
 }
 
 /** 該当ポートで動いているのが Research Studio か確認 (IPv4 / IPv6 両対応) */
+function probeHostInfo(host, port) {
+  return new Promise((resolve) => {
+    const req = http.get(`http://${host}:${port}/api/info`, { agent: false, timeout: 1200 }, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        try {
+          const json = JSON.parse(data);
+          resolve(Boolean(res.statusCode && res.statusCode < 400 && json && json.app === 'Research Studio'));
+        } catch {
+          resolve(false);
+        }
+      });
+    });
+    req.on('error', () => resolve(false));
+    req.on('timeout', () => {
+      try { req.destroy(); } catch {}
+      resolve(false);
+    });
+  });
+}
+
 async function checkIsResearchStudio(port) {
   const hosts = ['127.0.0.1', 'localhost'];
   for (const h of hosts) {
-    try {
-      const res = await fetch(`http://${h}:${port}/api/info`, {
-        signal: AbortSignal.timeout(1200),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.app === 'Research Studio') return true;
-      }
-    } catch {}
+    if (await probeHostInfo(h, port)) return true;
   }
   return false;
 }
@@ -68,6 +83,7 @@ function forceFreePort(port) {
 }
 
 function openBrowser(url) {
+  if (process.env.NODE_ENV === 'test' || process.env.CI) return;
   try {
     const platform = process.platform;
     if (platform === 'win32') {
@@ -91,7 +107,7 @@ function pauseAndExit(code = 1) {
   }
 }
 
-let pkgVer = '2.19.0';
+let pkgVer = '2.19.1';
 try {
   pkgVer = require('../package.json').version || pkgVer;
 } catch {}
@@ -151,9 +167,13 @@ async function main() {
   require('./index.js');
 }
 
-main().catch((err) => {
-  console.error('\n【起動マネージャーエラー】', err.message);
-  console.log(`詳細ログ: ${logger.ERROR_LOG}`);
-  pauseAndExit(1);
-});
+if (require.main === module) {
+  main().catch((err) => {
+    console.error('\n【起動マネージャーエラー】', err.message);
+    console.log(`詳細ログ: ${logger.ERROR_LOG}`);
+    pauseAndExit(1);
+  });
+}
+
+module.exports = { openBrowser, checkIsResearchStudio };
 

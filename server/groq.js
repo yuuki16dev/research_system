@@ -1,6 +1,7 @@
 'use strict';
 
 const { repairJSON } = require('./gemini');
+const { combineSignals } = require('./util');
 
 const GROQ_DEFAULT_MODEL = 'llama-3.3-70b-versatile';
 
@@ -30,7 +31,7 @@ async function generateGroq({
   if (!key) throw new Error('Groq APIキーが設定されていません');
 
   const timeoutSignal = AbortSignal.timeout(timeoutMs);
-  const combinedSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
+  const combinedSignal = combineSignals([signal, timeoutSignal]);
 
   const targetModel = GROQ_MODELS.includes(model) ? model : GROQ_DEFAULT_MODEL;
 

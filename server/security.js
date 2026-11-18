@@ -12,6 +12,7 @@
 
 const { URL } = require('url');
 const env = require('./env');
+const { combineSignals, decodeBufferWithCharset } = require('./util');
 
 // 健全なクローラー宣言 User-Agent
 const CRAWLER_USER_AGENT =
@@ -42,18 +43,10 @@ async function safeFetch(rawUrl, options = {}) {
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(new Error('リクエストタイムアウト')), timeoutMs);
+    const signal = combineSignals([options.signal, controller.signal]);
 
-    let signal = controller.signal;
-    if (options.signal) {
-      // 外部シグナルとも統合
-      if (typeof AbortSignal.any === 'function') {
-        signal = AbortSignal.any([options.signal, controller.signal]);
-      }
-    }
-
-    let res;
     try {
-      res = await fetch(currentUrl, {
+      const res = await fetch(currentUrl, {
         method: 'GET',
         headers: {
           'User-Agent': CRAWLER_USER_AGENT,
@@ -64,69 +57,74 @@ async function safeFetch(rawUrl, options = {}) {
         redirect: 'manual', // リダイレクト先を1ホップずつ検証
         signal,
       });
+
+      // 301, 302, 303, 307, 308 リダイレクトの検証と追跡 (最大3回)
+      if ([301, 302, 303, 307, 308].includes(res.status)) {
+        if (res.body && typeof res.body.cancel === 'function') {
+          await res.body.cancel().catch(() => {});
+        }
+        const location = res.headers.get('location');
+        if (!location) {
+          throw new Error(`リダイレクトヘッダーがありません (HTTP ${res.status})`);
+        }
+        currentUrl = new URL(location, currentUrl).href;
+        continue;
+      }
+
+      if (!res.ok) {
+        if (res.body && typeof res.body.cancel === 'function') {
+          await res.body.cancel().catch(() => {});
+        }
+        throw new Error(`HTTP ${res.status} (${res.statusText})`);
+      }
+
+      const ct = res.headers.get('content-type') || '';
+      if (ct && !/html|text|xml|json/i.test(ct)) {
+        if (res.body && typeof res.body.cancel === 'function') {
+          await res.body.cancel().catch(() => {});
+        }
+        throw new Error(`非対応のコンテンツタイプです: ${ct}`);
+      }
+
+      // B-6: 応答本文は 2MB を超えた時点で読み込みを打ち切る（全体を読み込んでから切り詰めない）
+      let text = '';
+      if (res.body && typeof res.body.getReader === 'function') {
+        const reader = res.body.getReader();
+        const chunks = [];
+        let totalBytes = 0;
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            if (value) {
+              totalBytes += value.byteLength;
+              if (totalBytes > maxBytes) {
+                const excess = totalBytes - maxBytes;
+                if (value.byteLength > excess) {
+                  chunks.push(value.subarray(0, value.byteLength - excess));
+                }
+                await reader.cancel().catch(() => {});
+                break;
+              }
+              chunks.push(value);
+            }
+          }
+        } catch (err) {
+          const aborted = err.name === 'AbortError' || (options.signal && options.signal.aborted) || controller.signal.aborted;
+          if (aborted || chunks.length === 0) throw err;
+        }
+        const fullBuffer = Buffer.concat(chunks.map((c) => Buffer.from(c)));
+        text = decodeBufferWithCharset(fullBuffer, ct);
+      } else {
+        const arrayBuffer = await res.arrayBuffer();
+        const sliced = new Uint8Array(arrayBuffer).slice(0, maxBytes);
+        text = decodeBufferWithCharset(sliced, ct);
+      }
+
+      return { response: res, text };
     } finally {
       clearTimeout(timeout);
     }
-
-    // 301, 302, 303, 307, 308 リダイレクトの検証と追跡 (最大3回)
-    if ([301, 302, 303, 307, 308].includes(res.status)) {
-      const location = res.headers.get('location');
-      if (!location) {
-        throw new Error(`リダイレクトヘッダーがありません (HTTP ${res.status})`);
-      }
-      const nextUrl = new URL(location, currentUrl).href;
-      currentUrl = nextUrl;
-      continue;
-    }
-
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status} (${res.statusText})`);
-    }
-
-    const ct = res.headers.get('content-type') || '';
-    if (ct && !/html|text|xml|json/i.test(ct)) {
-      throw new Error(`非対応のコンテンツタイプです: ${ct}`);
-    }
-
-    // B-6: 応答本文は 2MB を超えた時点で読み込みを打ち切る（全体を読み込んでから切り詰めない）
-    let text = '';
-    if (res.body && typeof res.body.getReader === 'function') {
-      const reader = res.body.getReader();
-      const chunks = [];
-      let totalBytes = 0;
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          if (value) {
-            totalBytes += value.byteLength;
-            if (totalBytes > maxBytes) {
-              const excess = totalBytes - maxBytes;
-              if (value.byteLength > excess) {
-                chunks.push(value.subarray(0, value.byteLength - excess));
-              }
-              try {
-                await reader.cancel();
-              } catch {}
-              break;
-            }
-            chunks.push(value);
-          }
-        }
-      } catch (err) {
-        if (err.name !== 'AbortError') {
-          // ストリーム中断エラー以外はログ
-        }
-      }
-      const fullBuffer = Buffer.concat(chunks.map((c) => Buffer.from(c)));
-      text = new TextDecoder('utf-8', { fatal: false }).decode(fullBuffer);
-    } else {
-      const arrayBuffer = await res.arrayBuffer();
-      const sliced = new Uint8Array(arrayBuffer).slice(0, maxBytes);
-      text = new TextDecoder('utf-8', { fatal: false }).decode(sliced);
-    }
-
-    return { response: res, text };
   }
 
   throw new Error(`リダイレクト回数が上限 (${maxRedirects}) を超過しました`);
@@ -212,5 +210,4 @@ module.exports = {
   wrapUntrustedContent,
   formatLogText,
   PROMPT_INJECTION_BARRIER,
-  CRAWLER_USER_AGENT,
 };

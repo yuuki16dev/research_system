@@ -4,6 +4,8 @@
 
 'use strict';
 
+import { esc } from '../ui.js';
+
 /**
  * 入力されたテーマから多角的な調査切り口チップをリアルタイム生成
  * @param {string} rawQuery
@@ -69,7 +71,7 @@ export function initQueryPolisher() {
 
       let html = '';
       suggestions.forEach((s) => {
-        html += `<button type="button" class="theme-polisher-chip" data-query="${s.query}" data-purpose="${s.purpose}">${s.label}</button>`;
+        html += `<button type="button" class="theme-polisher-chip" data-query="${esc(s.query)}" data-purpose="${esc(s.purpose)}">${esc(s.label)}</button>`;
       });
 
       chipsContainer.innerHTML = html;
@@ -79,6 +81,8 @@ export function initQueryPolisher() {
       chipsContainer.querySelectorAll('.theme-polisher-chip').forEach((chip) => {
         chip.addEventListener('click', () => {
           themeInput.value = chip.dataset.query;
+          const themeCount = document.getElementById('theme-count');
+          if (themeCount) themeCount.textContent = `${themeInput.value.length} / 300`;
           themeInput.focus();
           polisherWrap.style.display = 'none';
 

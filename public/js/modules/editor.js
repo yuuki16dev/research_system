@@ -64,7 +64,7 @@ export function bindReportEditor() {
 function enableEditableElements(root) {
   if (!root) return;
   const targets = $$(
-    '#sec-hero h2, #sec-hero .subtitle, .btc-text, .sub-block-title, .metric-label, .metric-value, .metric-note, .keypoints li, .sec-h4, .sec-body p, .ins-item-text, #matrix-tbody td',
+    '#sec-hero h2, #sec-hero .subtitle, .btc-text, .sub-block-title, .metric-label, .metric-value, .metric-note, .keypoints .kp-content, .section-block h4, .section-block > p, .insight h4, .insight p, #matrix-tbody td',
     root
   );
   targets.forEach((el) => {
@@ -106,32 +106,46 @@ function saveEditedReport(root) {
 
   // 4. セクション本文
   if (Array.isArray(r.sections)) {
-    $$('.sec-card', root).forEach((secCard, idx) => {
+    $$('.section-block', root).forEach((secBlock, idx) => {
       if (r.sections[idx]) {
-        const titleEl = $('.sec-h4', secCard);
-        if (titleEl) r.sections[idx].title = titleEl.innerText.trim();
-        const bodyEl = $('.sec-body', secCard);
-        if (bodyEl) r.sections[idx].content = bodyEl.innerText.trim();
+        const titleEl = $('h4', secBlock);
+        if (titleEl) {
+          const val = titleEl.innerText.trim();
+          r.sections[idx].heading = val;
+          r.sections[idx].title = val;
+        }
+        const bodyEl = $('> p', secBlock) || $('p', secBlock);
+        if (bodyEl) {
+          const val = bodyEl.innerText.trim();
+          r.sections[idx].body = val;
+          r.sections[idx].content = val;
+        }
       }
     });
   }
 
   // 5. キーポイント
   if (Array.isArray(r.keyPoints)) {
-    const kps = $$('.keypoints li', root);
-    kps.forEach((li, idx) => {
+    const kps = $$('.keypoints .kp-content', root);
+    kps.forEach((el, idx) => {
       if (r.keyPoints[idx] !== undefined) {
-        r.keyPoints[idx] = li.innerText.trim();
+        r.keyPoints[idx] = el.innerText.trim();
       }
     });
   }
 
   // 6. 提言 (Insights)
   if (Array.isArray(r.insights)) {
-    const items = $$('.ins-item-text', root);
-    items.forEach((item, idx) => {
-      if (r.insights[idx] !== undefined) {
-        r.insights[idx] = item.innerText.trim();
+    const cards = $$('#sec-insights .insight', root);
+    cards.forEach((card, idx) => {
+      if (r.insights[idx] === undefined) return;
+      const h4 = $('h4', card);
+      const p = $('p', card);
+      if (typeof r.insights[idx] === 'object' && r.insights[idx] !== null) {
+        if (h4) r.insights[idx].title = h4.innerText.trim();
+        if (p) r.insights[idx].body = p.innerText.trim();
+      } else if (p || h4) {
+        r.insights[idx] = (p ? p.innerText.trim() : h4.innerText.trim());
       }
     });
   }

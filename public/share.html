@@ -5,9 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>リサーチレポート — Research Studio</title>
   <link rel="stylesheet" href="/css/styles.css" />
+  <link rel="stylesheet" href="/css/print.css" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232563eb' stroke-width='2'><circle cx='11' cy='11' r='8'/><path d='m21 21-4.3-4.3'/></svg>" />
-  <!-- ExcelJS vendor bundle -->
-  <script src="/vendor/exceljs.min.js"></script>
+  <!-- SheetJS fallback vendor bundle -->
+  <script src="/vendor/xlsx.full.min.js" defer></script>
 </head>
 <body class="share-page-body">
   <div class="app-layout">
@@ -48,7 +49,7 @@
     <main class="main-content share-main-content">
       <!-- ローディング表示 -->
       <div class="share-state-card" id="share-loading">
-        <div class="spinner-sm" style="width: 28px; height: 28px; border-width: 3px; margin: 0 auto 16px;"></div>
+        <div class="rs-spinner-sm" style="width: 28px; height: 28px; border-width: 3px; margin: 0 auto 16px;"></div>
         <h3>レポートを読み込んでいます…</h3>
         <p style="color: var(--text-2); font-size: 13px;">最新の調査データと分析構造を展開中</p>
       </div>
@@ -74,6 +75,9 @@
       <span>AIリサーチ＆商用レポート自動化システム</span>
     </footer>
   </div>
+
+  <div class="toast-stack" id="toasts" aria-live="polite"></div>
+  <div id="print-root"></div>
 
   <!-- クライアントスクリプト -->
   <script type="module" src="/js/share.js"></script>

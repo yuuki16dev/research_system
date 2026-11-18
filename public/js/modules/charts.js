@@ -13,6 +13,27 @@ const PALETTE = [
   { stroke: '#ec4899', fill: 'rgba(236, 72, 153, 0.25)', gradStart: '#f472b6', gradEnd: '#db2777' },
 ];
 
+let chartUidCounter = 0;
+
+function hexToRgba(hex, alpha) {
+  const m = String(hex || '').trim().match(/^#([0-9a-fA-F]{6})$/);
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+}
+
+function buildChartPalette(theme) {
+  if (!theme || typeof theme !== 'object') return PALETTE;
+  const next = PALETTE.slice();
+  const makeEntry = (hex, fallback) => {
+    const fill = hexToRgba(hex, 0.25);
+    return fill ? { stroke: hex, fill, gradStart: hex, gradEnd: hex } : fallback;
+  };
+  if (theme.primary) next[0] = makeEntry(theme.primary, PALETTE[0]);
+  if (theme.accent) next[1] = makeEntry(theme.accent, PALETTE[1]);
+  return next;
+}
+
 function esc(s) {
   return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
@@ -20,7 +41,7 @@ function esc(s) {
 /**
  * 棒グラフ (Bar Chart) のSVGを生成
  */
-function renderBarChart(chart, { width = 640, height = 300, isPrint = false }) {
+function renderBarChart(chart, { width = 640, height = 300, isPrint = false, theme = null }) {
   const pad = { top: 40, right: 30, bottom: 50, left: 60 };
   const w = width - pad.left - pad.right;
   const h = height - pad.top - pad.bottom;
@@ -28,6 +49,9 @@ function renderBarChart(chart, { width = 640, height = 300, isPrint = false }) {
   const labels = chart.labels || [];
   const datasets = chart.datasets || [];
   if (!labels.length || !datasets.length) return '';
+
+  const palette = buildChartPalette(theme);
+  const chartUid = ++chartUidCounter;
 
   // 最大値の算出
   let maxVal = 0;
@@ -60,6 +84,18 @@ function renderBarChart(chart, { width = 640, height = 300, isPrint = false }) {
   const numDs = datasets.length;
   const barWidth = Math.min(36, (groupWidth * 0.7) / numDs);
 
+  const defsSvg = datasets
+    .map((_, dIdx) => {
+      const color = palette[dIdx % palette.length];
+      return `
+        <linearGradient id="barGrad_${chartUid}_${dIdx}" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="${color.gradStart}" />
+          <stop offset="100%" stop-color="${color.gradEnd}" />
+        </linearGradient>
+      `;
+    })
+    .join('');
+
   let barsSvg = '';
   let labelsSvg = '';
 
@@ -70,20 +106,14 @@ function renderBarChart(chart, { width = 640, height = 300, isPrint = false }) {
     `;
 
     datasets.forEach((ds, dIdx) => {
-      const color = PALETTE[dIdx % PALETTE.length];
-      const val = Number(ds.data[gIdx]) || 0;
+      const color = palette[dIdx % palette.length];
+      const val = Number(ds?.data?.[gIdx]) || 0;
       const barH = (val / yMax) * h;
       const barX = groupX + dIdx * barWidth;
       const barY = pad.top + h - barH;
 
       barsSvg += `
-        <defs>
-          <linearGradient id="barGrad_${gIdx}_${dIdx}" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="${color.gradStart}" />
-            <stop offset="100%" stop-color="${color.gradEnd}" />
-          </linearGradient>
-        </defs>
-        <rect x="${barX}" y="${barY}" width="${barWidth - 2}" height="${Math.max(2, barH)}" rx="3" fill="url(#barGrad_${gIdx}_${dIdx})" opacity="0.9" />
+        <rect x="${barX}" y="${barY}" width="${barWidth - 2}" height="${Math.max(2, barH)}" rx="3" fill="url(#barGrad_${chartUid}_${dIdx})" opacity="0.9" />
         <text x="${barX + (barWidth - 2) / 2}" y="${barY - 6}" font-size="9.5" fill="${color.stroke}" text-anchor="middle" font-weight="700" font-family="'Outfit', sans-serif">${val.toLocaleString()}</text>
       `;
     });
@@ -93,17 +123,19 @@ function renderBarChart(chart, { width = 640, height = 300, isPrint = false }) {
   if (datasets.length > 1) {
     let legX = pad.left;
     datasets.forEach((ds, dIdx) => {
-      const color = PALETTE[dIdx % PALETTE.length];
+      const color = palette[dIdx % palette.length];
+      const lbl = ds?.label || `系列 ${dIdx + 1}`;
       legendSvg += `
         <rect x="${legX}" y="12" width="12" height="12" rx="2" fill="${color.gradStart}" />
-        <text x="${legX + 16}" y="22" font-size="11" fill="${textColor}" font-weight="600">${esc(ds.label)}</text>
+        <text x="${legX + 16}" y="22" font-size="11" fill="${textColor}" font-weight="600">${esc(lbl)}</text>
       `;
-      legX += (ds.label.length * 10) + 40;
+      legX += (lbl.length * 10) + 40;
     });
   }
 
   return `
     <svg viewBox="0 0 ${width} ${height}" width="100%" height="auto" class="rs-chart-svg" style="max-height: ${height}px; overflow: visible;">
+      <defs>${defsSvg}</defs>
       ${legendSvg}
       ${gridSvg}
       ${barsSvg}
@@ -115,7 +147,7 @@ function renderBarChart(chart, { width = 640, height = 300, isPrint = false }) {
 /**
  * レーダーチャート (Radar Chart) のSVGを生成
  */
-function renderRadarChart(chart, { width = 480, height = 340, isPrint = false }) {
+function renderRadarChart(chart, { width = 480, height = 340, isPrint = false, theme = null }) {
   const cx = width / 2;
   const cy = height / 2 + 12;
   const radius = Math.min(width, height) * 0.35;
@@ -125,6 +157,7 @@ function renderRadarChart(chart, { width = 480, height = 340, isPrint = false })
   const numAxes = labels.length;
   if (numAxes < 3 || !datasets.length) return '';
 
+  const palette = buildChartPalette(theme);
   const textColor = isPrint ? '#0f172a' : 'rgba(255, 255, 255, 0.9)';
   const gridColor = isPrint ? '#cbd5e1' : 'rgba(255, 255, 255, 0.18)';
   const scaleTextColor = isPrint ? '#64748b' : 'rgba(255, 255, 255, 0.4)';
@@ -178,8 +211,8 @@ function renderRadarChart(chart, { width = 480, height = 340, isPrint = false })
   if (datasets.length > 1) {
     let legX = 20;
     datasets.forEach((ds, dIdx) => {
-      const color = PALETTE[dIdx % PALETTE.length];
-      const lbl = ds.label || `系列 ${dIdx + 1}`;
+      const color = palette[dIdx % palette.length];
+      const lbl = ds?.label || `系列 ${dIdx + 1}`;
       legendSvg += `
         <rect x="${legX}" y="10" width="12" height="12" rx="2" fill="${color.stroke}" />
         <text x="${legX + 16}" y="20" font-size="11" fill="${textColor}" font-weight="600">${esc(lbl)}</text>
@@ -192,10 +225,10 @@ function renderRadarChart(chart, { width = 480, height = 340, isPrint = false })
   let seriesSvg = '';
   let pointsSvg = '';
   datasets.forEach((ds, dIdx) => {
-    const color = PALETTE[dIdx % PALETTE.length];
+    const color = palette[dIdx % palette.length];
     let points = '';
     labels.forEach((_, i) => {
-      const val = Math.max(0, Number(ds.data[i]) || 0);
+      const val = Math.max(0, Number(ds?.data?.[i]) || 0);
       const ratio = Math.min(1, val / scaleMax);
       const r = radius * ratio;
       const angle = (Math.PI * 2 / numAxes) * i - Math.PI / 2;
@@ -225,21 +258,22 @@ function renderRadarChart(chart, { width = 480, height = 340, isPrint = false })
 /**
  * 統合SVGチャートレンダラー
  * @param {object} chart - チャート定義オブジェクト
- * @param {object} opts - { isPrint, width, height }
+ * @param {object} opts - { isPrint, width, height, theme }
  * @returns {string} 完全なHTML/SVGマークアップ
  */
 export function renderSvgChart(chart, opts = {}) {
   if (!chart || !chart.labels || !chart.datasets) return '';
 
   const isPrint = !!opts.isPrint;
+  const theme = opts.theme || null;
   let chartSvg = '';
 
   const type = chart.type || 'bar';
   if (type === 'radar') {
-    chartSvg = renderRadarChart(chart, { isPrint, width: opts.width || 480, height: opts.height || 320 });
+    chartSvg = renderRadarChart(chart, { isPrint, width: opts.width || 480, height: opts.height || 320, theme });
   } else {
     // デフォルトは棒グラフ
-    chartSvg = renderBarChart(chart, { isPrint, width: opts.width || 640, height: opts.height || 280 });
+    chartSvg = renderBarChart(chart, { isPrint, width: opts.width || 640, height: opts.height || 280, theme });
   }
 
   const titleHtml = chart.title ? `<div class="chart-card-title">${esc(chart.title)}</div>` : '';

@@ -2,13 +2,17 @@
 // API クライアント
 // ==========================================================================
 
-async function request(method, url, body) {
-  const headers = {};
-  if (body) headers['Content-Type'] = 'application/json';
+export function getAuthHeaders(extraHeaders = {}) {
+  const headers = { ...extraHeaders };
   try {
     const token = localStorage.getItem('rs_auth_token');
     if (token) headers['Authorization'] = `Bearer ${token}`;
   } catch {}
+  return headers;
+}
+
+async function request(method, url, body) {
+  const headers = getAuthHeaders(body ? { 'Content-Type': 'application/json' } : {});
 
   const res = await fetch(url, {
     method,
@@ -116,10 +120,10 @@ export const api = {
 
         // サーバー側で完了して履歴に保存されている可能性があるためフォールバック確認
         try {
-          const recent = await api.getHistory();
+          const recent = await api.history();
           const matched = Array.isArray(recent) ? recent.find((h) => h.id === jobId) : null;
           if (matched) {
-            const fullReport = await api.getHistoryItem(jobId);
+            const fullReport = await api.historyItem(jobId);
             if (fullReport) {
               handlers.onEvent && handlers.onEvent({ type: 'result', data: fullReport });
               handlers.onEvent && handlers.onEvent({ type: 'end', status: 'done' });

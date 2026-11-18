@@ -3,40 +3,49 @@
 const env = require('./env');
 const modelConfig = require('./model-config');
 const { OBSOLETE_GEMINI_MODELS, normalizeModel, getFallbackModels } = modelConfig;
+const { ensureAbortSignalAny, combineSignals, delay } = require('./util');
 const dns = require('dns');
 if (typeof dns.setDefaultResultOrder === 'function') {
   dns.setDefaultResultOrder('ipv4first');
 }
 
-// Node.js 18.x 互換用 AbortSignal.any ポリフィル
-if (typeof AbortSignal.any !== 'function') {
-  AbortSignal.any = function (signals) {
-    const controller = new AbortController();
-    for (const signal of signals) {
-      if (!signal) continue;
-      if (signal.aborted) {
-        controller.abort(signal.reason);
-        return controller.signal;
-      }
-      signal.addEventListener('abort', () => controller.abort(signal.reason), { once: true });
-    }
-    return controller.signal;
-  };
-}
+ensureAbortSignalAny();
 
-
-function delay(ms, signal) {
-  const actualMs = process.env.NODE_ENV === 'test' ? Math.min(ms, 10) : ms;
-  return new Promise((resolve, reject) => {
-    if (signal && signal.aborted) return reject(new Error('キャンセルされました'));
-    const t = setTimeout(resolve, actualMs);
-    if (signal) {
-      signal.addEventListener('abort', () => {
-        clearTimeout(t);
-        reject(new Error('キャンセルされました'));
-      }, { once: true });
+function stripJsonComments(input) {
+  let out = '';
+  let inString = false;
+  let escape = false;
+  for (let i = 0; i < input.length; i++) {
+    const c = input[i];
+    if (escape) {
+      out += c;
+      escape = false;
+      continue;
     }
-  });
+    if (inString) {
+      if (c === '\\') escape = true;
+      else if (c === '"') inString = false;
+      out += c;
+      continue;
+    }
+    if (c === '"') {
+      inString = true;
+      out += c;
+      continue;
+    }
+    if (c === '/' && input[i + 1] === '/') {
+      while (i + 1 < input.length && input[i + 1] !== '\n') i++;
+      continue;
+    }
+    if (c === '/' && input[i + 1] === '*') {
+      i += 2;
+      while (i < input.length && !(input[i] === '*' && input[i + 1] === '/')) i++;
+      i++;
+      continue;
+    }
+    out += c;
+  }
+  return out;
 }
 
 function isRetryableError(err, status) {
@@ -177,8 +186,8 @@ function repairJSON(text) {
     return JSON.parse(s);
   } catch (_) { }
 
-  // 3. コメント行の除去
-  s = s.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
+  // 3. 文字列リテラル外のコメント行・ブロックコメントの除去
+  s = stripJsonComments(s);
 
   // 4. プロパティ間・配列要素間の欠落カンマを自動挿入
   s = s.replace(/("|\d+|true|false|null|\]|\})\s*\n\s*(")/g, '$1,\n$2');
@@ -499,13 +508,36 @@ function fallbackExtract(text) {
     if (anySummary) result.summary = anySummary[1];
   }
 
+  const hasSalvaged = Boolean(
+    result.title ||
+    result.summary ||
+    result.keyPoints.length ||
+    result.metrics.length ||
+    result.sections.length ||
+    result.insights.length ||
+    (result.table && result.table.rows && result.table.rows.length) ||
+    result.sourceAssessments.length
+  );
+  if (!hasSalvaged) {
+    throw new Error('JSONの修復と抽出に失敗しました');
+  }
+
   return result;
+}
+
+function wrapGeminiError(err) {
+  const wrapped = new Error(humanizeError(err));
+  wrapped.cause = err;
+  if (err && err.status != null) wrapped.status = err.status;
+  if (err && err.rawText !== undefined) wrapped.rawText = err.rawText;
+  return wrapped;
 }
 
 async function generate({
   apiKey,
   model,
   prompt,
+  systemInstruction = '',
   parts = [],
   signal,
   temperature = 0.4,
@@ -543,6 +575,7 @@ async function generate({
 
   const body = {
     contents: [{ role: 'user', parts: contentParts }],
+    ...(systemInstruction ? { systemInstruction: { parts: [{ text: String(systemInstruction) }] } } : {}),
     generationConfig: {
       temperature,
       maxOutputTokens: 8192,
@@ -564,7 +597,7 @@ async function generate({
     try {
       // 1回あたりのタイムアウト（デフォルト180秒 = 3分）
       const timeoutSignal = AbortSignal.timeout(timeoutMs);
-      const combinedSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
+      const combinedSignal = combineSignals([signal, timeoutSignal]);
 
       const res = await fetch(url, {
         method: 'POST',
@@ -594,7 +627,6 @@ async function generate({
           let isKeyRotated = false;
           let isCooldown = false;
           let prevModel = currentModel;
-          let prevKeyIdx = currentKeyIdx;
 
           const isModelUnavailable = status === 404 || msg.toLowerCase().includes('no longer available');
           const isOverloadOrQuota = status === 503 || msg.toLowerCase().includes('high demand') || status === 429 || msg.toLowerCase().includes('resource_exhausted');
@@ -632,7 +664,7 @@ async function generate({
             try {
               onRetry({
                 attempt,
-                maxRetries,
+                maxRetries: effectiveMaxRetries,
                 waitMs,
                 error: err,
                 prevModel,
@@ -645,7 +677,7 @@ async function generate({
               });
             } catch (_) { }
           }
-          await delay(waitMs, signal);
+          await delay(waitMs, signal, 10);
           continue;
         }
         throw err;
@@ -703,7 +735,7 @@ async function generate({
       if (signal && signal.aborted) throw new Error('キャンセルされました');
       lastError = err;
 
-      if (attempt < maxRetries && isRetryableError(err, err.status)) {
+      if (attempt < effectiveMaxRetries && isRetryableError(err, err.status)) {
         let isFallback = false;
         let prevModel = currentModel;
         const msg = String(err.message || '').toLowerCase();
@@ -720,7 +752,7 @@ async function generate({
           try {
             onRetry({
               attempt,
-              maxRetries,
+              maxRetries: effectiveMaxRetries,
               waitMs,
               error: err,
               prevModel,
@@ -729,25 +761,19 @@ async function generate({
             });
           } catch (_) { }
         }
-        await delay(waitMs, signal);
+        await delay(waitMs, signal, 10);
         continue;
       }
 
-      const friendlyMsg = humanizeError(err);
-      const wrappedErr = new Error(friendlyMsg);
-      wrappedErr.cause = err;
-      throw wrappedErr;
+      throw wrapGeminiError(err);
     }
   }
 
-  const finalMsg = humanizeError(lastError);
-  const finalErr = new Error(finalMsg);
-  finalErr.cause = lastError;
-  throw finalErr;
+  throw wrapGeminiError(lastError);
 }
 
 function generateJSON(opts) {
   return generate({ ...opts, json: true });
 }
 
-module.exports = { generate, generateJSON, repairJSON, fallbackExtract, normalizeModel };
+module.exports = { generate, generateJSON, repairJSON, normalizeModel };

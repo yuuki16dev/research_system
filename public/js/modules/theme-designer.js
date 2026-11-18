@@ -67,7 +67,7 @@ function updateChartThemesIfPresent(theme) {
   if (!chartBox || !appState.currentResult || !appState.currentResult.chart) return;
 
   try {
-    const updatedSvg = renderSvgChart(appState.currentResult.chart);
+    const updatedSvg = renderSvgChart(appState.currentResult.chart, { theme });
     if (updatedSvg) {
       chartBox.innerHTML = updatedSvg;
     }
@@ -137,13 +137,35 @@ export function openThemeDesignerModal() {
   if (accInput) accInput.value = initialAcc;
   if (accText) accText.value = initialAcc;
 
+  updatePreviewBanner();
+  openModal('modal-theme-designer');
+}
+
+function updatePreviewBanner() {
+  const banner = $('#theme-preview-banner');
+  if (!banner) return;
+  banner.style.background = activeTheme.gradient || `linear-gradient(135deg, ${activeTheme.primary} 0%, ${activeTheme.accent} 100%)`;
+  const nameEl = $('#theme-preview-name');
+  if (nameEl) nameEl.textContent = activeTheme.name;
+}
+
+/**
+ * 初期化リスナー
+ */
+export function initThemeDesigner() {
+  // カスタムカラー入力欄のリスナーは初期化時に1度だけ登録
+  const priInput = /** @type {HTMLInputElement} */ ($('#theme-custom-primary'));
+  const priText = /** @type {HTMLInputElement} */ ($('#theme-custom-primary-text'));
+  const accInput = /** @type {HTMLInputElement} */ ($('#theme-custom-accent'));
+  const accText = /** @type {HTMLInputElement} */ ($('#theme-custom-accent-text'));
+
   const syncCustomColor = () => {
     const p = priInput?.value || '#2563eb';
     const a = accInput?.value || '#06b6d4';
     if (priText) priText.value = p;
     if (accText) accText.value = a;
 
-    grid?.querySelectorAll('.theme-card').forEach((c) => c.classList.remove('is-active'));
+    $$('#theme-preset-grid .theme-card').forEach((c) => c.classList.remove('is-active'));
     applyReportTheme({ preset: 'custom', primary: p, accent: a }, true);
     updatePreviewBanner();
   };
@@ -164,23 +186,6 @@ export function openThemeDesignerModal() {
       syncCustomColor();
     }
   });
-
-  updatePreviewBanner();
-  openModal('modal-theme-designer');
-}
-
-function updatePreviewBanner() {
-  const banner = $('#theme-preview-banner');
-  if (!banner) return;
-  banner.style.background = activeTheme.gradient || `linear-gradient(135deg, ${activeTheme.primary} 0%, ${activeTheme.accent} 100%)`;
-  const nameEl = $('#theme-preview-name');
-  if (nameEl) nameEl.textContent = activeTheme.name;
-}
-
-/**
- * 初期化リスナー
- */
-export function initThemeDesigner() {
   // エクスポートバーの着せ替えボタン
   const btn = $('#btn-open-theme-designer');
   if (btn) {

@@ -3,8 +3,20 @@
 // ==========================================================================
 
 import { safeFilename, fmtDate, toast, esc, downloadBlob } from './ui.js';
+import { getAuthHeaders } from './api.js';
 import { renderSvgChart } from './modules/charts.js';
 import { resolveTheme } from './modules/theme-presets.js';
+
+function formatAnalystNoteText(note) {
+  if (!note) return '';
+  if (typeof note === 'string') return note;
+  const parts = [];
+  if (note.coreHypothesis) parts.push(`核心仮説: ${note.coreHypothesis}`);
+  if (Array.isArray(note.criticalQuestions) && note.criticalQuestions.length) {
+    parts.push(...note.criticalQuestions.map((q) => `- ${q}`));
+  }
+  return parts.join('\n');
+}
 
 /**
  * 0. 即戦力出力：Slack/Teams用サマリー
@@ -432,7 +444,8 @@ export function formatDataPlaceholders(data) {
   if (data.deepThinking) {
     const dt = data.deepThinking;
     const parts = [];
-    if (dt.analystNote) parts.push(`【アナリスト思考仮説】\n${dt.analystNote}`);
+    const analystText = formatAnalystNoteText(dt.analystNote);
+    if (analystText) parts.push(`【アナリスト思考仮説】\n${analystText}`);
     if (dt.dynamicsAndRootCauses && dt.dynamicsAndRootCauses.length) {
       parts.push(
         `【構造的因果力学】\n` +
@@ -604,11 +617,17 @@ export function buildMarkdown(data) {
     const dt = data.deepThinking;
     if (dt.analystNote) {
       md += `## アナリスト深層推論ノート\n\n`;
-      md += `> **核心仮説**: ${dt.analystNote.coreHypothesis}\n\n`;
-      if (dt.analystNote.criticalQuestions && dt.analystNote.criticalQuestions.length) {
-        md += `**検証された批判的クエスチョン**:\n`;
-        dt.analystNote.criticalQuestions.forEach((q) => (md += `- ${q}\n`));
-        md += '\n';
+      if (typeof dt.analystNote === 'string') {
+        md += `${dt.analystNote}\n\n`;
+      } else {
+        if (dt.analystNote.coreHypothesis) {
+          md += `> **核心仮説**: ${dt.analystNote.coreHypothesis}\n\n`;
+        }
+        if (Array.isArray(dt.analystNote.criticalQuestions) && dt.analystNote.criticalQuestions.length) {
+          md += `**検証された批判的クエスチョン**:\n`;
+          dt.analystNote.criticalQuestions.forEach((q) => (md += `- ${q}\n`));
+          md += '\n';
+        }
       }
     }
 
@@ -911,7 +930,7 @@ export async function exportExcel(data, brand = {}) {
   try {
     const res = await fetch('/api/export/excel', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ data, brand, filename }),
     });
 
@@ -1035,7 +1054,7 @@ export async function exportExcel(data, brand = {}) {
     ];
 
     if (dt.analystNote) {
-      deepAoa.push(['アナリスト仮説', '本質課題と前提検証', dt.analystNote, '前提の妥当性精査']);
+      deepAoa.push(['アナリスト仮説', '本質課題と前提検証', formatAnalystNoteText(dt.analystNote), '前提の妥当性精査']);
     }
 
     if (dt.dynamicsAndRootCauses && dt.dynamicsAndRootCauses.length) {
@@ -2257,6 +2276,10 @@ export function buildResearchReportHtml(data, brand = 'Research Studio') {
   const sections = Array.isArray(data.sections) ? data.sections : [];
   const keyPoints = Array.isArray(data.keyPoints) ? data.keyPoints : [];
   const sources = Array.isArray(data.sources) ? data.sources : [];
+  const hasDetailedPage = sections.length > 1 || (data.table && data.table.rows && data.table.rows.length > 0);
+  const hasSourcesPage = sources.length > 0;
+  const totalPages = 2 + (hasDetailedPage ? 1 : 0) + (hasSourcesPage ? 1 : 0);
+  const formatBodyHtml = (txt) => esc(txt || '').replace(/\r?\n\r?\n/g, '<br><br>').replace(/\r?\n/g, '<br>');
 
   let html = `<div class="doc research-report">${themeStyle}`;
 
@@ -2329,7 +2352,7 @@ export function buildResearchReportHtml(data, brand = 'Research Studio') {
       ${sections.length > 0 ? `
         <div class="sec-head" style="margin-top: 6mm;"><span class="no">02</span><h2>${esc(sections[0].heading || '詳細論点・実証分析')}</h2></div>
         <div class="chapter-body" style="font-size: 8.8pt; line-height: 1.7; color: var(--text);">
-          ${esc(sections[0].body).replace(/\\n\\n/g, '<br><br>')}
+          ${formatBodyHtml(sections[0].body)}
         </div>
       ` : ''}
     </main>
@@ -2337,13 +2360,15 @@ export function buildResearchReportHtml(data, brand = 'Research Studio') {
     <footer class="rf">
       <div class="rf-left"><span class="conf-tag">${esc(confidentiality)}</span></div>
       <div class="rf-center">${esc(createdStr)} 発行 · © 2026 ${esc(publisherName)}</div>
-      <div class="rf-right">Page <b class="pg-num">2</b></div>
+      <div class="rf-right">Page <b class="pg-num">2</b> / <span class="pg-total">${totalPages}</span></div>
     </footer>
   </section>
   `;
 
   // 3. 詳細セクション（2章以降）＆ 比較マトリクス
-  if (sections.length > 1 || (data.table && data.table.rows && data.table.rows.length > 0)) {
+  let nextPageNum = 3;
+  if (hasDetailedPage) {
+    const detailedPageNum = nextPageNum++;
     html += `
     <section class="page" data-section="Detailed Analysis">
       <header class="rh">
@@ -2356,7 +2381,7 @@ export function buildResearchReportHtml(data, brand = 'Research Studio') {
         ${sections.slice(1).map((sec, idx) => `
           <div class="sec-head" style="margin-top: 4mm;"><span class="no">0${idx + 3}</span><h2>${esc(sec.heading)}</h2></div>
           <div class="chapter-body" style="font-size: 8.6pt; line-height: 1.65; color: var(--text);">
-            ${esc(sec.body).replace(/\\n\\n/g, '<br><br>')}
+            ${formatBodyHtml(sec.body)}
           </div>
           ${Array.isArray(sec.bullets) && sec.bullets.length > 0 ? `
             <ul style="margin: 2mm 0 4mm 4mm; font-size: 8.4pt; color: var(--ink);">
@@ -2387,14 +2412,15 @@ export function buildResearchReportHtml(data, brand = 'Research Studio') {
       <footer class="rf">
         <div class="rf-left"><span class="conf-tag">${esc(confidentiality)}</span></div>
         <div class="rf-center">${esc(createdStr)} 発行 · © 2026 ${esc(publisherName)}</div>
-        <div class="rf-right">Page <b class="pg-num">3</b></div>
+        <div class="rf-right">Page <b class="pg-num">${detailedPageNum}</b> / <span class="pg-total">${totalPages}</span></div>
       </footer>
     </section>
     `;
   }
 
   // 4. 出典一覧＆ディスクレーマー
-  if (sources.length > 0) {
+  if (hasSourcesPage) {
+    const sourcesPageNum = nextPageNum++;
     html += `
     <section class="page" data-section="Sources">
       <header class="rh">
@@ -2436,7 +2462,7 @@ export function buildResearchReportHtml(data, brand = 'Research Studio') {
       <footer class="rf">
         <div class="rf-left"><span class="conf-tag">${esc(confidentiality)}</span></div>
         <div class="rf-center">${esc(createdStr)} 発行 · © 2026 ${esc(publisherName)}</div>
-        <div class="rf-right">Page <b class="pg-num">4</b></div>
+        <div class="rf-right">Page <b class="pg-num">${sourcesPageNum}</b> / <span class="pg-total">${totalPages}</span></div>
       </footer>
     </section>
     `;
@@ -2475,7 +2501,7 @@ export async function exportPDF(data, brand = 'Research Studio', templateType = 
   try {
     const res = await fetch('/api/export/pdf', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         data,
         brand,

@@ -3,18 +3,9 @@
 // ==========================================================================
 
 import { api } from '../api.js';
+import { esc as escapeHtml } from '../ui.js';
 
 let changelogCache = null;
-
-function escapeHtml(str) {
-  if (!str) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
 
 function formatInlineMarkdown(str) {
   const safe = escapeHtml(str);

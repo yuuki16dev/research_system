@@ -45,6 +45,17 @@ async function testExe() {
     execSync('node server/stop.js', { cwd: ROOT, stdio: 'ignore' });
   } catch {}
 
+  let errLog = '';
+  if (!ok || !info) {
+    // tempDir 削除前に error.log を回収してデバッグ支援
+    try {
+      const errLogPath = path.join(tempDir, 'data', 'logs', 'error.log');
+      if (fs.existsSync(errLogPath)) {
+        errLog = fs.readFileSync(errLogPath, 'utf8');
+      }
+    } catch {}
+  }
+
   // クリーンアップ
   try {
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -56,13 +67,9 @@ async function testExe() {
     console.log(`  Mode: ${info.settings.effectiveMode}`);
     process.exit(0);
   } else {
-    // もし error.log が生成されていたら中身を表示してデバッグ支援
-    try {
-      const errLogPath = path.join(tempDir, 'data', 'logs', 'error.log');
-      if (fs.existsSync(errLogPath)) {
-        console.error('[TEST EXE ERROR LOG]:\n', fs.readFileSync(errLogPath, 'utf8'));
-      }
-    } catch {}
+    if (errLog) {
+      console.error('[TEST EXE ERROR LOG]:\n', errLog);
+    }
     console.error('[TEST EXE FAILED] ResearchStudio.exe did not respond within timeout in isolated environment');
     process.exit(1);
   }

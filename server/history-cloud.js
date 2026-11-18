@@ -11,41 +11,9 @@
 
 const crypto = require('crypto');
 const env = require('./env');
+const { sanitizeReportPatch: sanitizeUpdatePatch } = require('./util');
 
 const isId = (id) => typeof id === 'string' && /^[0-9a-f-]{36}$/i.test(id);
-
-// B-4: 更新可能な許可フィールドホワイトリスト（id, userId, createdAt は不可変）
-const ALLOWED_UPDATE_FIELDS = [
-  'title',
-  'subtitle',
-  'summary',
-  'tags',
-  'pinned',
-  'keyPoints',
-  'metrics',
-  'table',
-  'sections',
-  'insights',
-  'deepDives',
-  'theme',
-  'reportTheme',
-  'scope',
-  'scopeLabel',
-  'period',
-  'periodLabel',
-  'sources',
-  'chart',
-];
-
-function sanitizeUpdatePatch(patch = {}) {
-  const safe = {};
-  for (const key of ALLOWED_UPDATE_FIELDS) {
-    if (patch[key] !== undefined) {
-      safe[key] = patch[key];
-    }
-  }
-  return safe;
-}
 
 const getSupabaseUrl = env.getSupabaseUrl;
 const getServiceRoleKey = env.getSupabaseServiceRoleKey;
@@ -166,7 +134,8 @@ async function list(userId = null, userPlan = 'admin', options = {}) {
   if (retentionDays > 0) {
     const cutoffDate = new Date(Date.now() - retentionDays * 86400000);
     const cutoffIso = cutoffDate.toISOString();
-    retentionQuery = `&created_at=gte.${encodeURIComponent(cutoffIso)}`;
+    // ピン留めされたレポートは保持期限を過ぎても一覧・保管対象として維持する
+    retentionQuery = `&or=(created_at.gte.${encodeURIComponent(cutoffIso)},pinned.eq.true)`;
 
     // 期限切れレコードの非同期削除（バックグラウンドで実施）
     requestSupabase(
@@ -271,12 +240,7 @@ async function remove(id, userId = null, userPlan = 'admin', options = {}) {
  * @param {string} userPlan
  * @param {Object} options
  */
-async function update(id, patch = {}, userId = null, userPlan = 'admin', options = {}) {
-  if (!userId || !isId(id)) return null;
-
-  const current = await get(id, userId, userPlan, options);
-  if (!current) return null;
-
+async function applyReportUpdate(current, id, patch = {}, userId = null) {
   const safePatch = sanitizeUpdatePatch(patch);
   const updatedJson = { ...current, ...safePatch };
   // 識別子と持ち主と作成日時は不変
@@ -317,6 +281,15 @@ async function update(id, patch = {}, userId = null, userPlan = 'admin', options
   return updatedJson;
 }
 
+async function update(id, patch = {}, userId = null, userPlan = 'admin', options = {}) {
+  if (!userId || !isId(id)) return null;
+
+  const current = await get(id, userId, userPlan, options);
+  if (!current) return null;
+
+  return await applyReportUpdate(current, id, patch, userId);
+}
+
 /**
  * ピン留めトグル
  * @param {string} id
@@ -330,8 +303,7 @@ async function togglePin(id, userId = null, userPlan = 'admin', options = {}) {
   const current = await get(id, userId, userPlan, options);
   if (!current) return null;
 
-  const nextPinned = !current.pinned;
-  return await update(id, { pinned: nextPinned }, userId, userPlan, options);
+  return await applyReportUpdate(current, id, { pinned: !current.pinned }, userId);
 }
 
 /**

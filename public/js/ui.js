@@ -87,9 +87,10 @@ export function esc(s) {
 /* ------------------------------------------------------------------ toast */
 export function toast(message, type = 'success', ms = 2800) {
   const stack = $('#toasts');
+  if (!stack) return;
   const el = document.createElement('div');
   el.className = `toast ${type}`;
-  const ic = type === 'error' ? 'alert' : type === 'info' ? 'info' : 'check';
+  const ic = (type === 'error' || type === 'warn' || type === 'warning') ? 'alert' : type === 'info' ? 'info' : 'check';
   el.innerHTML = `${icon(ic)}<span>${esc(message)}</span>`;
   stack.appendChild(el);
   setTimeout(() => {

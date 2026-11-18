@@ -123,13 +123,12 @@ function executePdfGeneration(htmlContent, options = {}) {
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
   <style>
-    /* リセット & A4横スライド印刷用CSS */
+    /* リセット & A4印刷用CSS */
     ${printCss}
     @page {
-      size: A4 landscape;
+      ${isPortrait ? 'size: A4 portrait;' : 'size: A4 landscape;'}
       margin: 0;
     }
-    ${isPortrait ? '@page { size: A4 portrait; margin: 0; }' : ''}
     body {
       margin: 0 !important;
       padding: 0 !important;
@@ -189,6 +188,9 @@ function executePdfGeneration(htmlContent, options = {}) {
       }
 
       if (!fs.existsSync(tmpPdf) || fs.statSync(tmpPdf).size === 0) {
+        try {
+          if (fs.existsSync(tmpPdf)) fs.unlinkSync(tmpPdf);
+        } catch {}
         return reject(new Error('PDFファイルの出力に失敗しました。'));
       }
 

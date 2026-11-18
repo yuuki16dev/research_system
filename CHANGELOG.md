@@ -7,6 +7,25 @@
 - **マイナー (1.X.0)**: 後方互換性のある新機能の追加
 - **パッチ (1.0.X)**: 後方互換性のあるバグ修正や安定化・改善
 
+## [v2.19.1] - 2026-11-17
+
+### 🔧 コード品質・セキュリティ・リリース自動化基盤の総合安定化 (Code Quality, Security & Release Reliability)
+> **「不具合・冗長処理・XSSリスク・課金集計誤差を一掃し、配布リリースの安全性と再現性を強化」**  
+> サーバー／フロントエンド全体の不具合修正・デッドコード整理と回帰テスト拡充に加え、GitHub Releases 自動ビルド・検証パイプラインを強化しました。
+
+- **サーバー＆課金・ジョブ基盤の安定化 (`server/`)**:
+  - Windows 環境（Node 24）での二重起動チェック終了時に発生し得た `libuv` 終了クラッシュ対策として、`server/start.js` の既存サーバー検出を `http.get` ベースへ改善。
+  - `server/usage.js` で Gemini 利用コストを呼出単位・使用モデル単価で累積集計するよう修正し、サマリー表示の単価参照を動的化。
+  - `server/jobs.js` のキャンセル競合ガード（キャンセル済みジョブの `onResult` / `result` 発火抑止）、`server/index.js` のルート共通化と `/api/lifecycle/leave` の `POST` 限定・`'cost'` 調査目的対応、`server/util.js` の更新パッチホワイトリスト（`sanitizeReportPatch`）と Markdown セル/URL サニタイズ強化、`server/template-engine.js` の `$` 置換パターン破壊対策、`server/excel-commercial.js` の `meta` 保持・セル長上限クランプを実装。
+- **フロントエンド修正・冗長/デッドコード整理 (`public/`)**:
+  - `public/js/render.js` でリンクスキーム検証（`safeHref`）・`[S1]` 引用番号解決・インライン `onerror` 廃止・`IntersectionObserver` 破棄・重複イベント抑止を実施。
+  - `public/js/modules/theme-designer.js` & `charts.js` のカスタム配色リスナー多重登録解消と SVG グラデーション ID 一意化、`smart-header.js` / `presentation-modal.js` / `changelog-modal.js` / `query-polisher.js` / `modals.js` / `share.html` / `share.js` / `api.js` / `export-handlers.js` / `research.js` / `editor.js` / `history.js` / `deep-dive.js` / `auth.js` 等の整合修正を実施。
+  - 未使用モジュール `public/js/modules/share-formats.js` と未使用依存関係 `pptxgenjs`（サーバー側パッケージ）を削除し、`CHANGELOG.md` を `pkg.assets` に追加。
+- **リリースビルド＆検証パイプライン強化 (`.github/workflows/release.yml`, `scripts/release-helper.js`, `scripts/package-release.js`)**:
+  - タグ形式および `package.json` とのバージョン一致検証、`CHANGELOG.md` からの日本語リリースノート自動抽出（フォールバック付き）、配布物 `SHA256SUMS.txt` 生成・添付、`pkg` キャッシュ、`npm run test:exports` ゲート、PowerShell `$ErrorActionPreference = 'Stop'` を導入。
+- **テスト拡充 (`test/plan-d-regressions.test.js`, `test/phase1-features.test.js`)**:
+  - 上記修正・リリースヘルパーに対する回帰テストを追加し、全件合格を確認。
+
 ## [v2.19.0] - 2026-11-15
 
 ### 🔄 Supabase Keep-Alive 自動維持・起動時 DNS 診断強化・新形式 API キー対応 (Supabase Keep-Alive & Diagnostics Hardening)

@@ -4,43 +4,11 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { DATA_DIR } = require('./settings');
+const { sanitizeReportPatch: sanitizeUpdatePatch } = require('./util');
 
 const DIR = path.join(DATA_DIR, 'history');
 const MAX_ITEMS = 100;
 const isId = (id) => /^[0-9a-f-]{36}$/i.test(id);
-
-// B-4: 更新可能な許可フィールドホワイトリスト（id, userId, createdAt は不可変）
-const ALLOWED_UPDATE_FIELDS = [
-  'title',
-  'subtitle',
-  'summary',
-  'tags',
-  'pinned',
-  'keyPoints',
-  'metrics',
-  'table',
-  'sections',
-  'insights',
-  'deepDives',
-  'theme',
-  'reportTheme',
-  'scope',
-  'scopeLabel',
-  'period',
-  'periodLabel',
-  'sources',
-  'chart',
-];
-
-function sanitizeUpdatePatch(patch = {}) {
-  const safe = {};
-  for (const key of ALLOWED_UPDATE_FIELDS) {
-    if (patch[key] !== undefined) {
-      safe[key] = patch[key];
-    }
-  }
-  return safe;
-}
 
 function save(result) {
   if (!result || !result.id) return;

@@ -47,6 +47,8 @@ function createMockSupabaseServer() {
         const userIdParam = url.searchParams.get('user_id');
         const idParam = url.searchParams.get('id');
         const createdAtParam = url.searchParams.get('created_at');
+        const pinnedParam = url.searchParams.get('pinned');
+        const orParam = url.searchParams.get('or');
 
         let matched = Array.from(store.values());
 
@@ -65,13 +67,25 @@ function createMockSupabaseServer() {
           matched = matched.filter((r) => rawIds.includes(r.id));
         }
 
-        // created_at フィルタ (gte / lt)
+        // created_at / pinned / or フィルタ
         if (createdAtParam && createdAtParam.startsWith('gte.')) {
           const iso = createdAtParam.slice(4);
           matched = matched.filter((r) => r.created_at >= iso);
         } else if (createdAtParam && createdAtParam.startsWith('lt.')) {
           const iso = createdAtParam.slice(3);
           matched = matched.filter((r) => r.created_at < iso);
+        }
+        if (pinnedParam === 'eq.false') {
+          matched = matched.filter((r) => !r.pinned);
+        } else if (pinnedParam === 'eq.true') {
+          matched = matched.filter((r) => Boolean(r.pinned));
+        }
+        if (orParam) {
+          const m = /^\(created_at\.gte\.([^,]+),pinned\.eq\.true\)$/.exec(orParam);
+          if (m) {
+            const iso = m[1];
+            matched = matched.filter((r) => r.created_at >= iso || Boolean(r.pinned));
+          }
         }
 
         if (req.method === 'GET') {

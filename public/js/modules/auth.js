@@ -4,7 +4,9 @@
 
 import { api } from '../api.js';
 import { toast, openModal, closeModal } from '../ui.js';
-import { loadRecentHistory, renderHistoryDrawerList } from './history.js';
+import { appState } from './state.js';
+import { historyState, loadRecentHistory, renderHistoryDrawerList, updateCrossBar } from './history.js';
+import { resetDeepDiveState } from './deep-dive.js';
 
 export const authState = {
   isCloud: false,
@@ -159,7 +161,38 @@ export function updateAccountDetailsUI() {
         resetEl.textContent = '来月1日';
       }
     }
+  } else {
+    if (usedEl) usedEl.textContent = '—';
+    if (limitEl) limitEl.textContent = '—';
+    if (remainingEl) remainingEl.textContent = '—';
+    if (resetEl) resetEl.textContent = '—';
   }
+}
+
+function clearSessionWorkspaceUI() {
+  appState.currentResult = null;
+  historyState.selectedCrossIds.clear();
+  updateCrossBar();
+  const resultsSection = document.getElementById('results-section');
+  if (resultsSection) resultsSection.hidden = true;
+  const reportEl = document.getElementById('report');
+  if (reportEl) reportEl.innerHTML = '';
+  resetDeepDiveState();
+}
+
+async function completeAuthSession(token, user, welcomeMsg, toastMs = 3000) {
+  const prevUserId = authState.user && authState.user.id;
+  setAuthSession(token, user);
+  await refreshAuthStatus();
+  if (prevUserId && (!user || prevUserId !== user.id)) {
+    clearSessionWorkspaceUI();
+  }
+  updateAccountDetailsUI();
+  closeModal(document.getElementById('modal-auth'));
+  closeModal(document.getElementById('modal-account'));
+  toast(welcomeMsg, 'success', toastMs);
+  await loadRecentHistory();
+  await renderHistoryDrawerList();
 }
 
 /**
@@ -306,13 +339,11 @@ export function initAuth() {
       try {
         const res = await api.login({ email, password });
         if (res.access_token) {
-          setAuthSession(res.access_token, res.user);
-          await refreshAuthStatus();
-          closeModal(document.getElementById('modal-auth'));
-          closeModal(document.getElementById('modal-account'));
-          toast(`ログインしました（ようこそ、${(res.user && res.user.email) || ''}さん！）`, 'success');
-          await loadRecentHistory();
-          await renderHistoryDrawerList();
+          await completeAuthSession(
+            res.access_token,
+            res.user,
+            `ログインしました（ようこそ、${(res.user && res.user.email) || ''}さん！）`
+          );
         } else {
           throw new Error('アクセストークンの取得に失敗しました');
         }
@@ -359,13 +390,12 @@ export function initAuth() {
       try {
         const res = await api.signup({ email, password });
         if (res.access_token) {
-          setAuthSession(res.access_token, res.user);
-          await refreshAuthStatus();
-          closeModal(document.getElementById('modal-auth'));
-          closeModal(document.getElementById('modal-account'));
-          toast('アカウント作成が完了しました！月3回まで無料でお使いいただけます。', 'success', 5000);
-          await loadRecentHistory();
-          await renderHistoryDrawerList();
+          await completeAuthSession(
+            res.access_token,
+            res.user,
+            'アカウント作成が完了しました！月3回まで無料でお使いいただけます。',
+            5000
+          );
         } else {
           // メール確認が必要な設定の場合
           closeModal(document.getElementById('modal-auth'));
@@ -398,13 +428,7 @@ export function initAuth() {
       try {
         const res = await api.login({ email, password });
         if (res.access_token) {
-          setAuthSession(res.access_token, res.user);
-          await refreshAuthStatus();
-          closeModal(document.getElementById('modal-auth'));
-          closeModal(document.getElementById('modal-account'));
-          toast(`「${res.user.email}」としてログインしました`, 'success');
-          await loadRecentHistory();
-          await renderHistoryDrawerList();
+          await completeAuthSession(res.access_token, res.user, `「${res.user.email}」としてログインしました`);
         } else {
           throw new Error('アクセストークン取得失敗');
         }
@@ -431,7 +455,9 @@ export function initAuth() {
   if (logoutBtn) {
     logoutBtn.addEventListener('click', async () => {
       setAuthSession(null, null);
+      clearSessionWorkspaceUI();
       await refreshAuthStatus();
+      updateAccountDetailsUI();
       closeModal(document.getElementById('modal-account'));
       toast('ログアウトしました', 'info');
       await loadRecentHistory();

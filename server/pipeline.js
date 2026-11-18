@@ -8,20 +8,53 @@ const { generateGroq } = require('./groq');
 const search = require('./search');
 const { buildMock, buildDeltaMockRaw } = require('./mock');
 const memory = require('./memory');
-const { normalizeResult, parseSites, domainOf, arr, str, SCOPE_LABELS, SNS_DOMAINS, FOCUS_LABELS } = require('./util');
+const { normalizeResult, parseSites, domainOf, arr, str, SCOPE_LABELS, SNS_DOMAINS, FOCUS_LABELS, delay } = require('./util');
 const { PROMPT_INJECTION_BARRIER, wrapUntrustedContent } = require('./security');
 
-function sleep(ms, signal) {
-  // テスト実行時は不要な待機時間を短縮して高速化（非同期ジョブの状態検証が維持できるよう適度な長さを確保）
-  const actualMs = process.env.NODE_ENV === 'test' ? Math.min(ms, 250) : ms;
-  return new Promise((resolve, reject) => {
-    if (signal && signal.aborted) return reject(new Error('キャンセルされました'));
-    const t = setTimeout(resolve, actualMs);
-    signal && signal.addEventListener('abort', () => {
-      clearTimeout(t);
-      reject(new Error('キャンセルされました'));
-    }, { once: true });
-  });
+const sleep = (ms, signal) => delay(ms, signal, 250);
+
+function createJobCtx(job) {
+  return {
+    signal: (job.controller && job.controller.signal) || job.signal || new AbortController().signal,
+    log: (message, kind = 'info', detail) => {
+      if (typeof job.emit === 'function') {
+        job.emit({ type: 'log', kind, message, detail: detail || undefined });
+      } else if (typeof job.log === 'function') {
+        job.log(kind, message, detail);
+      }
+    },
+    progress: (value, stage) => {
+      if (typeof job.emit === 'function') {
+        job.emit({ type: 'progress', value, stage });
+      } else if (typeof job.progress === 'function') {
+        job.progress(stage, value);
+      }
+    },
+  };
+}
+
+function createTokenTracker(initialModel) {
+  const usage = {
+    promptTokens: 0,
+    candidatesTokens: 0,
+    totalTokens: 0,
+    calls: 0,
+    provider: 'gemini',
+    model: initialModel || DEFAULT_GEMINI_MODEL,
+  };
+  const record = (u, defaultProvider) => {
+    if (!u) return;
+    const pt = Number(u.promptTokens) || 0;
+    const ct = Number(u.candidatesTokens) || 0;
+    const tt = Number(u.totalTokens) || (pt + ct);
+    usage.promptTokens += pt;
+    usage.candidatesTokens += ct;
+    usage.totalTokens += tt;
+    usage.calls += 1;
+    if (u.provider || defaultProvider) usage.provider = u.provider || defaultProvider;
+    if (u.model) usage.model = u.model;
+  };
+  return { usage, record };
 }
 
 /** 長時間のAI待ちの間、プログレスを漸近的に進めつつ思考プロセスログを定期送出 */
@@ -305,27 +338,7 @@ async function runLive(p, s, ctx) {
   // C-1: クラウド版では isFreeTier は常に偽（有料Tier前提）
   const isFreeTier = env.IS_CLOUD ? false : (s.geminiAccountTier === 'free' || (s.geminiAccountTier !== 'tier1'));
 
-  const jobTokenUsage = {
-    promptTokens: 0,
-    candidatesTokens: 0,
-    totalTokens: 0,
-    calls: 0,
-    provider: 'gemini',
-    model: s.geminiModel || DEFAULT_GEMINI_MODEL,
-  };
-
-  const recordJobUsage = (usageInfo) => {
-    if (!usageInfo) return;
-    const pt = Number(usageInfo.promptTokens) || 0;
-    const ct = Number(usageInfo.candidatesTokens) || 0;
-    const tt = Number(usageInfo.totalTokens) || (pt + ct);
-    jobTokenUsage.promptTokens += pt;
-    jobTokenUsage.candidatesTokens += ct;
-    jobTokenUsage.totalTokens += tt;
-    jobTokenUsage.calls += 1;
-    if (usageInfo.provider) jobTokenUsage.provider = usageInfo.provider;
-    if (usageInfo.model) jobTokenUsage.model = usageInfo.model;
-  };
+  const { usage: jobTokenUsage, record: recordJobUsage } = createTokenTracker(s.geminiModel);
 
   const ai = (prompt, opts = {}) =>
     generateJSON({
@@ -543,18 +556,24 @@ async function runLive(p, s, ctx) {
     if (!sites.length) {
       ctx.progress(12, 'discover');
       ctx.log('入力が空欄のため、テーマに最適な専門サイトをAIが選定中…', 'ai');
-      const d = await ai(
-        `「${p.theme}」について最も信頼できる・一次情報が集まる専門Webサイトのドメイン（例: note.com, zenn.dev, prtimes.jp 等）を3つ挙げよ。\n` +
-          `実在し、検索エンジンにインデックスされている日本語または英語のサイトに限る。\n` +
-          `出力JSON: {"domains":[{"domain":"example.com","reason":"選定理由（40字以内）"}]}`,
-        { temperature: 0.3 }
-      );
-      const picked = arr(d.domains)
-        .map((x) => ({ domain: domainOf(typeof x === 'string' ? x : x && x.domain), reason: str(x && x.reason) }))
-        .filter((x) => x.domain)
-        .slice(0, 3);
-      picked.forEach((x) => ctx.log(`専門サイトを特定: ${x.domain}`, 'site', x.reason));
-      sites = picked.map((x) => x.domain);
+      try {
+        const d = await ai(
+          `「${p.theme}」について最も信頼できる・一次情報が集まる専門Webサイトのドメイン（例: note.com, zenn.dev, prtimes.jp 等）を3つ挙げよ。\n` +
+            `実在し、検索エンジンにインデックスされている日本語または英語のサイトに限る。\n` +
+            `出力JSON: {"domains":[{"domain":"example.com","reason":"選定理由（40字以内）"}]}`,
+          { temperature: 0.3 }
+        );
+        const picked = arr(d.domains)
+          .map((x) => ({ domain: domainOf(typeof x === 'string' ? x : x && x.domain), reason: str(x && x.reason) }))
+          .filter((x) => x.domain)
+          .slice(0, 3);
+        picked.forEach((x) => ctx.log(`専門サイトを特定: ${x.domain}`, 'site', x.reason));
+        sites = picked.map((x) => x.domain);
+      } catch (errSite) {
+        if (signal && signal.aborted) throw errSite;
+        ctx.log(`専門サイトのAI特定をスキップし、Web全体検索で続行します: ${errSite.message}`, 'warn');
+        sites = [];
+      }
       if (!sites.length) {
         notices.push('専門サイトを特定できなかったため Web全体 で検索しました');
         ctx.log('専門サイトを特定できなかったため Web全体 で検索します', 'warn');
@@ -888,6 +907,7 @@ async function runLive(p, s, ctx) {
   };
   ctx.progress(56, 'analyze');
   for (let i = 0; i < targets.length; i += 4) {
+    if (signal && signal.aborted) throw new Error('キャンセルされました');
     await Promise.all(targets.slice(i, i + 4).map(worker));
   }
 
@@ -954,6 +974,7 @@ async function runLive(p, s, ctx) {
               notices.push(`💡 Google無料枠混雑のため、補欠の Groq (${s.groqModel || 'Llama 3.3 70B'}) により爆速でレポートを完成させました。`);
             }
           } catch (eGroq) {
+            if (signal && signal.aborted) throw eGroq;
             ctx.log(`Groq通信エラー: ${eGroq.message}`, 'warn');
           }
         }
@@ -1431,23 +1452,7 @@ async function runResearch(job, settings) {
   const p = job.params;
   const live = settings.mode !== 'mock' && !p.forceMock && !!settings.geminiApiKey;
   const t0 = Date.now();
-  const ctx = {
-    signal: (job.controller && job.controller.signal) || job.signal || new AbortController().signal,
-    log: (message, kind = 'info', detail) => {
-      if (typeof job.emit === 'function') {
-        job.emit({ type: 'log', kind, message, detail: detail || undefined });
-      } else if (typeof job.log === 'function') {
-        job.log(kind, message, detail);
-      }
-    },
-    progress: (value, stage) => {
-      if (typeof job.emit === 'function') {
-        job.emit({ type: 'progress', value, stage });
-      } else if (typeof job.progress === 'function') {
-        job.progress(stage, value);
-      }
-    },
-  };
+  const ctx = createJobCtx(job);
 
   const kind = p.depth === 'deep' ? 'research_deep' : 'research_quick';
   let out;
@@ -1502,7 +1507,7 @@ async function runResearch(job, settings) {
     period: p.period,
     customPeriod: p.customPeriod,
     mode: live ? 'live' : 'mock',
-    model: live ? settings.geminiModel : null,
+    model: live ? ((out.raw && out.raw.tokenUsage && out.raw.tokenUsage.model) || settings.geminiModel) : null,
     searchProvider: out.provider,
     createdAt: new Date().toISOString(),
     durationMs: Date.now() - t0,
@@ -1603,23 +1608,7 @@ async function runCrossSynthesis(job, settings) {
   const { reports = [], forceMock } = job.params;
   const live = settings.mode !== 'mock' && !forceMock && !!settings.geminiApiKey;
   const t0 = Date.now();
-  const ctx = {
-    signal: (job.controller && job.controller.signal) || job.signal || new AbortController().signal,
-    log: (message, kind = 'info', detail) => {
-      if (typeof job.emit === 'function') {
-        job.emit({ type: 'log', kind, message, detail: detail || undefined });
-      } else if (typeof job.log === 'function') {
-        job.log(kind, message, detail);
-      }
-    },
-    progress: (value, stage) => {
-      if (typeof job.emit === 'function') {
-        job.emit({ type: 'progress', value, stage });
-      } else if (typeof job.progress === 'function') {
-        job.progress(stage, value);
-      }
-    },
-  };
+  const ctx = createJobCtx(job);
 
   const themes = reports.map((r) => r.theme || r.title || '調査テーマ');
   const combinedTheme = themes.slice(0, 3).join(' × ') + (themes.length > 3 ? ` ほか計${themes.length}件` : '');
@@ -1657,29 +1646,16 @@ async function runCrossSynthesis(job, settings) {
     }
   }
 
+  const crossTracker = createTokenTracker(settings.geminiModel);
+  const crossTokenUsage = crossTracker.usage;
   if (live) {
-    const crossTokenUsage = {
-      promptTokens: 0,
-      candidatesTokens: 0,
-      totalTokens: 0,
-      calls: 0,
-      provider: 'gemini',
-      model: settings.geminiModel || DEFAULT_GEMINI_MODEL,
-    };
     const ai = (prompt, opts = {}) =>
       generateJSON({
         apiKey: settings.geminiApiKey,
         model: settings.geminiModel,
         prompt,
         signal: ctx.signal,
-        onUsage: (u) => {
-          if (u) {
-            crossTokenUsage.promptTokens += (u.promptTokens || 0);
-            crossTokenUsage.candidatesTokens += (u.candidatesTokens || 0);
-            crossTokenUsage.totalTokens += (u.totalTokens || 0);
-            crossTokenUsage.calls += 1;
-          }
-        },
+        onUsage: (u) => crossTracker.record(u, 'gemini'),
         ...opts,
       });
 
@@ -1758,7 +1734,7 @@ ${reportsDigest}
     focus: 'decision',
     purpose: 'compare',
     mode: live ? 'live' : 'mock',
-    model: live ? settings.geminiModel : null,
+    model: live ? ((raw.tokenUsage && raw.tokenUsage.model) || settings.geminiModel) : null,
     searchProvider: 'cross-synthesis',
     createdAt: new Date().toISOString(),
     durationMs: Date.now() - t0,
@@ -1803,23 +1779,7 @@ async function runDeltaTracking(job, settings) {
   const theme = baseReport.theme || baseReport.title || '調査テーマ';
   const baseDate = baseReport.createdAt ? String(baseReport.createdAt).slice(0, 10) : '前回';
 
-  const ctx = {
-    signal: (job.controller && job.controller.signal) || job.signal || new AbortController().signal,
-    log: (message, kind = 'info', detail) => {
-      if (typeof job.emit === 'function') {
-        job.emit({ type: 'log', kind, message, detail: detail || undefined });
-      } else if (typeof job.log === 'function') {
-        job.log(kind, message, detail);
-      }
-    },
-    progress: (value, stage) => {
-      if (typeof job.emit === 'function') {
-        job.emit({ type: 'progress', value, stage });
-      } else if (typeof job.progress === 'function') {
-        job.progress(stage, value);
-      }
-    },
-  };
+  const ctx = createJobCtx(job);
 
   ctx.log(
     live ? 'LIVE モードで定点観測・新着差分リサーチを開始します（Gemini 推論）' : 'DEMO モードで定点観測・新着差分リサーチを開始します（モックデータ）',
@@ -1835,29 +1795,16 @@ async function runDeltaTracking(job, settings) {
   let queries = [];
   const currentYear = new Date().getFullYear();
 
+  const crossTracker = createTokenTracker(settings.geminiModel);
+  const crossTokenUsage = crossTracker.usage;
   if (live) {
-    const crossTokenUsage = {
-      promptTokens: 0,
-      candidatesTokens: 0,
-      totalTokens: 0,
-      calls: 0,
-      provider: 'gemini',
-      model: settings.geminiModel || DEFAULT_GEMINI_MODEL,
-    };
     const ai = (prompt, opts = {}) =>
       generateJSON({
         apiKey: settings.geminiApiKey,
         model: settings.geminiModel,
         prompt,
         signal: ctx.signal,
-        onUsage: (u) => {
-          if (u) {
-            crossTokenUsage.promptTokens += (u.promptTokens || 0);
-            crossTokenUsage.candidatesTokens += (u.candidatesTokens || 0);
-            crossTokenUsage.totalTokens += (u.totalTokens || 0);
-            crossTokenUsage.calls += 1;
-          }
-        },
+        onUsage: (u) => crossTracker.record(u, 'gemini'),
         ...opts,
       });
 
@@ -1881,6 +1828,7 @@ async function runDeltaTracking(job, settings) {
         queries = qRes.map(String).filter(Boolean).slice(0, 5);
       }
     } catch (e) {
+      if (ctx.signal.aborted) throw e;
       ctx.log(`クエリ展開フォールバック: ${e.message}`, 'warn');
     }
 
@@ -1888,23 +1836,21 @@ async function runDeltaTracking(job, settings) {
     ctx.progress(35, 'search');
     ctx.log(`展開した ${queries.length} 本のクエリで最新の差分情報を検索中…`, 'search', queries.join(' / '));
 
-    const searchProvider = settings.searchProvider === 'duckduckgo' || !settings.tavilyApiKey ? 'duckduckgo' : 'tavily';
+    const searchProvider = env.IS_CLOUD
+      ? 'tavily'
+      : ((settings.searchProvider === 'duckduckgo' || !settings.tavilyApiKey) ? 'duckduckgo' : 'tavily');
     const searchTasks = queries.map((q) =>
-      searchProvider === 'tavily'
-        ? search.tavilySearch({
-            apiKey: settings.tavilyApiKey,
-            query: q,
-            maxResults: 4,
-            signal: ctx.signal,
-          })
-        : search.duckduckgoSearch({
-            query: q,
-            maxResults: 4,
-            signal: ctx.signal,
-          })
+      search.run({
+        provider: searchProvider,
+        apiKey: settings.tavilyApiKey,
+        query: q,
+        maxResults: 4,
+        signal: ctx.signal,
+      })
     );
 
     const searchResults = await Promise.allSettled(searchTasks);
+    if (ctx.signal.aborted) throw new Error('キャンセルされました');
     const seenUrls = new Set();
 
     searchResults.forEach((sr) => {
@@ -2050,6 +1996,10 @@ ${sourcesContext}
     raw.tokenUsage = crossTokenUsage;
   }
 
+  const deltaProvider = env.IS_CLOUD
+    ? 'tavily'
+    : ((settings.searchProvider === 'duckduckgo' || !settings.tavilyApiKey) ? 'duckduckgo' : 'tavily');
+
   const result = normalizeResult(raw, {
     id: job.id,
     theme: `【定点差分】${theme}`,
@@ -2058,8 +2008,8 @@ ${sourcesContext}
     focus: 'decision',
     purpose: 'trend',
     mode: live ? 'live' : 'mock',
-    model: live ? settings.geminiModel : null,
-    searchProvider: live ? (settings.searchProvider === 'duckduckgo' || !settings.tavilyApiKey ? 'duckduckgo' : 'tavily') : 'delta-mock',
+    model: live ? ((raw.tokenUsage && raw.tokenUsage.model) || settings.geminiModel) : null,
+    searchProvider: live ? deltaProvider : 'delta-mock',
     createdAt: new Date().toISOString(),
     durationMs: Date.now() - t0,
     queries: live ? queries : [`${theme} 最新 差分 ${currentYear}`],
@@ -2079,7 +2029,7 @@ ${sourcesContext}
   ctx.log(`定点観測・新着差分リサーチが完了しました（${(result.durationMs / 1000).toFixed(1)}秒）`, 'done');
 
   // C-3: 正常完了時の利用イベント記録
-  const tavilyCredits = live && (settings.searchProvider === 'tavily' || settings.tavilyApiKey)
+  const tavilyCredits = live && deltaProvider === 'tavily'
     ? usageEvents.calculateTavilyCredits(queries.length, false)
     : 0;
   await usageEvents.recordUsageEvent({

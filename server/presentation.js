@@ -287,6 +287,7 @@ ${validFiles.length > 0 ? `\n【添付ファイル数】: ${validFiles.length}�
   }));
 
   let tokenUsage = { promptTokens: 0, candidatesTokens: 0, totalTokens: 0, calls: 0 };
+  let actualModel = effectiveModel;
   let result;
   try {
     result = await gemini.generateJSON({
@@ -302,6 +303,7 @@ ${validFiles.length > 0 ? `\n【添付ファイル数】: ${validFiles.length}�
           tokenUsage.candidatesTokens += (u.candidatesTokens || 0);
           tokenUsage.totalTokens += (u.totalTokens || 0);
           tokenUsage.calls += 1;
+          if (u.model) actualModel = u.model;
         }
       },
     });
@@ -310,7 +312,7 @@ ${validFiles.length > 0 ? `\n【添付ファイル数】: ${validFiles.length}�
     await usageEvents.recordUsageEvent({
       userId: userId || 'owner-user',
       kind: 'slides',
-      model: effectiveModel,
+      model: actualModel,
       promptTokens: tokenUsage.promptTokens,
       outputTokens: tokenUsage.candidatesTokens,
       geminiCalls: tokenUsage.calls,
@@ -321,7 +323,7 @@ ${validFiles.length > 0 ? `\n【添付ファイル数】: ${validFiles.length}�
     await usageEvents.recordUsageEvent({
       userId: userId || 'owner-user',
       kind: 'slides',
-      model: effectiveModel,
+      model: actualModel,
       status: 'error',
     });
     throw err;

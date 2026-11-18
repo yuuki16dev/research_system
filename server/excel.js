@@ -676,7 +676,17 @@ function buildSources(wb, d) {
       s.title,
       typeof s.score === 'number' ? s.score : s.score,
       s.publisher || s.domain || '調査情報源',
-      s.url ? { formula: `HYPERLINK("${excelStr(s.url)}","${excelStr(s.url)}")`, result: s.url } : '—',
+      s.url && /^https?:\/\//i.test(String(s.url).trim())
+        ? (() => {
+            const rawUrl = String(s.url).trim();
+            if (rawUrl.length <= 235) {
+              const maxDisp = Math.max(20, 235 - rawUrl.length);
+              const disp = rawUrl.length > maxDisp ? rawUrl.slice(0, maxDisp - 1) + '…' : rawUrl;
+              return { formula: `HYPERLINK("${excelStr(rawUrl)}","${excelStr(disp)}")`, result: disp };
+            }
+            return { text: rawUrl, hyperlink: rawUrl };
+          })()
+        : '—',
     ];
     vals.forEach((v, j) => {
       const cell = ws.getCell(r, j + 1);
@@ -750,7 +760,7 @@ function transformDataToExcelFormat(data = {}, brand = {}) {
   if (Array.isArray(data.metrics) && data.metrics.length > 0) {
     metrics = data.metrics.slice(0, 4).map((m) => ({
       label: m.label || '指標',
-      value: String(m.value || '—'),
+      value: (m.value !== undefined && m.value !== null && m.value !== '') ? String(m.value) : '—',
       note: m.note || '',
     }));
   }
@@ -942,8 +952,6 @@ module.exports = {
   verifyNoDataLoss: excelCommercial.verifyNoDataLoss,
   SHEETS: excelCommercial.SHEETS,
   transformDataToExcelFormat,
-  buildWorkbook,
-  buildSections,
   applyThemeTokens,
   BRAND,
 };

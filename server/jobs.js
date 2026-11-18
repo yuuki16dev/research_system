@@ -113,15 +113,20 @@ function createJob(params, runner, { onResult, onSettled, userId } = {}) {
     let settled = false;
     try {
       const result = await runner(job);
-      job.status = 'done';
-      if (onResult) {
-        try {
-          await onResult(result);
-        } catch (e) {
-          console.error('[history] 保存に失敗:', e.message);
+      if (job.status === 'cancelled' || job.controller.signal.aborted) {
+        job.status = 'cancelled';
+        job.emit({ type: 'error', message: 'リサーチをキャンセルしました' });
+      } else {
+        job.status = 'done';
+        if (onResult) {
+          try {
+            await onResult(result);
+          } catch (e) {
+            console.error('[history] 保存に失敗:', e.message);
+          }
         }
+        job.emit({ type: 'result', data: result });
       }
-      job.emit({ type: 'result', data: result });
     } catch (e) {
       job.status = job.controller.signal.aborted ? 'cancelled' : 'error';
       if (job.status === 'error') console.error('[job]', e);
@@ -145,17 +150,9 @@ function createJob(params, runner, { onResult, onSettled, userId } = {}) {
 
 const getJob = (id) => jobs.get(id);
 
-function _clearJobsForTest() {
-  jobs.clear();
-}
-
 module.exports = {
   createJob,
   getJob,
   formatJobErrorMessage,
-  hasRunningJobForUser,
-  getRunningJobCount,
-  getMaxConcurrentJobs,
   checkJobCapacity,
-  _clearJobsForTest,
 };

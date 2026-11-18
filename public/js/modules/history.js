@@ -22,6 +22,28 @@ export const historyState = {
 
 let onSelectHistoryCallback = null;
 
+async function deleteHistoryEntry(id) {
+  try {
+    await api.deleteHistory(id);
+  } catch (err) {
+    toast(`削除に失敗しました: ${err.message}`, 'error');
+    return;
+  }
+  toast('削除しました', 'info');
+  historyState.items = historyState.items.filter((x) => x.id !== id);
+  historyState.selectedCrossIds.delete(id);
+  if (appState.currentResult && appState.currentResult.id === id) {
+    appState.currentResult = null;
+    const resultsSection = $('#results-section');
+    if (resultsSection) resultsSection.hidden = true;
+    const reportEl = $('#report');
+    if (reportEl) reportEl.innerHTML = '';
+  }
+  updateCrossBar();
+  await renderHistoryDrawerList();
+  renderHomeHistory();
+}
+
 export function setOnSelectHistory(cb) {
   onSelectHistoryCallback = cb;
 }
@@ -386,11 +408,7 @@ export async function renderHistoryDrawerList() {
         e.stopPropagation();
         const id = btn.dataset.deleteId;
         if (confirm('このリサーチ履歴を削除しますか？')) {
-          await api.deleteHistory(id);
-          toast('削除しました', 'info');
-          historyState.items = historyState.items.filter((x) => x.id !== id);
-          await renderHistoryDrawerList();
-          renderHomeHistory();
+          await deleteHistoryEntry(id);
         }
       });
     });
@@ -573,11 +591,7 @@ export function renderHomeHistory() {
       e.stopPropagation();
       const id = btn.dataset.homeDeleteId;
       if (confirm('このリサーチ履歴を削除しますか？')) {
-        await api.deleteHistory(id);
-        toast('削除しました', 'info');
-        historyState.items = historyState.items.filter((x) => x.id !== id);
-        renderHomeHistory();
-        renderHistoryDrawerList();
+        await deleteHistoryEntry(id);
       }
     });
   });
@@ -592,7 +606,7 @@ export async function loadRecentHistory() {
     if (err && (err.status === 401 || String(err.message).includes('401') || String(err.message).includes('認証'))) {
       if (container) {
         container.hidden = false;
-        const grid = $('#home-history-grid');
+        const grid = $('#recent-grid');
         if (grid) {
           grid.innerHTML = `
             <div class="home-history-empty" style="grid-column: 1 / -1; padding: 28px 16px; text-align: center; color: var(--text-2); background: var(--surface); border-radius: 12px; border: 1px dashed var(--border);">

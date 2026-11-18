@@ -63,7 +63,7 @@ function adaptDataForTemplate(data = {}, brand = {}) {
   if (Array.isArray(data.metrics) && data.metrics.length > 0) {
     metrics = data.metrics.map(m => ({
       label: m.label || '指標',
-      value: String(m.value || '—'),
+      value: (m.value !== undefined && m.value !== null && m.value !== '') ? String(m.value) : '—',
       note: m.note || '',
     }));
   } else {
@@ -230,15 +230,15 @@ function renderTemplateHtml(templateKey = 'slides', data = {}, brand = {}) {
     .replace(/\u2029/g, '\\u2029');
 
   let html = rawHtml
-    .replace('/*@@CORE_CSS@@*/', coreCss)
-    .replace('/*@@CORE_JS@@*/', coreJs);
+    .replace('/*@@CORE_CSS@@*/', () => coreCss)
+    .replace('/*@@CORE_JS@@*/', () => coreJs);
 
   // report-data ブロックの置換
   const reData = /^(<script id="report-data" type="application\/json">)[\s\S]*?(<\/script>)$/m;
   if (reData.test(html)) {
-    html = html.replace(reData, `$1\n${jsonStr}\n$2`);
+    html = html.replace(reData, (_, open, close) => `${open}\n${jsonStr}\n${close}`);
   } else {
-    html = html.replace('@@DATA@@', jsonStr);
+    html = html.replace('@@DATA@@', () => jsonStr);
   }
 
   return html;

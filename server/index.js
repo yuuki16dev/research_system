@@ -9,20 +9,7 @@ if (typeof dns.setDefaultResultOrder === 'function') {
 }
 
 // Node.js 18.x 互換用 AbortSignal.any ポリフィル
-if (typeof AbortSignal.any !== 'function') {
-  AbortSignal.any = function (signals) {
-    const controller = new AbortController();
-    for (const signal of signals) {
-      if (!signal) continue;
-      if (signal.aborted) {
-        controller.abort(signal.reason);
-        return controller.signal;
-      }
-      signal.addEventListener('abort', () => controller.abort(signal.reason), { once: true });
-    }
-    return controller.signal;
-  };
-}
+require('./util').ensureAbortSignalAny();
 
 
 const express = require('express');
@@ -52,6 +39,7 @@ const planConfig = require('./plan-config');
 const usageEvents = require('./usage-events');
 const { getFullUsageSummary } = require('./usage');
 const { buildMarkdown, buildPlainText } = require('./util');
+const { openBrowser, checkIsResearchStudio } = require('./start');
 const auth = require('./auth');
 const quota = require('./quota');
 const { validateThemeSafety, formatLogText } = require('./security');
@@ -237,7 +225,7 @@ app.use(express.static(path.join(ROOT, 'public'), { extensions: ['html'] }));
 /* --------------------------------------------------------------- info */
 let currentPort = PORT;
 
-let pkgVer = '2.19.0';
+let pkgVer = '2.19.1';
 try {
   pkgVer = require('../package.json').version || pkgVer;
 } catch { }
@@ -544,7 +532,7 @@ if (!env.IS_CLOUD) {
   });
 
   /* -------------------------------------------------------- lifecycle & shutdown */
-  app.all('/api/lifecycle/leave', (req, res) => {
+  app.post('/api/lifecycle/leave', (req, res) => {
     // ブラウザが閉じられた瞬間の通知。5秒の猶予期間をおいて他タブ・再読み込みがなければ自動終了
     if (!autoShutdownTimer && process.env.NODE_ENV !== 'test') {
       autoShutdownTimer = setTimeout(() => {
@@ -732,6 +720,26 @@ function buildCreditOnSettled(req, userId, action) {
   };
 }
 
+function createOnResultHandler(userId) {
+  return async (result) => {
+    if (!result.userId && userId) {
+      result.userId = userId;
+    }
+    try {
+      await history.save(result);
+    } catch (err) {
+      console.error('[history] save error:', err.message);
+    }
+    if (!env.IS_CLOUD) {
+      try {
+        memory.learnFromResearch(result);
+      } catch (err) {
+        console.error('[memory] learn error:', err.message);
+      }
+    }
+  };
+}
+
 app.post('/api/research', auth.requireAuth, aiLimiter, requireDailyCostLimit, quota.requireQuota, async (req, res) => {
   const b = req.body || {};
   const userId = req.user ? req.user.id : 'owner-user';
@@ -742,7 +750,7 @@ app.post('/api/research', auth.requireAuth, aiLimiter, requireDailyCostLimit, qu
   const scope = ['web', 'sns', 'sites'].includes(b.scope) ? b.scope : 'web';
   const depth = ['quick', 'deep'].includes(b.depth) ? b.depth : 'quick';
   const period = ['year', 'month', '3years', 'all', 'custom'].includes(b.period) ? b.period : 'year';
-  const validPurposes = ['business', 'tech', 'brief', 'decision', 'academic', 'custom', 'general', 'compare', 'tool', 'risk', 'trend'];
+  const validPurposes = ['business', 'tech', 'brief', 'decision', 'academic', 'custom', 'general', 'compare', 'tool', 'risk', 'trend', 'cost'];
   const purpose = validPurposes.includes(b.purpose) ? b.purpose : 'business';
   const customPurpose = String(b.customPurpose || '').trim().slice(0, 500);
   const customPeriod = String(b.customPeriod || '').trim().slice(0, 100);
@@ -776,23 +784,7 @@ app.post('/api/research', auth.requireAuth, aiLimiter, requireDailyCostLimit, qu
   const params = { theme: sanitizedTheme, scope, depth, sites, period, customPeriod, purpose, customPurpose, referenceContext, referenceUrls, attachedFiles, focus, authoritative, forceMock: !!b.forceMock, userId };
   const job = createJob(params, (j) => runResearch(j, settings.load()), {
     userId,
-    onResult: async (result) => {
-      if (!result.userId && userId) {
-        result.userId = userId;
-      }
-      try {
-        await history.save(result);
-      } catch (err) {
-        console.error('[history] save error:', err.message);
-      }
-      if (!env.IS_CLOUD) {
-        try {
-          memory.learnFromResearch(result);
-        } catch (err) {
-          console.error('[memory] learn error:', err.message);
-        }
-      }
-    },
+    onResult: createOnResultHandler(userId),
     onSettled: buildCreditOnSettled(req, userId, actionName),
   });
   res.status(202).json({ jobId: job.id, token: job.token, subscriptionToken: job.token });
@@ -816,8 +808,15 @@ app.post('/api/research/cross-synthesis', auth.requireAuth, aiLimiter, requireDa
     return res.status(capacity.status).json({ error: capacity.error, code: capacity.code });
   }
 
-  const reportPromises = reportIds.map((id) => history.get(id, userId, userPlan));
-  const reports = (await Promise.all(reportPromises)).filter(Boolean);
+  let reports;
+  try {
+    const reportPromises = reportIds.map((id) => history.get(id, userId, userPlan));
+    reports = (await Promise.all(reportPromises)).filter(Boolean);
+  } catch (err) {
+    await refundEarlyIfReserved(req, userId, 'cross');
+    console.error('[クロス統合] レポート取得エラー:', err.message);
+    return res.status(500).json({ error: 'レポートの取得に失敗しました' });
+  }
   if (reports.length < 2) {
     await refundEarlyIfReserved(req, userId, 'cross');
     return res.status(404).json({ error: '選択されたレポートが見つかりません（2件以上存在する必要があります）' });
@@ -836,23 +835,7 @@ app.post('/api/research/cross-synthesis', auth.requireAuth, aiLimiter, requireDa
 
   const job = createJob(params, (j) => runCrossSynthesis(j, settings.load()), {
     userId,
-    onResult: async (result) => {
-      if (!result.userId && userId) {
-        result.userId = userId;
-      }
-      try {
-        await history.save(result);
-      } catch (err) {
-        console.error('[history] save error:', err.message);
-      }
-      if (!env.IS_CLOUD) {
-        try {
-          memory.learnFromResearch(result);
-        } catch (err) {
-          console.error('[memory] learn error:', err.message);
-        }
-      }
-    },
+    onResult: createOnResultHandler(userId),
     onSettled: buildCreditOnSettled(req, userId, 'cross'),
   });
   res.status(202).json({ jobId: job.id, token: job.token, subscriptionToken: job.token });
@@ -876,7 +859,14 @@ app.post('/api/research/delta', auth.requireAuth, aiLimiter, requireDailyCostLim
     return res.status(capacity.status).json({ error: capacity.error, code: capacity.code });
   }
 
-  const baseReport = await history.get(baseReportId, userId, userPlan);
+  let baseReport;
+  try {
+    baseReport = await history.get(baseReportId, userId, userPlan);
+  } catch (err) {
+    await refundEarlyIfReserved(req, userId, 'delta');
+    console.error('[定点差分] 元レポート取得エラー:', err.message);
+    return res.status(500).json({ error: '元レポートの取得に失敗しました' });
+  }
   if (!baseReport) {
     await refundEarlyIfReserved(req, userId, 'delta');
     return res.status(404).json({ error: '差分更新元のレポートが見つかりません' });
@@ -896,23 +886,7 @@ app.post('/api/research/delta', auth.requireAuth, aiLimiter, requireDailyCostLim
 
   const job = createJob(params, (j) => runDeltaTracking(j, settings.load()), {
     userId,
-    onResult: async (result) => {
-      if (!result.userId && userId) {
-        result.userId = userId;
-      }
-      try {
-        await history.save(result);
-      } catch (err) {
-        console.error('[history] save error:', err.message);
-      }
-      if (!env.IS_CLOUD) {
-        try {
-          memory.learnFromResearch(result);
-        } catch (err) {
-          console.error('[memory] learn error:', err.message);
-        }
-      }
-    },
+    onResult: createOnResultHandler(userId),
     onSettled: buildCreditOnSettled(req, userId, 'delta'),
   });
   res.status(202).json({ jobId: job.id, token: job.token, subscriptionToken: job.token });
@@ -1096,6 +1070,12 @@ app.post('/api/export/pdf/html', auth.requireAuth, (req, res) => {
   }
 });
 
+function setAttachmentHeaders(res, filename, defaultName, contentType) {
+  const safeName = encodeURIComponent(String(filename || defaultName).replace(/[\\/:*?"<>|\r\n]+/g, '_'));
+  res.setHeader('Content-Type', contentType);
+  res.setHeader('Content-Disposition', `attachment; filename="${safeName}"; filename*=UTF-8''${safeName}`);
+}
+
 /* ------------------------------------------------------------- PDF export */
 app.post('/api/export/pdf', auth.requireAuth, async (req, res) => {
   let { html, data, brand, template, filename, orientation } = req.body || {};
@@ -1129,9 +1109,7 @@ app.post('/api/export/pdf', auth.requireAuth, async (req, res) => {
 
   try {
     const pdfPath = await pdf.generatePdfFromHtml(html, { orientation });
-    const safeName = encodeURIComponent((filename || 'Research_Report.pdf').replace(/[\\/:*?"<>|\r\n]+/g, '_'));
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${safeName}"; filename*=UTF-8''${safeName}`);
+    setAttachmentHeaders(res, filename, 'Research_Report.pdf', 'application/pdf');
     res.sendFile(pdfPath, (err) => {
       try {
         const fs = require('fs');
@@ -1153,9 +1131,7 @@ app.post('/api/export/excel', auth.requireAuth, async (req, res) => {
 
   try {
     const buffer = await excel.generateExcelReport(data, brand || {});
-    const safeName = encodeURIComponent((filename || 'Research_Report.xlsx').replace(/[\\/:*?"<>|\r\n]+/g, '_'));
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename="${safeName}"; filename*=UTF-8''${safeName}`);
+    setAttachmentHeaders(res, filename, 'Research_Report.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.send(buffer);
   } catch (err) {
     console.error('Excel export error:', err);
@@ -1170,9 +1146,7 @@ app.post('/api/export/markdown', auth.requireAuth, (req, res) => {
 
   try {
     const md = buildMarkdown(data);
-    const safeName = encodeURIComponent((filename || `${data.title || data.theme || 'Research_Report'}.md`).replace(/[\\/:*?"<>|\r\n]+/g, '_'));
-    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="${safeName}"; filename*=UTF-8''${safeName}`);
+    setAttachmentHeaders(res, filename, `${data.title || data.theme || 'Research_Report'}.md`, 'text/markdown; charset=utf-8');
     res.send(md);
   } catch (err) {
     console.error('Markdown export error:', err);
@@ -1187,9 +1161,7 @@ app.post('/api/export/text', auth.requireAuth, (req, res) => {
 
   try {
     const txt = buildPlainText(data);
-    const safeName = encodeURIComponent((filename || `${data.title || data.theme || 'Research_Report'}.txt`).replace(/[\\/:*?"<>|\r\n]+/g, '_'));
-    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="${safeName}"; filename*=UTF-8''${safeName}`);
+    setAttachmentHeaders(res, filename, `${data.title || data.theme || 'Research_Report'}.txt`, 'text/plain; charset=utf-8');
     res.send(txt);
   } catch (err) {
     console.error('Plain text export error:', err);
@@ -1414,7 +1386,7 @@ if (!env.IS_CLOUD) {
     res.sendFile(path.join(__dirname, '..', 'public', 'share.html'), { dotfiles: 'allow' });
   });
 }
-app.patch('/api/history/:id', auth.requireAuth, async (req, res) => {
+const updateHistoryHandler = async (req, res) => {
   const userId = req.user.id;
   const userPlan = req.user.plan || 'free';
   try {
@@ -1424,18 +1396,9 @@ app.patch('/api/history/:id', auth.requireAuth, async (req, res) => {
     console.error('[history] update error:', err.message);
     res.status(500).json({ error: '更新に失敗しました' });
   }
-});
-app.put('/api/history/:id', auth.requireAuth, async (req, res) => {
-  const userId = req.user.id;
-  const userPlan = req.user.plan || 'free';
-  try {
-    const updated = await history.update(req.params.id, req.body || {}, userId, userPlan);
-    return updated ? res.json(updated) : res.status(404).json({ error: 'not found' });
-  } catch (err) {
-    console.error('[history] update error:', err.message);
-    res.status(500).json({ error: '更新に失敗しました' });
-  }
-});
+};
+app.patch('/api/history/:id', auth.requireAuth, updateHistoryHandler);
+app.put('/api/history/:id', auth.requireAuth, updateHistoryHandler);
 app.post('/api/history/:id/pin', auth.requireAuth, async (req, res) => {
   const userId = req.user.id;
   const userPlan = req.user.plan || 'free';
@@ -1485,47 +1448,6 @@ app.use((err, req, res, _next) => {
   console.error(err);
   res.status(err.status || 500).json({ error: err.message || 'Internal Server Error' });
 });
-
-function openBrowser(url) {
-  if (process.env.NODE_ENV === 'test' || process.env.CI) return;
-  try {
-    const { spawn } = require('child_process');
-    let child;
-    if (process.platform === 'win32') {
-      child = spawn('cmd', ['/c', 'start', '', url], { detached: true, stdio: 'ignore' });
-    } else if (process.platform === 'darwin') {
-      child = spawn('open', [url], { detached: true, stdio: 'ignore' });
-    } else {
-      child = spawn('xdg-open', [url], { detached: true, stdio: 'ignore' });
-    }
-    if (child && typeof child.unref === 'function') {
-      child.unref();
-    }
-  } catch { }
-}
-
-/** 該当ポートで動いているのが Research Studio か確認 */
-function checkIsResearchStudio(port) {
-  return new Promise((resolve) => {
-    const req = http.get(`http://127.0.0.1:${port}/api/info`, { timeout: 1000 }, (res) => {
-      let data = '';
-      res.on('data', (chunk) => { data += chunk; });
-      res.on('end', () => {
-        try {
-          const json = JSON.parse(data);
-          resolve(json && json.app === 'Research Studio');
-        } catch {
-          resolve(false);
-        }
-      });
-    });
-    req.on('error', () => resolve(false));
-    req.on('timeout', () => {
-      try { req.destroy(); } catch { }
-      resolve(false);
-    });
-  });
-}
 
 function startServer(port, host, retries = 5) {
   const server = app.listen(port, host, () => {

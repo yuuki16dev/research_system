@@ -762,8 +762,7 @@ export function handleAborted() {
 // ==========================================================================
 // リサーチ実行 & リアルタイム進捗管理
 // ==========================================================================
-export async function startResearch(params) {
-  // 前回のサブスクリプションやタイマーがあれば強制クリーンアップ
+function prepareResearchRun({ title, themeText, lastParams, tickStep = 0.4, onTick = null }) {
   if (appState.activeUnsub) {
     try {
       appState.activeUnsub();
@@ -773,15 +772,9 @@ export async function startResearch(params) {
   clearInterval(appState.timerInterval);
   appState.timerInterval = null;
 
-  // 初回リサーチ時にブラウザ完了通知の許可を静かに確認・要求
-  if ('Notification' in window && Notification.permission === 'default') {
-    try {
-      Notification.requestPermission();
-    } catch {}
-  }
-
   appState.isFinishing = false;
-  appState.lastParams = params;
+  appState.currentResult = null;
+  appState.lastParams = lastParams;
 
   const progressSection = $('#progress-section');
   const resultsSection = $('#results-section');
@@ -794,11 +787,12 @@ export async function startResearch(params) {
   const stepperItems = $$('#stepper li');
   const abortedBanner = $('#progress-aborted-banner');
   const errorBanner = $('#progress-error-banner');
+  const thinkingCard = $('#live-thinking-card');
 
-  // UI状態のリセット & 実行中ステート適用
+  if (thinkingCard) thinkingCard.classList.remove('is-done', 'is-error');
   setRunningState(true);
   const progressTitle = $('#progress-title');
-  if (progressTitle) progressTitle.textContent = 'リサーチを実行中';
+  if (progressTitle) progressTitle.textContent = title;
   if (abortedBanner) abortedBanner.style.display = 'none';
   if (errorBanner) errorBanner.style.display = 'none';
   progressSection.hidden = false;
@@ -809,21 +803,16 @@ export async function startResearch(params) {
 
   progressFill.style.width = '0%';
   progressPct.textContent = '0%';
-  progressTheme.textContent = params.theme;
+  progressTheme.textContent = themeText;
   stepperItems.forEach((li) => li.classList.remove('active', 'done'));
-  stepperItems[0].classList.add('active');
+  if (stepperItems[0]) stepperItems[0].classList.add('active');
 
-  // スクロール
   progressSection.scrollIntoView({ behavior: 'smooth' });
 
   activeStage = 'plan';
   activeProgressVal = 0;
   activeLastProgressTime = Date.now();
-  updateReassuranceGuidance(0, 'plan', params.depth);
-  setLiveThinkingState('running', '調査テーマを分析し、最適な調査計画と思考フレームワークを自律設計しています…', '一次ソース・公的機関・現場知見を網羅探索');
 
-  // タイマー開始
-  clearInterval(appState.timerInterval);
   appState.startTime = Date.now();
   appState.timerInterval = setInterval(() => {
     const sec = Math.floor((Date.now() - appState.startTime) / 1000);
@@ -831,19 +820,36 @@ export async function startResearch(params) {
     const s = sec % 60;
     if (progressElapsed) progressElapsed.textContent = `${m}:${String(s).padStart(2, '0')}`;
 
-    // 時間経過に応じた安心メッセージの自動更新
-    updateReassuranceGuidance(sec, activeStage, params.depth);
+    if (onTick) onTick(sec);
 
-    // 長時間プログレスバーが止まっている場合の微細な前進アニメーション（固まった印象を完全に防止）
     const now = Date.now();
     if (now - activeLastProgressTime > 1600 && activeStage !== 'done') {
       if (activeProgressVal < 96) {
-        activeProgressVal = Math.min(96, activeProgressVal + 0.35);
+        activeProgressVal = Math.min(96, activeProgressVal + tickStep);
         if (progressFill) progressFill.style.width = `${activeProgressVal}%`;
         if (progressPct) progressPct.textContent = `${Math.round(activeProgressVal)}%`;
       }
     }
   }, 1000);
+}
+
+export async function startResearch(params) {
+  // 初回リサーチ時にブラウザ完了通知の許可を静かに確認・要求
+  if ('Notification' in window && Notification.permission === 'default') {
+    try {
+      Notification.requestPermission();
+    } catch {}
+  }
+
+  prepareResearchRun({
+    title: 'リサーチを実行中',
+    themeText: params.theme,
+    lastParams: params,
+    tickStep: 0.35,
+    onTick: (sec) => updateReassuranceGuidance(sec, activeStage, params.depth),
+  });
+  updateReassuranceGuidance(0, 'plan', params.depth);
+  setLiveThinkingState('running', '調査テーマを分析し、最適な調査計画と思考フレームワークを自律設計しています…', '一次ソース・公的機関・現場知見を網羅探索');
 
   // ジョブの開始
   try {
@@ -1285,6 +1291,9 @@ function notifyResearchComplete(resultData) {
       gain2.connect(ctx.destination);
       osc2.start(now + 0.12);
       osc2.stop(now + 0.55);
+      setTimeout(() => {
+        try { ctx.close(); } catch {}
+      }, 800);
     }
   } catch {}
 
@@ -1336,70 +1345,11 @@ export async function startCrossSynthesis(reportIds) {
     return;
   }
 
-  if (appState.activeUnsub) {
-    try {
-      appState.activeUnsub();
-    } catch {}
-    appState.activeUnsub = null;
-  }
-  clearInterval(appState.timerInterval);
-  appState.timerInterval = null;
-
-  appState.isFinishing = false;
-  appState.lastParams = { reportIds, isCross: true };
-
-  const progressSection = $('#progress-section');
-  const resultsSection = $('#results-section');
-  const logList = $('#log');
-  const logCount = $('#log-count');
-  const progressFill = $('#progress-fill');
-  const progressPct = $('#progress-pct');
-  const progressTheme = $('#progress-theme');
-  const progressElapsed = $('#progress-elapsed');
-  const stepperItems = $$('#stepper li');
-  const abortedBanner = $('#progress-aborted-banner');
-  const errorBanner = $('#progress-error-banner');
-
-  setRunningState(true);
-  const progressTitle = $('#progress-title');
-  if (progressTitle) progressTitle.textContent = 'クロス統合リサーチを実行中';
-  if (abortedBanner) abortedBanner.style.display = 'none';
-  if (errorBanner) errorBanner.style.display = 'none';
-  progressSection.hidden = false;
-  resultsSection.hidden = true;
-  progressSection.classList.remove('is-done', 'is-error');
-  logList.innerHTML = '';
-  logCount.textContent = '0';
-
-  progressFill.style.width = '0%';
-  progressPct.textContent = '0%';
-  progressTheme.textContent = `【過去レポート横断クロス統合】${reportIds.length}件のレポートをマージ・総合分析中`;
-  stepperItems.forEach((li) => li.classList.remove('active', 'done'));
-  stepperItems[0].classList.add('active');
-
-  progressSection.scrollIntoView({ behavior: 'smooth' });
-
-  activeStage = 'plan';
-  activeProgressVal = 0;
-  activeLastProgressTime = Date.now();
-
-  clearInterval(appState.timerInterval);
-  appState.startTime = Date.now();
-  appState.timerInterval = setInterval(() => {
-    const sec = Math.floor((Date.now() - appState.startTime) / 1000);
-    const m = Math.floor(sec / 60);
-    const s = sec % 60;
-    if (progressElapsed) progressElapsed.textContent = `${m}:${String(s).padStart(2, '0')}`;
-
-    const now = Date.now();
-    if (now - activeLastProgressTime > 1600 && activeStage !== 'done') {
-      if (activeProgressVal < 96) {
-        activeProgressVal = Math.min(96, activeProgressVal + 0.4);
-        if (progressFill) progressFill.style.width = `${activeProgressVal}%`;
-        if (progressPct) progressPct.textContent = `${Math.round(activeProgressVal)}%`;
-      }
-    }
-  }, 1000);
+  prepareResearchRun({
+    title: 'クロス統合リサーチを実行中',
+    themeText: `【過去レポート横断クロス統合】${reportIds.length}件のレポートをマージ・総合分析中`,
+    lastParams: { reportIds, isCross: true },
+  });
 
   try {
     const { jobId, token } = await api.crossSynthesize(reportIds);
@@ -1418,70 +1368,11 @@ export async function startDeltaTracking(baseReportId, baseReportTitle = '') {
     return;
   }
 
-  if (appState.activeUnsub) {
-    try {
-      appState.activeUnsub();
-    } catch {}
-    appState.activeUnsub = null;
-  }
-  clearInterval(appState.timerInterval);
-  appState.timerInterval = null;
-
-  appState.isFinishing = false;
-  appState.lastParams = { baseReportId, isDelta: true };
-
-  const progressSection = $('#progress-section');
-  const resultsSection = $('#results-section');
-  const logList = $('#log');
-  const logCount = $('#log-count');
-  const progressFill = $('#progress-fill');
-  const progressPct = $('#progress-pct');
-  const progressTheme = $('#progress-theme');
-  const progressElapsed = $('#progress-elapsed');
-  const stepperItems = $$('#stepper li');
-  const abortedBanner = $('#progress-aborted-banner');
-  const errorBanner = $('#progress-error-banner');
-
-  setRunningState(true);
-  const progressTitle = $('#progress-title');
-  if (progressTitle) progressTitle.textContent = '定点差分リサーチを実行中';
-  if (abortedBanner) abortedBanner.style.display = 'none';
-  if (errorBanner) errorBanner.style.display = 'none';
-  progressSection.hidden = false;
-  resultsSection.hidden = true;
-  progressSection.classList.remove('is-done', 'is-error');
-  logList.innerHTML = '';
-  logCount.textContent = '0';
-
-  progressFill.style.width = '0%';
-  progressPct.textContent = '0%';
-  progressTheme.textContent = `【定点差分リサーチ】「${baseReportTitle || '前回調査'}」からの最新の変化点を分析中…`;
-  stepperItems.forEach((li) => li.classList.remove('active', 'done'));
-  stepperItems[0].classList.add('active');
-
-  progressSection.scrollIntoView({ behavior: 'smooth' });
-
-  activeStage = 'plan';
-  activeProgressVal = 0;
-  activeLastProgressTime = Date.now();
-
-  clearInterval(appState.timerInterval);
-  appState.startTime = Date.now();
-  appState.timerInterval = setInterval(() => {
-    const sec = Math.floor((Date.now() - appState.startTime) / 1000);
-    const m = Math.floor(sec / 60);
-    const s = sec % 60;
-    if (progressElapsed) progressElapsed.textContent = `${m}:${String(s).padStart(2, '0')}`;
-
-    const now = Date.now();
-    if (now - activeLastProgressTime > 1600 && activeStage !== 'done') {
-      if (activeProgressVal < 96) {
-        activeProgressVal = Math.min(96, activeProgressVal + 0.4);
-        if (progressFill) progressFill.style.width = `${activeProgressVal}%`;
-        if (progressPct) progressPct.textContent = `${Math.round(activeProgressVal)}%`;
-      }
-    }
-  }, 1000);
+  prepareResearchRun({
+    title: '定点差分リサーチを実行中',
+    themeText: `【定点差分リサーチ】「${baseReportTitle || '前回調査'}」からの最新の変化点を分析中…`,
+    lastParams: { baseReportId, isDelta: true },
+  });
 
   try {
     const { jobId, token } = await api.startDeltaTracking(baseReportId);

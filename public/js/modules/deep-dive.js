@@ -36,16 +36,18 @@ export function buildReportStructuredContext(result) {
   // 3. 重要数値・KPI (metrics)
   if (Array.isArray(result.metrics) && result.metrics.length > 0) {
     const metricLines = result.metrics.slice(0, 5).map(m => {
-      const val = m.value ? `: ${m.value}` : '';
-      const chg = m.change ? ` (${m.change})` : '';
+      const val = (m.value !== undefined && m.value !== null && m.value !== '') ? `: ${m.value}` : '';
+      const note = m.note || m.change || '';
+      const chg = note ? ` (${note})` : '';
       return `・${m.label || m.name || '指標'}${val}${chg}`;
     });
     parts.push(`【重要数値・主要KPI】\n${metricLines.join('\n')}`);
   }
 
   // 4. 比較・構造化テーブル (table)
-  if (result.table && Array.isArray(result.table.headers) && Array.isArray(result.table.rows) && result.table.rows.length > 0) {
-    const headers = result.table.headers.slice(0, 5).join(' | ');
+  const tblCols = result.table && (Array.isArray(result.table.columns) ? result.table.columns : (Array.isArray(result.table.headers) ? result.table.headers : null));
+  if (tblCols && Array.isArray(result.table.rows) && result.table.rows.length > 0) {
+    const headers = tblCols.slice(0, 5).join(' | ');
     const rowLines = result.table.rows.slice(0, 4).map(r => {
       const cells = Array.isArray(r) ? r : Object.values(r);
       return cells.slice(0, 5).join(' | ');
@@ -57,7 +59,8 @@ export function buildReportStructuredContext(result) {
   if (Array.isArray(result.insights) && result.insights.length > 0) {
     const insightLines = result.insights.slice(0, 3).map((ins, i) => {
       const title = typeof ins === 'string' ? ins : (ins.title || ins.heading || `インサイト${i + 1}`);
-      const desc = typeof ins === 'object' && ins.description ? ` - ${ins.description.slice(0, 100)}` : '';
+      const bodyText = typeof ins === 'object' ? (ins.body || ins.description || '') : '';
+      const desc = bodyText ? ` - ${bodyText.slice(0, 100)}` : '';
       return `・${title}${desc}`;
     });
     parts.push(`【主要インサイト】\n${insightLines.join('\n')}`);
@@ -591,6 +594,18 @@ export function bindDeepDiveDrawer() {
   }
 
   bindReportDeepDiveActions();
+}
+
+export function resetDeepDiveState() {
+  deepDiveState.history = [];
+  deepDiveState.currentQuote = '';
+  deepDiveState.isQuerying = false;
+  const messagesEl = $('#deepdive-messages');
+  if (messagesEl) messagesEl.innerHTML = '';
+  const quotePreview = $('#dd-quote-preview');
+  if (quotePreview) quotePreview.hidden = true;
+  const quoteText = $('#dd-qp-text');
+  if (quoteText) quoteText.textContent = '';
 }
 
 /** レポート内の深掘り削除ボタンなどのバインド */

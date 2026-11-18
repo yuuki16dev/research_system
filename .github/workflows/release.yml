@@ -7,65 +7,91 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'ビルド対象のバージョンタグ（例: v1.1.5）'
+        description: 'ビルド対象のバージョンタグ（例: v2.19.1）'
         required: false
         default: ''
 
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build-and-release:
     name: Build Windows Executable & Create Release
     runs-on: windows-latest
+    timeout-minutes: 30
     defaults:
       run:
         shell: powershell
+    env:
+      PKG_CACHE_PATH: ${{ runner.temp }}\pkg-cache
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'npm'
 
-      - name: Determine Release Tag
+      - name: Determine & Validate Release Tag
         id: release_info
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag_name }}
         run: |
-          if ("${{ github.event.inputs.tag_name }}" -ne "") {
-            $tag = "${{ github.event.inputs.tag_name }}"
-          } elseif ("${{ github.ref }}" -like "refs/tags/*") {
-            $tag = "${{ github.ref_name }}"
-          } else {
-            $pkg = Get-Content package.json | ConvertFrom-Json
-            $tag = "v$($pkg.version)"
-          }
-          echo "tag=$tag" >> $env:GITHUB_OUTPUT
-          Write-Host "Target Release Tag: $tag"
+          $ErrorActionPreference = 'Stop'
+          node scripts/release-helper.js --resolve-tag
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Install dependencies
         run: npm ci
 
+      - name: Cache pkg Node binaries
+        uses: actions/cache@v6
+        with:
+          path: ${{ env.PKG_CACHE_PATH }}
+          key: pkg-${{ runner.os }}-node18-win-x64-${{ hashFiles('package.json') }}
+          restore-keys: |
+            pkg-${{ runner.os }}-node18-win-x64-
+
       - name: Run automated tests
         run: npm test
 
-      - name: Build Windows Executable (.exe)
-        run: |
-          New-Item -ItemType Directory -Force -Path dist
-          npm run build:exe
-          node scripts/verify-exe.js
+      - name: Verify all export formats (PDF / Excel / PPTX)
+        run: npm run test:exports
 
-      - name: Prepare Release Package & Compress into ZIP
-        run: node scripts/package-release.js
+      - name: Build & Verify Windows Executable (.exe)
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          npm run build:exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/verify-exe.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Prepare Release Package, Notes & SHA-256 Checksums
+        env:
+          RELEASE_TAG: ${{ steps.release_info.outputs.tag }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          node scripts/package-release.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/release-helper.js --prepare-notes "$env:RELEASE_TAG" dist/release-notes.md
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/release-helper.js --checksums dist/SHA256SUMS.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Create or Update GitHub Release and Upload Assets
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.release_info.outputs.tag }}
           name: Research Studio ${{ steps.release_info.outputs.tag }} (Windows ワンクリック簡易版)
+          body_path: dist/release-notes.md
           draft: false
           prerelease: false
           make_latest: 'true'
@@ -73,6 +99,7 @@ jobs:
           files: |
             dist/ResearchStudio-win.zip
             dist/ResearchStudio.exe
+            dist/SHA256SUMS.txt
             はじめにお読みください.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
