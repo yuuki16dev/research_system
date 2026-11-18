@@ -1,5 +1,5 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+# Auto detect text files and standardize on LF (except Windows batch files)
+* text=auto eol=lf
 
 # Windows batch files MUST ALWAYS have CRLF line endings (cmd.exe requires CRLF)
 *.bat text eol=crlf
