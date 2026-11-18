@@ -123,6 +123,11 @@ test('R-7 unit: verifyDatabaseSchema enumerates all missing RPCs and missing tab
         assert.match(err.message, /usage_events/);
         assert.match(err.message, /consume_credits/);
         assert.match(err.message, /usage_cost_since/);
+        assert.match(err.message, /all_in_one\.sql/);
+        assert.ok(Array.isArray(err.missingMigrations));
+        assert.ok(err.missingMigrations.includes('20261112_usage_events_schema.sql'));
+        assert.ok(err.missingMigrations.includes('20261113_credit_functions.sql'));
+        assert.ok(err.missingMigrations.includes('20261113_usage_cost_since.sql'));
         assert.equal(err.failures.length, 3);
         return true;
       }

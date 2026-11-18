@@ -9,10 +9,15 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   test:
     name: Run Unit Tests & Bat File Integrity (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -33,3 +38,60 @@ jobs:
 
       - name: Run automated test suite
         run: npm test
+
+  docker-smoke:
+    name: Docker Build & Container Smoke Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Build production Docker image
+        run: docker build -t research-studio:ci-smoke .
+
+      - name: Start container & verify /api/health
+        run: |
+          set -euo pipefail
+          docker run -d --name rs-ci-smoke -p 127.0.0.1:3939:3939 research-studio:ci-smoke
+          for i in $(seq 1 20); do
+            if RESP=$(curl -fsS --max-time 3 http://127.0.0.1:3939/api/health 2>/dev/null); then
+              echo "Docker /api/health OK: $RESP"
+              echo "$RESP" | grep -q '"status":"ok"'
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::Container failed /api/health smoke check"
+          docker logs rs-ci-smoke || true
+          exit 1
+
+      - name: Cleanup smoke container
+        if: always()
+        run: docker rm -f rs-ci-smoke >/dev/null 2>&1 || true
+
+  deploy-render:
+    name: Trigger Render Deploy (after CI)
+    needs: [test, docker-smoke]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Trigger Render Deploy Hook
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
+            echo "::notice::RENDER_DEPLOY_HOOK_URL secret is not configured. Skipping CI-triggered Render deploy."
+            exit 0
+          fi
+          HTTP_CODE=$(curl -sS -o /tmp/render-deploy-resp.txt -w "%{http_code}" -X POST --max-time 20 "$RENDER_DEPLOY_HOOK_URL")
+          echo "Render Deploy Hook HTTP status: ${HTTP_CODE}"
+          cat /tmp/render-deploy-resp.txt || true
+          if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+            echo "::error::Failed to trigger Render Deploy Hook (HTTP ${HTTP_CODE})"
+            exit 1
+          fi

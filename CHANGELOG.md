@@ -7,6 +7,22 @@
 - **マイナー (1.X.0)**: 後方互換性のある新機能の追加
 - **パッチ (1.0.X)**: 後方互換性のあるバグ修正や安定化・改善
 
+## [v2.19.2] - 2026-11-18
+
+### 🐳 Docker スモーク CI ＆ Supabase DB 事前検証・統合マイグレーション整備 (Deploy Reliability & DB Preflight)
+> **「本番デプロイ前の Docker 検証と Supabase マイグレーション診断を標準化し、スキーマ不足・ビルド失敗を事前防止」**  
+> 本番デプロイ時の未適用 DB スキーマ診断を強化し、誰でもワンステップで DB 準備・事前検証を行える運用基盤を整えました。
+
+- **統合マイグレーション SQL ＆ DB 事前診断 (`supabase/migrations/all_in_one.sql`, `scripts/check-db.js`, `server/db-check.js`)**:
+  - 新規・既存どちらの環境でも安全に再実行できる冪等統合 SQL `supabase/migrations/all_in_one.sql`（末尾の `NOTIFY pgrst, 'reload schema'` 含む）を追加。
+  - `server/db-check.js` の `[FATAL]` ログに不足項目へ対応する `supabase/migrations/*.sql` ファイル名と `all_in_one.sql` 案内を自動表示するよう改善。
+  - `npm run check:db` コマンドを追加し、デプロイ前に手元から Supabase テーブル・列・RPC 関数の整合性を即座に検査可能にしました。
+- **CI Docker スモークテスト ＆ デプロイフック基盤 (`.github/workflows/ci.yml`)**:
+  - `docker-smoke` ジョブを追加し、毎回本番用 `Dockerfile` のイメージビルドと実コンテナ起動・`/api/health` 疎通を自動検証。
+  - `test` と `docker-smoke` 合格後の `main` プッシュ時のみ 1 回だけ `secrets.RENDER_DEPLOY_HOOK_URL` を呼び出す `deploy-render` ジョブを追加（未設定時は安全スキップ）。
+- **回帰テスト追加 (`test/cloud-db-check.test.js`, `test/plan-d-regressions.test.js`)**:
+  - `missingMigrations` 出力、`check-db.js` の `.env` 読み込み、`all_in_one.sql` の必須項目網羅テストを追加。
+
 ## [v2.19.1] - 2026-11-17
 
 ### 🔧 コード品質・セキュリティ・リリース自動化基盤の総合安定化 (Code Quality, Security & Release Reliability)

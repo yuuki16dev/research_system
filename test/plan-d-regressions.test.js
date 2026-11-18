@@ -318,3 +318,33 @@ test('release-helper: validates SemVer tags, extracts CHANGELOG notes with fallb
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 });
+
+test('check-db & all_in_one.sql: loadDotEnvIfPresent works safely and all_in_one.sql defines all required schema items', () => {
+  const os = require('os');
+  const { loadDotEnvIfPresent } = require('../scripts/check-db');
+  const { REQUIRED_TABLES, REQUIRED_RPCS } = require('../server/db-check');
+
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rs-env-test-'));
+  try {
+    const envPath = path.join(tmpDir, '.env');
+    fs.writeFileSync(envPath, '# comment\nSUPABASE_URL="https://demo.supabase.co"\nEXISTING=from_file\n', 'utf8');
+    const targetEnv = { EXISTING: 'already_set' };
+    loadDotEnvIfPresent(envPath, targetEnv);
+    assert.equal(targetEnv.SUPABASE_URL, 'https://demo.supabase.co');
+    assert.equal(targetEnv.EXISTING, 'already_set');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+
+  const allInOneSql = fs.readFileSync(path.join(__dirname, '../supabase/migrations/all_in_one.sql'), 'utf8');
+  for (const tbl of REQUIRED_TABLES) {
+    assert.ok(allInOneSql.includes(tbl.name), `all_in_one.sql must include table ${tbl.name}`);
+    for (const col of tbl.columns) {
+      assert.ok(allInOneSql.includes(col), `all_in_one.sql must include column ${col} for ${tbl.name}`);
+    }
+  }
+  for (const rpc of REQUIRED_RPCS) {
+    assert.ok(allInOneSql.includes(rpc.name), `all_in_one.sql must include RPC ${rpc.name}`);
+  }
+  assert.ok(allInOneSql.includes("NOTIFY pgrst, 'reload schema'"));
+});

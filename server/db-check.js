@@ -36,18 +36,23 @@ const REQUIRED_TABLES = [
   {
     name: 'profiles',
     columns: ['id', 'plan', 'subscription_status'],
+    migration: '20261106_init.sql',
   },
   {
     name: 'research_usage',
     columns: ['user_id', 'year_month', 'used_count'],
+    migration: '20261106_init.sql',
   },
   {
     name: 'user_reports',
     columns: ['id', 'user_id', 'report_json', 'pinned', 'updated_at', 'share_token', 'share_enabled'],
+    migration: '20261111_user_reports_schema.sql',
+    baseMigration: '20261106_init.sql',
   },
   {
     name: 'usage_events',
     columns: ['user_id', 'kind', 'job_id', 'est_cost_jpy', 'status', 'created_at'],
+    migration: '20261112_usage_events_schema.sql',
   },
 ];
 
@@ -55,14 +60,17 @@ const REQUIRED_RPCS = [
   {
     name: 'consume_credits',
     body: { p_user: DUMMY_UUID, p_ym: '1970-01', p_cost: 0, p_limit: 0 },
+    migration: '20261113_credit_functions.sql',
   },
   {
     name: 'refund_credits',
     body: { p_user: DUMMY_UUID, p_ym: '1970-01', p_cost: 0 },
+    migration: '20261113_credit_functions.sql',
   },
   {
     name: 'usage_cost_since',
     body: { p_since: '2099-01-01T00:00:00.000Z' },
+    migration: '20261113_usage_cost_since.sql',
   },
 ];
 
@@ -161,17 +169,23 @@ function requestJson(endpoint, { method = 'GET', headers = {}, body = null, time
   });
 }
 
-async function probeEndpoint({ endpoint, method, headers, body = null, kind, name, okStatuses, timeoutMs }) {
+async function probeEndpoint({ endpoint, method, headers, body = null, kind, name, migration, baseMigration, okStatuses, timeoutMs }) {
   try {
     const res = await requestJson(endpoint, { method, headers, body, timeoutMs });
     if (okStatuses.includes(res.status)) {
       return { ok: true, kind, name };
     }
     const detail = res.text ? res.text.slice(0, 160).replace(/\s+/g, ' ').trim() : '';
+    const resolvedMigrations = [];
+    if (baseMigration && (res.text.includes('PGRST205') || res.text.includes('42P01'))) {
+      resolvedMigrations.push(baseMigration);
+    }
+    if (migration) resolvedMigrations.push(migration);
     return {
       ok: false,
       kind,
       name,
+      migrations: resolvedMigrations,
       httpStatus: res.status,
       reason: `HTTP ${res.status}${detail ? `: ${detail}` : ''}`,
     };
@@ -194,6 +208,8 @@ async function checkTable(baseUrl, headers, table, timeoutMs) {
     headers,
     kind: 'table',
     name: `${table.name}(${select})`,
+    migration: table.migration,
+    baseMigration: table.baseMigration,
     okStatuses: [200],
     timeoutMs,
   });
@@ -208,6 +224,7 @@ async function checkRpc(baseUrl, headers, rpc, timeoutMs) {
     body: rpc.body,
     kind: 'rpc',
     name: rpc.name,
+    migration: rpc.migration,
     okStatuses: [200, 204],
     timeoutMs,
   });
@@ -289,11 +306,20 @@ async function verifyDatabaseSchema(options = {}) {
     }
     const summary = failures.map((f) => `${f.name} [${f.reason}]`).join('; ');
     const hasAuthFailure = failures.some((f) => f.httpStatus === 401 || f.httpStatus === 403);
+    const missingMigrations = Array.from(
+      new Set(failures.flatMap((f) => (Array.isArray(f.migrations) ? f.migrations : [])))
+    ).sort();
     const authHint = hasAuthFailure
       ? '（認証エラー: SUPABASE_SERVICE_ROLE_KEY の設定値または権限を確認してください）'
       : '';
-    const err = new Error(`Supabase DB の起動時検証に失敗しました。不足または接続エラー項目: ${summary}${authHint}`);
+    const migrationHint = !hasAuthFailure && missingMigrations.length > 0
+      ? ` / 対処: supabase/migrations/ 内の未適用SQL (${missingMigrations.join(', ')}) または統合SQL (supabase/migrations/all_in_one.sql) を Supabase SQL Editor で実行してください`
+      : '';
+    const err = new Error(
+      `Supabase DB の起動時検証に失敗しました。不足または接続エラー項目: ${summary}${authHint}${migrationHint}`
+    );
     err.failures = failures;
+    err.missingMigrations = missingMigrations;
     throw err;
   }
 

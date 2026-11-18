@@ -1,8 +1,19 @@
 # Supabase マイグレーション適用手順
 
-Supabase ダッシュボードの **SQL Editor** で、以下のファイル名順（昇順）に手動実行してください。
+Supabase ダッシュボードの **SQL Editor** で実行してください。
 
-## 1. 適用順
+## 0. かんたん一括適用（推奨）
+
+新規セットアップ・既存環境からの追従アップデートのどちらの場合も、[**`all_in_one.sql`**](./all_in_one.sql) の中身をそのままコピーして SQL Editor で 1回「Run」するだけで、下記 1〜8 番までの全テーブル・列・RPC・RLS ポリシー・キャッシュリロードまで安全に揃います。
+
+適用後、手元環境から接続先確認を行う場合は以下で検証できます（`.env` または環境変数 `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` を使用）：
+```bash
+npm run check:db
+```
+
+## 1. 個別ファイルで適用する場合の適用順
+
+個別実行する場合は、以下のファイル名順（昇順）に手動実行してください。
 
 1. `20261106_init.sql` — 初期テーブル (`profiles`, `research_usage`, `user_reports`)、RLS、新規ユーザー登録トリガー
 2. `20261111_lock_profile_plan.sql` — `profiles` の利用者自身による UPDATE ポリシー削除（プラン改ざん防止）
