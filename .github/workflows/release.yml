@@ -26,15 +26,13 @@ jobs:
     defaults:
       run:
         shell: powershell
-    env:
-      PKG_CACHE_PATH: ${{ runner.temp }}\pkg-cache
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: 'npm'
@@ -54,7 +52,7 @@ jobs:
       - name: Cache pkg Node binaries
         uses: actions/cache@v6
         with:
-          path: ${{ env.PKG_CACHE_PATH }}
+          path: ${{ runner.temp }}\pkg-cache
           key: pkg-${{ runner.os }}-node18-win-x64-${{ hashFiles('package.json') }}
           restore-keys: |
             pkg-${{ runner.os }}-node18-win-x64-
@@ -66,6 +64,8 @@ jobs:
         run: npm run test:exports
 
       - name: Build & Verify Windows Executable (.exe)
+        env:
+          PKG_CACHE_PATH: ${{ runner.temp }}\pkg-cache
         run: |
           $ErrorActionPreference = 'Stop'
           New-Item -ItemType Directory -Force -Path dist | Out-Null
@@ -87,7 +87,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Create or Update GitHub Release and Upload Assets
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.release_info.outputs.tag }}
           name: Research Studio ${{ steps.release_info.outputs.tag }} (Windows ワンクリック簡易版)
