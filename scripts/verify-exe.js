@@ -19,6 +19,7 @@ async function testExe() {
   console.log('[TEST EXE] Spawning isolated ResearchStudio.exe ...');
   const child = spawn(isolatedExe, [], {
     cwd: tempDir,
+    env: { ...process.env, RESEARCH_DATA_DIR: path.join(tempDir, 'data') },
     stdio: 'ignore',
     windowsHide: true,
   });

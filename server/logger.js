@@ -4,8 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const util = require('util');
 
-const BASE_DIR = process.pkg ? path.dirname(process.execPath) : path.join(__dirname, '..');
-const DATA_DIR = path.join(BASE_DIR, 'data');
+const { DATA_DIR } = require('./settings');
 const LOGS_DIR = path.join(DATA_DIR, 'logs');
 const ERROR_LOG = path.join(LOGS_DIR, 'error.log');
 const APP_LOG = path.join(LOGS_DIR, 'app.log');
@@ -27,8 +26,12 @@ function ensureDir() {
 function maskSecrets(str) {
   if (typeof str !== 'string') return str;
   return str
-    .replace(/AIza[0-9A-Za-z-_]{35}/g, (m) => m.slice(0, 4) + '••••••••••••' + m.slice(-4))
-    .replace(/tvly-[0-9A-Za-z-_]{20,}/g, (m) => m.slice(0, 5) + '••••••••••••' + m.slice(-4));
+    .replace(/(\bBearer\s+)[0-9A-Za-z._~+/=-]{8,}/gi, '$1••••••••••••')
+    .replace(/AIza[0-9A-Za-z_-]{35}/g, (m) => m.slice(0, 4) + '••••••••••••' + m.slice(-4))
+    .replace(/tvly-[0-9A-Za-z_-]{20,}/g, (m) => m.slice(0, 5) + '••••••••••••' + m.slice(-4))
+    .replace(/gsk_[0-9A-Za-z_-]{20,}/g, (m) => m.slice(0, 4) + '••••••••••••' + m.slice(-4))
+    .replace(/sb_(?:secret|publishable)_[0-9A-Za-z_-]{16,}/g, (m) => m.slice(0, 10) + '••••••••••••' + m.slice(-4))
+    .replace(/eyJ[0-9A-Za-z_-]{10,}\.[0-9A-Za-z_-]{10,}\.[0-9A-Za-z_-]{10,}/g, (m) => 'eyJ••••••••••••' + m.slice(-4));
 }
 
 function recordToMemory(level, message) {
@@ -71,23 +74,23 @@ function initLogger() {
 
   // 動作中はコンソールへ即時ストリーム出力しつつ、メモリバッファにのみ保持（ディスクには書かない）
   console.log = (...args) => {
-    origLog.apply(console, args);
-    const msg = util.format(...args);
+    const msg = maskSecrets(util.format(...args));
+    origLog.call(console, msg);
     recordToMemory('INFO', msg);
   };
 
   // 警告はコンソール表示 ＋ エラーログへ保存
   console.warn = (...args) => {
-    origWarn.apply(console, args);
-    const msg = util.format(...args);
+    const msg = maskSecrets(util.format(...args));
+    origWarn.call(console, msg);
     recordToMemory('WARN', msg);
     appendErrorLog('WARN', msg);
   };
 
   // エラーはコンソール表示 ＋ エラーログへ保存
   console.error = (...args) => {
-    origError.apply(console, args);
-    const msg = util.format(...args);
+    const msg = maskSecrets(util.format(...args));
+    origError.call(console, msg);
     recordToMemory('ERROR', msg);
     appendErrorLog('ERROR', msg);
   };
@@ -112,8 +115,9 @@ function initLogger() {
       '======================================================================',
     ].join('\n');
 
-    origError.call(console, '\n' + banner + '\n');
-    appendErrorLog('FATAL', banner);
+    const safeBanner = maskSecrets(banner);
+    origError.call(console, '\n' + safeBanner + '\n');
+    appendErrorLog('FATAL', safeBanner);
   });
 
   // 未処理の Promise 拒絶（unhandledRejection）のキャッチ
@@ -135,8 +139,9 @@ function initLogger() {
       '----------------------------------------------------------------------',
     ].join('\n');
 
-    origError.call(console, '\n' + banner + '\n');
-    appendErrorLog('UNHANDLED_REJECTION', banner);
+    const safeBanner = maskSecrets(banner);
+    origError.call(console, '\n' + safeBanner + '\n');
+    appendErrorLog('UNHANDLED_REJECTION', safeBanner);
   });
 
   // プロセス終了時に正常ログファイルがディスクに残らないよう確認
