@@ -14,9 +14,22 @@ const { URL } = require('url');
 const env = require('./env');
 const { combineSignals, decodeBufferWithCharset } = require('./util');
 
-// 健全なクローラー宣言 User-Agent
-const CRAWLER_USER_AGENT =
-  'ResearchStudio-Bot/2.15 (Responsible AI Researcher; +https://github.com/yuuki16dev/research_system)';
+// 健全なクローラー宣言 User-Agent (D-2: 環境変数 CRAWLER_CONTACT_URL で連絡先URLを上書き可)
+const CRAWLER_BOT_NAME = 'ResearchStudio-Bot';
+const CRAWLER_BOT_TOKENS = Object.freeze(['researchstudio-bot', 'researchstudio']);
+// 連絡先URL未決定時の仮既定値（本番公開時に環境変数 CRAWLER_CONTACT_URL で設定）
+const DEFAULT_CRAWLER_CONTACT_URL = 'https://github.com/yuuki16dev/research_system';
+
+function getCrawlerUserAgent(contactUrlOverride) {
+  const contactUrl =
+    contactUrlOverride !== undefined
+      ? env.normalizeEnvValue(contactUrlOverride)
+      : env.normalizeEnvValue(process.env.CRAWLER_CONTACT_URL);
+  const resolvedUrl = contactUrl || DEFAULT_CRAWLER_CONTACT_URL;
+  return `${CRAWLER_BOT_NAME}/1.0 (Responsible AI Researcher; +${resolvedUrl})`;
+}
+
+const CRAWLER_USER_AGENT = getCrawlerUserAgent();
 
 const { assertPublicUrl } = require('./url-guard');
 
@@ -49,7 +62,7 @@ async function safeFetch(rawUrl, options = {}) {
       const res = await fetch(currentUrl, {
         method: 'GET',
         headers: {
-          'User-Agent': CRAWLER_USER_AGENT,
+          'User-Agent': getCrawlerUserAgent(),
           Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,text/plain;q=0.8,*/*;q=0.5',
           'Accept-Language': 'ja,en;q=0.8',
           ...(options.headers || {}),
@@ -209,5 +222,9 @@ module.exports = {
   validateThemeSafety,
   wrapUntrustedContent,
   formatLogText,
+  getCrawlerUserAgent,
+  CRAWLER_BOT_NAME,
+  CRAWLER_BOT_TOKENS,
+  CRAWLER_USER_AGENT,
   PROMPT_INJECTION_BARRIER,
 };

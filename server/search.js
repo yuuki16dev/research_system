@@ -3,11 +3,10 @@
 const env = require('./env');
 const cache = require('./cache');
 const { domainOf, combineSignals } = require('./util');
-const { safeFetch } = require('./security');
+const { safeFetch, getCrawlerUserAgent } = require('./security');
 const { assertPublicUrl } = require('./url-guard');
-
-const UA =
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
+const { assertDomainAllowed } = require('./blocked-domains');
+const { assertAllowedByRobots } = require('./robots');
 
 /* ---------------------------------------------------------------- helpers */
 
@@ -113,7 +112,7 @@ async function ddgSearch({ query, maxResults = 5, df, signal }) {
     const res = await fetch(getUrl, {
       method: 'GET',
       headers: {
-        'User-Agent': UA,
+        'User-Agent': getCrawlerUserAgent(),
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
         'Accept-Language': 'ja,en-US;q=0.8,en;q=0.6',
         'Cache-Control': 'no-cache',
@@ -135,7 +134,7 @@ async function ddgSearch({ query, maxResults = 5, df, signal }) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
-          'User-Agent': UA,
+          'User-Agent': getCrawlerUserAgent(),
           'Accept': 'text/html,application/xhtml+xml',
           'Accept-Language': 'ja,en-US;q=0.8,en;q=0.6',
         },
@@ -239,6 +238,17 @@ async function fetchPage(url, { signal, maxChars = 6000, timeoutMs = 7000, ...re
   if (!(process.env.NODE_ENV === 'test' && rest._dangerouslyBypassFirstHopForTest)) {
     await assertPublicUrl(url);
   }
+
+  // D-2: 除外ドメイン確認
+  assertDomainAllowed(url);
+
+  // D-2: 対象サイトの robots.txt 確認（ホスト単位24時間キャッシュ・B-6 検証経由）
+  await assertAllowedByRobots(url, {
+    signal,
+    timeoutMs: Math.min(timeoutMs, 4000),
+    _dangerouslyBypassFirstHopForTest: rest._dangerouslyBypassFirstHopForTest,
+  });
+
   const cacheKey = cache.buildPageCacheKey(url);
   const cached = cache.sharedCache.get(cacheKey);
   if (cached) {

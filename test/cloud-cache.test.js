@@ -131,10 +131,17 @@ test('R-10 integration: duplicate Tavily search hits cache, makes 0 Tavily calls
 
 test('R-10 integration: fetchPage caches extracted body by URL across calls with varying maxChars', async () => {
   cache.sharedCache.clear();
-  let httpRequests = 0;
+  let pageRequests = 0;
+  let robotsRequests = 0;
 
   const mockServer = http.createServer((req, res) => {
-    httpRequests += 1;
+    if (req.url === '/robots.txt') {
+      robotsRequests += 1;
+      res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('User-agent: *\nAllow: /\n');
+      return;
+    }
+    pageRequests += 1;
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end('<html><head><title>Sample Page</title></head><body><main><p>' + '本文テキスト'.repeat(30) + '</p></main></body></html>');
   });
@@ -150,7 +157,8 @@ test('R-10 integration: fetchPage caches extracted body by URL across calls with
     });
     assert.strictEqual(p1.title, 'Sample Page');
     assert.strictEqual(p1.text.length, 20);
-    assert.strictEqual(httpRequests, 1);
+    assert.strictEqual(pageRequests, 1);
+    assert.strictEqual(robotsRequests, 1);
 
     // 2回目はキャッシュから返り HTTP リクエストは増えず、maxChars に応じて正しく切り出される
     const p2 = await search.fetchPage(targetUrl, {
@@ -159,7 +167,8 @@ test('R-10 integration: fetchPage caches extracted body by URL across calls with
     });
     assert.strictEqual(p2.title, 'Sample Page');
     assert.strictEqual(p2.text.length, 50);
-    assert.strictEqual(httpRequests, 1, 'Second fetchPage on same URL must use cache');
+    assert.strictEqual(pageRequests, 1, 'Second fetchPage on same URL must use cache');
+    assert.strictEqual(robotsRequests, 1, 'Second fetchPage on same host must reuse robots.txt cache');
   } finally {
     await new Promise((resolve) => {
       mockServer.closeAllConnections?.();
