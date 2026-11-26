@@ -8,6 +8,7 @@ import { renderSvgChart } from './modules/charts.js';
 import { startDeltaTracking } from './modules/research.js';
 import { applyReportTheme } from './modules/theme-designer.js';
 import { setEvidenceSources } from './modules/evidence-inspector.js';
+import { AI_GENERATED_DISCLAIMER } from './modules/ai-disclaimer.js';
 
 let currentReportSources = [];
 let currentSourcesMap = new Map();
@@ -108,6 +109,10 @@ export function renderReport(data, container) {
     </div>
     <h2>${esc(data.title)}</h2>
     ${data.subtitle ? `<p class="subtitle">${esc(data.subtitle)}</p>` : ''}
+    <div class="notice ai-disclaimer-banner" role="note" aria-label="AI生成に関する注記">
+      <span data-icon="alert"></span>
+      <span>${esc(AI_GENERATED_DISCLAIMER)}</span>
+    </div>
     ${
       data.notices && data.notices.length
         ? data.notices

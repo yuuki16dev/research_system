@@ -6,6 +6,7 @@ import { safeFilename, fmtDate, toast, esc, downloadBlob } from './ui.js';
 import { getAuthHeaders } from './api.js';
 import { renderSvgChart } from './modules/charts.js';
 import { resolveTheme } from './modules/theme-presets.js';
+import { AI_GENERATED_DISCLAIMER, resolveAiDisclaimer } from './modules/ai-disclaimer.js';
 
 function formatAnalystNoteText(note) {
   if (!note) return '';
@@ -573,6 +574,7 @@ export function buildMarkdown(data) {
 
   let md = `# ${data.title}\n\n`;
   if (data.subtitle) md += `> ${data.subtitle}\n\n`;
+  md += `> **注記**: ${AI_GENERATED_DISCLAIMER}\n\n`;
 
   md += `- **リサーチテーマ**: ${data.theme}\n`;
   md += `- **調査対象期間**: ${data.periodLabel || '直近1年（最新推奨）'}\n`;
@@ -738,6 +740,7 @@ export function buildPlainText(data) {
   txt += `【リサーチレポート】 ${data.title || data.theme}\n`;
   if (data.subtitle) txt += `サブタイトル: ${data.subtitle}\n`;
   txt += `${divider}\n\n`;
+  txt += `※ ${AI_GENERATED_DISCLAIMER}\n\n`;
 
   txt += `■ 調査概要\n`;
   txt += `・リサーチテーマ: ${data.theme}\n`;
@@ -955,7 +958,7 @@ export async function exportExcel(data, brand = {}) {
   const tagline = (typeof brand === 'object' && brand.publisherTagline) ? brand.publisherTagline : '';
   const author = (typeof brand === 'object' && brand.author) ? brand.author : '';
   const confidentiality = (typeof brand === 'object' && brand.confidentiality) ? brand.confidentiality : '';
-  const disclaimer = (typeof brand === 'object' && brand.disclaimer) ? brand.disclaimer : '';
+  const disclaimer = resolveAiDisclaimer(typeof brand === 'object' ? brand.disclaimer : '');
 
   const headerTitle = `◆ ${publisher}${tagline ? ' — ' + tagline : ' — エグゼクティブ・リサーチレポート'}`;
 
@@ -1208,9 +1211,7 @@ export function buildDecisionBriefHtml(data, brand = 'Research Studio') {
   const publisherName = (typeof brand === 'object' && brand.publisherName) ? brand.publisherName : (typeof brand === 'string' ? brand : 'Research Studio');
   const author = (typeof brand === 'object' && brand.author) ? brand.author : '';
   const confidentiality = (typeof brand === 'object' && brand.confidentiality) ? brand.confidentiality : 'CONFIDENTIAL';
-  const disclaimer = (typeof brand === 'object' && brand.disclaimer && brand.disclaimer.trim())
-    ? brand.disclaimer
-    : '本書は公開情報をもとにAIが自動収集・分析した結果であり、正確性・完全性を保証しません。最終判断の前に出典の原文を確認してください。掲載情報は各出典の参照日時点のものです。';
+  const disclaimer = resolveAiDisclaimer(typeof brand === 'object' ? brand.disclaimer : '');
 
   const reportTheme = (typeof brand === 'object' && (brand.theme || brand.reportTheme)) || data.reportTheme;
   const themeStyle = buildThemePdfStyle(reportTheme);
@@ -1698,9 +1699,7 @@ export function buildSlideDeckHtml(data, brand = 'Research Studio') {
   const publisherTagline = (typeof brand === 'object' && brand.publisherTagline) ? brand.publisherTagline : 'AI RESEARCH & DECISION INTELLIGENCE';
   const author = (typeof brand === 'object' && brand.author) ? brand.author : '';
   const confidentiality = (typeof brand === 'object' && brand.confidentiality) ? brand.confidentiality : 'CONFIDENTIAL';
-  const disclaimer = (typeof brand === 'object' && brand.disclaimer && brand.disclaimer.trim())
-    ? brand.disclaimer
-    : '本レポートは公開情報をもとにAIが自動収集・分析した結果をまとめたものであり、内容の正確性・完全性を保証するものではありません。意思決定にあたっては、出典の原文を確認のうえ、専門家の助言を併せてご活用ください。掲載情報は各出典の参照日時点のものです。各出典の著作権はそれぞれの権利者に帰属します。';
+  const disclaimer = resolveAiDisclaimer(typeof brand === 'object' ? brand.disclaimer : '');
 
   const createdStr = fmtDate(data.createdAt, false);
   const reportTheme = (typeof brand === 'object' && (brand.theme || brand.reportTheme)) || data.reportTheme;
@@ -2255,9 +2254,7 @@ export function buildResearchReportHtml(data, brand = 'Research Studio') {
 
   const publisherName = (typeof brand === 'object' && brand.publisherName) ? brand.publisherName : (typeof brand === 'string' ? brand : 'Research Studio');
   const confidentiality = (typeof brand === 'object' && brand.confidentiality) ? brand.confidentiality : '社内限定 (INTERNAL USE ONLY)';
-  const disclaimer = (typeof brand === 'object' && brand.disclaimer && brand.disclaimer.trim())
-    ? brand.disclaimer
-    : '本書は公開情報をもとにAIが自動収集・分析した結果であり、正確性・完全性を保証しません。意思決定にあたっては出典の原文を確認してください。';
+  const disclaimer = resolveAiDisclaimer(typeof brand === 'object' ? brand.disclaimer : '');
 
   const reportTheme = (typeof brand === 'object' && (brand.theme || brand.reportTheme)) || data.reportTheme;
   const themeStyle = buildThemePdfStyle(reportTheme);

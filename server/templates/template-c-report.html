@@ -217,7 +217,7 @@ body { font-size: 9.6pt; line-height: 1.85; }
   html += '<section class="chapter break-before" id="ch-sources">' + partHead('', 'Appendix', '参照ソース・出典一覧') +
     (src.length ? RS.table(RS.sourceTable(src), { cellHtml: RS.sourceCell, widthChars: 104 }).html : '<p>出典はありません。</p>') +
     '<div class="disclaimer avoid"><b>信頼度スコア：</b>85以上＝高　70〜84＝中　70未満＝要確認（出典の種別・一次情報性・裏付け件数から算出）<br>' +
-    '<b>免責事項：</b>本レポートは公開情報をもとにAIが自動収集・分析した結果をまとめたものであり、内容の正確性・完全性を保証するものではありません。意思決定にあたっては出典の原文を確認し、必要に応じて専門家の助言を得てください。各出典の著作権はそれぞれの権利者に帰属します。</div></section>';
+    '<b>免責事項：</b>' + E(m.disclaimer || '') + '</div></section>';
 
   document.getElementById('doc').innerHTML = html;
   RS.layoutTables(document);

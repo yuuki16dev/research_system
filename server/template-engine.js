@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { resolveAiDisclaimer } = require('./ai-disclaimer');
 
 const TEMPLATES_DIR = path.resolve(__dirname, 'templates');
 
@@ -37,6 +38,7 @@ function getTemplateRaw(filename) {
 function adaptDataForTemplate(data = {}, brand = {}) {
   const publisher = (brand && brand.publisherName) || 'Research Studio';
   const classification = (brand && brand.confidentiality) || '社内限定 (INTERNAL USE ONLY)';
+  const disclaimer = resolveAiDisclaimer(brand && brand.disclaimer);
   
   let dateStr = '2026.11.06';
   if (data.createdAt) {
@@ -185,6 +187,7 @@ function adaptDataForTemplate(data = {}, brand = {}) {
       date: dateStr,
       publisher,
       classification,
+      disclaimer,
       confidenceScore: scoreVal,
     },
     summary: data.summary || (title ? `${title}に関する客観的エビデンスに基づく構造化分析結果。` : ''),

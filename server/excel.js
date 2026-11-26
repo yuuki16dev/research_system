@@ -2,6 +2,7 @@
 
 const ExcelJS = require('exceljs');
 const { resolveTheme } = require('./themes');
+const { AI_GENERATED_DISCLAIMER } = require('./ai-disclaimer');
 const excelCommercial = require('./excel-commercial');
 
 /**
@@ -340,12 +341,12 @@ function buildSummary(wb, d) {
     r += actions.length;
   }
 
-  // フッター注記
+  // フッター注記 (D-1)
   r += 1;
   mergeSet(
     ws,
     `A${r}:H${r}`,
-    '本レポートは公開情報をもとにAIが自動収集・分析した結果であり、正確性・完全性を保証するものではありません。出典は Source_Index シートを参照してください。',
+    `${AI_GENERATED_DISCLAIMER} 出典は Source_Index シートを参照してください。`,
     { font: font({ size: 8, color: BRAND.faint }), alignment: { wrapText: true, vertical: 'top' } }
   );
   ws.getRow(r).height = 24;

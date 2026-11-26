@@ -21,6 +21,7 @@ exports.verifyNoDataLoss = verifyNoDataLoss;
  * 依存：exceljs@4.x のみ
  */
 const exceljs_1 = __importDefault(require("exceljs"));
+const { AI_GENERATED_DISCLAIMER } = require('./ai-disclaimer');
 /* =====================================================================
    デザイントークン
    ===================================================================== */
@@ -893,9 +894,10 @@ async function generateCommercialExcel(rawInput, options = {}) {
             tocLine('　　付録：その他の調査データ', [SHEETS.report, `B${appendixRow}`], 'スキーマ外の項目・長文セルの全文');
         tocLine('04  一次出典・エビデンス', [SHEETS.sources, 'A1'], `出典 ${sources.length}件（URLはクリックで開く）`);
         r += 1;
-        w.merge(ws, r, 2, r + 1, C2, '本ブックは、AIが収集した事実・論述を原文のまま格納しています。本シートは要約であり、根拠と詳細は 03_Detailed_Report（全文）と 04_Sources_Data（一次出典）で確認できます。内容の正確性は出典の原文で確認してください。', { size: PT.meta, color: C.muted, align: { vertical: 'top', wrapText: true } });
-        ws.getRow(r).height = 14;
-        ws.getRow(r + 1).height = 14;
+        const disclaimerText = `${AI_GENERATED_DISCLAIMER} 本シートは要約であり、根拠と詳細は ${SHEETS.report}（全文）と ${SHEETS.sources}（一次出典）で確認できます。`;
+        w.merge(ws, r, 2, r + 1, C2, disclaimerText, { size: PT.meta, color: C.muted, align: { vertical: 'top', wrapText: true } });
+        ws.getRow(r).height = 16;
+        ws.getRow(r + 1).height = 16;
         ws.views = view(2, 0);
         printSetup(ws, ctx, title, 'portrait');
     }

@@ -5,6 +5,7 @@
 
 import { toast, safeFilename } from '../ui.js';
 import { resolveTheme } from './theme-presets.js';
+import { resolveAiDisclaimer } from './ai-disclaimer.js';
 
 /**
  * 現在のデータおよびブランド設定をもとに編集可能な .pptx を生成・ダウンロード
@@ -33,7 +34,7 @@ export async function exportPowerPoint(data, brand = {}) {
     const publisher = brand.publisherName || 'Research Studio';
     const author = brand.author || '';
     const confidentiality = brand.confidentiality || 'CONFIDENTIAL';
-    const disclaimer = brand.disclaimer || '本レポートは公開情報をもとにAIが自動収集・分析したものです。';
+    const disclaimer = resolveAiDisclaimer(brand.disclaimer);
     const reportTitle = data.title || data.theme || 'プレゼンテーション資料';
 
     pptx.title = reportTitle;

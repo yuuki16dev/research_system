@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const env = require('./env');
 const { OBSOLETE_GEMINI_MODELS, DEFAULT_GEMINI_MODEL, normalizeModel } = require('./model-config');
+const { AI_GENERATED_DISCLAIMER } = require('./ai-disclaimer');
 
 function resolveDataDir() {
   if (process.env.RESEARCH_DATA_DIR) {
@@ -39,7 +40,7 @@ const DEFAULTS = {
   publisherTagline: 'RESEARCH & INTELLIGENCE REPORT',
   author: '',
   confidentiality: 'CONFIDENTIAL', // CONFIDENTIAL | INTERNAL | PUBLIC | NONE
-  disclaimer: '本レポートはAIによる自動リサーチ集計結果であり、意思決定の参考情報としてご活用ください。',
+  disclaimer: AI_GENERATED_DISCLAIMER,
   themePreset: 'corporate-blue', // corporate-blue | tech-emerald | executive-slate | vibrant-violet | warm-amber | crimson-burgundy | custom
   themePrimaryColor: '',
   themeAccentColor: '',

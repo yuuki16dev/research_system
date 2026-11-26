@@ -285,7 +285,7 @@ body { font-size: 8.4pt; line-height: 1.65; }
         '<span class="d">' + E([s.publisher, u ? RS.domain(u) : ''].filter(Boolean).join(' · ')) + '</span></span>' +
         (s.score !== undefined ? '<span class="score-pill ' + RS.scoreClass(s.score) + '">' + E(s.score) + '</span>' : '') + '</li>';
     }).join('') + '</ol>' : '') +
-    '<p class="fine"><b>信頼度：</b>85以上＝高　70〜84＝中　70未満＝要確認<br><b>免責：</b>本書は公開情報をもとにAIが自動収集・分析した結果であり、正確性・完全性を保証しません。最終判断の前に出典の原文を確認してください。</p></div>' +
+    '<p class="fine"><b>信頼度：</b>85以上＝高　70〜84＝中　70未満＝要確認<br><b>免責：</b>' + E(m.disclaimer || '') + '</p></div>' +
     '</div></section>';
 
   document.getElementById('doc').innerHTML = html;

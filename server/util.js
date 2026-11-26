@@ -1,6 +1,7 @@
 'use strict';
 
 const { resolveTheme } = require('./themes');
+const { AI_GENERATED_DISCLAIMER } = require('./ai-disclaimer');
 
 function ensureAbortSignalAny() {
   if (typeof AbortSignal.any !== 'function') {
@@ -460,6 +461,7 @@ function buildMarkdown(data) {
 
   let md = `# ${data.title || data.theme}\n\n`;
   if (data.subtitle) md += `> **${data.subtitle}**\n\n`;
+  md += `> **注記**: ${AI_GENERATED_DISCLAIMER}\n\n`;
 
   md += `| 項目 | 内容 |\n|---|---|\n`;
   md += `| **リサーチテーマ** | ${sanitizeMdCell(data.theme || '')} |\n`;
@@ -588,6 +590,7 @@ function buildPlainText(data) {
   txt += `【リサーチレポート】 ${data.title || data.theme}\n`;
   if (data.subtitle) txt += `サブタイトル: ${data.subtitle}\n`;
   txt += `${divider}\n\n`;
+  txt += `※ ${AI_GENERATED_DISCLAIMER}\n\n`;
 
   txt += `■ 調査概要\n`;
   txt += `・リサーチテーマ: ${data.theme}\n`;

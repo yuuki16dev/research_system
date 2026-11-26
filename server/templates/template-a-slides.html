@@ -273,11 +273,11 @@ html, body { background: #cbd5e1; }
 
   /* ---- 06 Sources ---- */
   var src = A(d.sources);
-  if (src.length) {
-    var st = RS.table(RS.sourceTable(src), { split: true, cellHtml: RS.sourceCell, widthChars: 125 });
-    html += slide('Sources', head('Sources & Appendix', '参照ソース・出典一覧') + '<div>' + st.html + '</div>' +
-      '<p class="disclaimer" data-tail>本レポートは公開情報をもとにAIが自動収集・分析した結果をまとめたものであり、内容の正確性・完全性を保証するものではありません。意思決定にあたっては出典の原文を確認してください。各出典の著作権はそれぞれの権利者に帰属します。</p>');
-  }
+  var srcBody = src.length
+    ? '<div>' + RS.table(RS.sourceTable(src), { split: true, cellHtml: RS.sourceCell, widthChars: 125 }).html + '</div>'
+    : '<p>出典はありません。</p>';
+  html += slide('Sources', head('Sources & Appendix', '参照ソース・出典一覧') + srcBody +
+    '<p class="disclaimer" data-tail>' + E(m.disclaimer || '') + '</p>');
 
   document.getElementById('deck').innerHTML = html;
 
