@@ -7,6 +7,27 @@
 - **マイナー (1.X.0)**: 後方互換性のある新機能の追加
 - **パッチ (1.0.X)**: 後方互換性のあるバグ修正や安定化・改善
 
+## [v2.20.0] - 2026-11-26
+
+### 🛡️ 商用公開セキュリティ・コンプライアンス総合強化（フェーズ D：D-1 / D-2 / D-4 / D-5 / D-6）
+> **「AI 生成注記の全形式統一・クローラーマナー対応・クラウド添付遮断・ローカル既定 `127.0.0.1` 待受・ログ保護まで、公開運用に必要な安全基準を一括整備」**  
+> ローカル版・クラウド版双方の安全性、透明性、法令・運用マナー準拠を大幅に引き上げたマイナーアップデートです。
+
+- **AI 生成注記の単一ソース化 ＆ 全出力形式への統一適用 (`D-1`)**:
+  - 単一定数ファイル [`public/js/modules/ai-disclaimer.js`] およびサーバーブリッジ [`server/ai-disclaimer.js`] を新設し、画面冒頭バナー・PDF（全 3 テンプレート＋クライアント出力）・Excel（商用／レガシー両エンジン）・Markdown・プレーンテキスト・PowerPoint（`.pptx`）のすべてに AI 自動生成である旨の注記を統一出力。
+- **Web ページ取得のマナー対応 (`D-2`)**:
+  - ブラウザ偽装の User-Agent を廃止し、サービス名と連絡先 URL（環境変数 `CRAWLER_CONTACT_URL` 対応）を明示する `ResearchStudio-Bot/1.0` に統一。
+  - [`server/robots.js`] を新設し、RFC 9309 準拠の `robots.txt` 確認と 24 時間ホスト単位キャッシュを実装（`robots.txt` 取得自体も B-6 SSRF 検証を通過、拒否時は検索抜粋へ自動フォールバック）。
+  - [`server/blocked-domains.js`] を新設し、環境変数 `BLOCKED_DOMAINS` で取得除外ドメイン（サブドメイン含む）を指定可能にしました。
+- **クラウド版でのファイル添付・手持ち資料入力の無効化 (`D-4`)**:
+  - クラウド環境ではファイル添付および手持ち資料（`referenceContext`）入力欄を UI 上で非表示にし、サーバー側（`/api/research`・`/api/presentation/prompt`・`/api/presentation/generate`）でも無視することで、機密情報の持ち込みリスクを遮断しました（※ ローカル版では従来どおり利用可能）。
+- **ローカル既定待受アドレスの安全化 ＆ 配布ドキュメント整備 (`D-5`)**:
+  - ローカル起動時の既定待受ホストを `127.0.0.1`（自 PC 専用）へ変更（クラウド／Docker 環境は `0.0.0.0`、ローカルスマホ連携時のみ `HOST=0.0.0.0` を明示指定）。
+  - `README.md`・`はじめにお読みください.txt` の外部送信・料金表記を正確な内容へ改訂し、`.dockerignore`・`Dockerfile`・`docs/cloud-deployment-guide.md`（UptimeRobot / cron-job.org による Render 連続稼働手順）を整備。
+- **ログ保存先統一・シークレットマスク強化 ＆ 依存脆弱性解消 (`D-6`)**:
+  - `server/logger.js` のログ保存先を `settings.DATA_DIR/logs` に統一し、`Bearer` トークン・Groq（`gsk_`）・Supabase 新形式（`sb_secret_` / `sb_publishable_`）および JWT（`eyJ...`）をコンソール・ファイル双方で自動マスク。
+  - `package.json` の `overrides` により `uuid` を `11.1.1` 以上へ引き上げ（`express-rate-limit` `8.7.5` 更新と合わせ `npm audit` 脆弱性 0 件を達成）。
+
 ## [v2.19.2] - 2026-11-18
 
 ### 🐳 Docker スモーク CI ＆ Supabase DB 事前検証・統合マイグレーション整備 (Deploy Reliability & DB Preflight)
