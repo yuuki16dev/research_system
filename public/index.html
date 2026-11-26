@@ -815,7 +815,7 @@
     </main>
 
     <footer class="footer">
-      <span id="footer-version">Research Studio v2.20.0</span><span class="sep">·</span><span>Local Web App</span><span
+      <span id="footer-version">Research Studio v2.20.0</span><span class="sep">·</span><span id="footer-env-label">Local Web App</span><span
         class="sep">·</span><span id="footer-mode">—</span><span class="sep">·</span><a
         href="https://github.com/yuuki16dev/research_system/issues" target="_blank" rel="noopener"
         class="footer-link"><span data-icon="github"></span>GitHubでお問い合わせ</a>
@@ -857,7 +857,7 @@
       <form id="auth-form-signup" class="auth-form" hidden>
         <div class="auth-perk-banner">
           <span class="auth-perk-badge">🎁 無料登録特典</span>
-          <p>月3回まで高精度ディープリサーチ＆Excel/PDFエクスポートを無料でお試しいただけます。</p>
+          <p>月3クレジットまで通常リサーチ＆Excel/PDFエクスポートを無料でお試しいただけます。</p>
         </div>
         <div class="form-group">
           <label for="auth-signup-email">メールアドレス</label>
@@ -865,8 +865,8 @@
             autocomplete="email" />
         </div>
         <div class="form-group">
-          <label for="auth-signup-password">パスワード（6文字以上）</label>
-          <input type="password" id="auth-signup-password" class="input" placeholder="••••••••" minlength="6" required
+          <label for="auth-signup-password">パスワード（8文字以上）</label>
+          <input type="password" id="auth-signup-password" class="input" placeholder="••••••••" minlength="8" required
             autocomplete="new-password" />
         </div>
         <div class="auth-error-msg" id="auth-signup-error"></div>

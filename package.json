@@ -53,7 +53,7 @@
     "url": "https://github.com/yuuki16dev/research_system/issues"
   },
   "homepage": "https://github.com/yuuki16dev/research_system#readme",
-  "license": "ISC",
+  "license": "MIT",
   "type": "commonjs",
   "dependencies": {
     "exceljs": "^4.4.0",

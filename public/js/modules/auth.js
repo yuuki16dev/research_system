@@ -255,6 +255,8 @@ export async function refreshAuthStatus() {
       if (presDocInput) {
         presDocInput.placeholder = '直近のリサーチ結果を引用するか、スライド化したいテキストを入力してください…（クラウド版ではファイル添付は無効です）';
       }
+      const footerEnvLabel = document.getElementById('footer-env-label');
+      if (footerEnvLabel) footerEnvLabel.textContent = 'Cloud Web App';
     }
 
     const me = await api.authMe();
@@ -391,8 +393,8 @@ export function initAuth() {
         if (errEl) errEl.textContent = 'メールアドレスとパスワードを入力してください';
         return;
       }
-      if (password.length < 6) {
-        if (errEl) errEl.textContent = 'パスワードは6文字以上で設定してください';
+      if (password.length < 8) {
+        if (errEl) errEl.textContent = 'パスワードは8文字以上で設定してください';
         return;
       }
 
@@ -407,7 +409,7 @@ export function initAuth() {
           await completeAuthSession(
             res.access_token,
             res.user,
-            'アカウント作成が完了しました！月3回まで無料でお使いいただけます。',
+            'アカウント作成が完了しました！月3クレジットまで通常リサーチを無料でお使いいただけます。',
             5000
           );
         } else {
