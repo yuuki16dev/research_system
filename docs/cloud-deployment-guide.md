@@ -87,4 +87,21 @@
 ### 3.3 `render.yaml` の変更が既存 Render サービスに反映されない
 - `render.yaml` の `autoDeploy: false` や既定環境変数は、新規 Blueprint デプロイ時にのみ初期設定として参照されます。すでに Render ダッシュボード上で作成済みの Web Service では、Render ダッシュボードの **Settings（Build & Deploy）** および **Environment** 画面から直接設定を確認・更新してください。
 
+### 3.4 Render Free プランの 15 分スリープを防ぎ連続起動を維持する（UptimeRobot / cron-job.org）
+- Render の **Free プラン** は約 15 分間アクセスがないと自動でスリープ（スピンダウン）します。GitHub Actions の `supabase-keepalive.yml`（2日に1回）は Supabase の 7 日間自動停止防止用であり、Render の 15 分スリープは防げません。
+- **事前注意（月 750 時間の上限）**: Render Free プランは同一アカウント内の全 Free Web Service 合計で月 750 時間が上限です。
+  - Render Free のアプリが **Research Studio のみ** の場合：24 時間 × 31 日 ＝ **744 時間 ≦ 750 時間** のため、24 時間連続起動しても無料枠に収まります。
+  - **他にも Free Web Service がある場合**：24 時間稼働にすると月途中で上限に達するため、`cron-job.org` 等で利用時間帯（例：JST 7:00〜24:00）のみ実行してください。
+- **監視対象 URL（共通）**: `https://<あなたのRenderドメイン>/api/health`
+  - `/api/health` は `GET` / `HEAD` ともに即座に `200 OK` を返し、かつ 24 時間に最大 1 回だけ裏側で Supabase Keep-Alive クエリも自動実行するため、これ 1 本で Render と Supabase の両方を維持できます。
+- **方法 1：UptimeRobot（24 時間常時起動向け・推奨）**
+  1. [UptimeRobot](https://uptimerobot.com/)（Free プラン）で `HTTP(s)` モニターを作成する。
+  2. URL に `https://<あなたのRenderドメイン>/api/health`、監視間隔に `5 minutes` を指定する。
+  3. 一時的なデプロイエラーやコールドスタートで自動停止（Disabled）されず、復旧後に自動で通常監視へ戻ります。
+- **方法 2：cron-job.org（時間帯指定したい場合）**
+  1. [cron-job.org](https://cron-job.org/) で `GET https://<あなたのRenderドメイン>/api/health` を 10 分間隔（必要に応じて `Asia/Tokyo` の利用時間帯のみ）で登録する。
+  2. **Request timeout** は最大値（`30` 秒）に設定し、**連続失敗による自動無効化通知（Disable notification）** を必ず ON にしてください。
+- **動作確認方法**: 設定から 20〜30 分後に `/api/health` を開き、レスポンス JSON の `"uptime"` が `1200`（20 分）以上に増え続けていれば、15 分スリープを回避して連続起動できています。
+
+
 
