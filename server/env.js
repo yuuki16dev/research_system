@@ -78,6 +78,30 @@ function getTestUsersEnabled() {
   return process.env.ENABLE_TEST_USERS === 'true' || process.env.ENABLE_TEST_USERS === '1';
 }
 
+/**
+ * サーバー待受ホストを解決する (D-5)
+ * - 明示的に HOST が指定されている場合はその値を使用
+ * - 未指定の場合: クラウド環境は 0.0.0.0、ローカル環境は安全のため 127.0.0.1
+ * @param {string|undefined|null} [hostRaw]
+ * @param {boolean} [isCloud]
+ * @returns {string}
+ */
+function resolveListenHost(hostRaw = process.env.HOST, isCloud = getIsCloud()) {
+  const explicit = normalizeEnvValue(hostRaw);
+  if (explicit) return explicit;
+  return isCloud ? '0.0.0.0' : '127.0.0.1';
+}
+
+/**
+ * 指定ホストがループバックアドレス（自PC専用）か判定する
+ * @param {string|undefined|null} host
+ * @returns {boolean}
+ */
+function isLoopbackHost(host) {
+  const normalized = normalizeEnvValue(host).toLowerCase();
+  return normalized === '127.0.0.1' || normalized === 'localhost' || normalized === '::1';
+}
+
 const env = {
   normalizeEnvValue,
   normalizeSupabaseUrl,
@@ -85,6 +109,8 @@ const env = {
   getSupabaseAnonKey,
   getSupabaseServiceRoleKey,
   buildSupabaseHeaders,
+  resolveListenHost,
+  isLoopbackHost,
   get IS_CLOUD() {
     return getIsCloud();
   },

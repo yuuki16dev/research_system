@@ -61,7 +61,7 @@ if (env.IS_CLOUD && (!process.env.TAVILY_API_KEY || !process.env.TAVILY_API_KEY.
 
 
 const PORT = Number(process.env.PORT) || 3939;
-const HOST = process.env.HOST || '0.0.0.0';
+const HOST = env.resolveListenHost();
 const ROOT = path.join(__dirname, '..');
 
 const app = express();
@@ -405,7 +405,8 @@ app.get('/api/info', (req, res) => {
     app: 'Research Studio',
     version: pkgVer,
     port: currentPort,
-    lan: lanAddresses(currentPort),
+    host: HOST,
+    lan: env.isLoopbackHost(HOST) ? [] : lanAddresses(currentPort),
     settings: settings.publicView(),
   });
 });
@@ -1457,7 +1458,12 @@ function startServer(port, host, retries = 5) {
     const line = '─'.repeat(56);
     console.log(`\n${line}\n  ◆ Research Studio  v${pkgVer}\n${line}`);
     console.log(`  ローカル     : http://localhost:${port}`);
-    lanAddresses(port).forEach((a) => console.log(`  スマホ (LAN) : http://${a.address}:${port}   [${a.name}]`));
+    if (env.isLoopbackHost(host)) {
+      console.log(`  待受アドレス : ${host}（このPCからのみ接続可能 / スマホ連携時は HOST=0.0.0.0 を指定）`);
+    } else {
+      console.log(`  待受アドレス : ${host}`);
+      lanAddresses(port).forEach((a) => console.log(`  スマホ (LAN) : http://${a.address}:${port}   [${a.name}]`));
+    }
     console.log(`  モード       : ${s.effectiveMode === 'live' ? 'LIVE (Gemini)' : 'DEMO (モックデータ)'}`);
     console.log(`  検索         : ${s.effectiveSearch}`);
     console.log(`  ログ保存先   : ${logger.LOGS_DIR}`);

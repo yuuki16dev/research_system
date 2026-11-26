@@ -25,6 +25,7 @@ ENV CHROME_PATH=/usr/bin/chromium \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
     PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     NODE_ENV=production \
+    HOST=0.0.0.0 \
     PORT=3939
 
 # Copy package manifests first for caching
