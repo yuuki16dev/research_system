@@ -851,6 +851,49 @@
         </div>
         <div class="auth-error-msg" id="auth-login-error"></div>
         <button type="submit" class="btn btn-primary-gradient btn-block">ログイン</button>
+        <div style="text-align: center; margin-top: 10px;">
+          <button type="button" class="btn btn-ghost btn-xs" id="btn-show-reset-password" style="font-size: 12px;">
+            パスワードをお忘れですか？
+          </button>
+        </div>
+      </form>
+
+      <!-- パスワード再設定メール送信フォーム (S-3) -->
+      <form id="auth-form-reset" class="auth-form" hidden>
+        <p style="font-size: 12.5px; color: var(--text-2); margin-bottom: 12px; line-height: 1.6;">
+          ご登録のメールアドレスを入力してください。パスワード再設定用のリンクをお送りします。
+        </p>
+        <div class="form-group">
+          <label for="auth-reset-email">メールアドレス</label>
+          <input type="email" id="auth-reset-email" class="input" placeholder="name@example.com" required
+            autocomplete="email" />
+        </div>
+        <div class="auth-error-msg" id="auth-reset-msg"></div>
+        <button type="submit" class="btn btn-primary-gradient btn-block">再設定メールを送信</button>
+        <div style="text-align: center; margin-top: 10px;">
+          <button type="button" class="btn btn-ghost btn-xs" id="btn-back-to-login" style="font-size: 12px;">
+            ◀ ログイン画面に戻る
+          </button>
+        </div>
+      </form>
+
+      <!-- 新しいパスワード設定フォーム（メール内リンクから遷移時・S-3） -->
+      <form id="auth-form-update-password" class="auth-form" hidden>
+        <p style="font-size: 12.5px; color: var(--text-2); margin-bottom: 12px; line-height: 1.6;">
+          新しいパスワード（8文字以上）を入力してください。
+        </p>
+        <div class="form-group">
+          <label for="auth-new-password">新しいパスワード（8文字以上）</label>
+          <input type="password" id="auth-new-password" class="input" placeholder="••••••••" minlength="8" required
+            autocomplete="new-password" />
+        </div>
+        <div class="form-group">
+          <label for="auth-new-password-confirm">新しいパスワード（確認）</label>
+          <input type="password" id="auth-new-password-confirm" class="input" placeholder="••••••••" minlength="8" required
+            autocomplete="new-password" />
+        </div>
+        <div class="auth-error-msg" id="auth-update-password-msg"></div>
+        <button type="submit" class="btn btn-primary-gradient btn-block">新しいパスワードを保存</button>
       </form>
 
       <!-- 新規登録フォーム -->
@@ -869,6 +912,7 @@
           <input type="password" id="auth-signup-password" class="input" placeholder="••••••••" minlength="8" required
             autocomplete="new-password" />
         </div>
+        <div id="turnstile-signup-container" class="turnstile-wrap" hidden style="margin: 10px 0;"></div>
         <div class="auth-error-msg" id="auth-signup-error"></div>
         <button type="submit" class="btn btn-primary-gradient btn-block">無料で新規登録</button>
       </form>
@@ -995,6 +1039,21 @@
           <button type="button" class="btn btn-primary-gradient btn-block" id="btn-account-switch"
             style="margin-bottom: 8px;">🔄 アカウントを切り替える</button>
           <button type="button" class="btn btn-outline btn-block" id="btn-account-logout">ログアウト</button>
+        </div>
+
+        <!-- クラウド版 退会・アカウント完全削除 (S-3) -->
+        <div id="account-danger-zone" hidden style="margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(239, 68, 68, 0.25);">
+          <button type="button" class="btn btn-ghost btn-xs" id="btn-account-delete-toggle"
+            style="color: #f87171; font-size: 12px;">アカウントを削除（退会）…</button>
+          <div id="account-delete-confirm-box" hidden style="margin-top: 8px; padding: 10px; border-radius: 8px; background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.25);">
+            <p style="font-size: 12px; color: var(--text-2); margin-bottom: 8px; line-height: 1.5;">
+              アカウントおよび保存済みの全リサーチ履歴を完全に削除します（復元不可）。続行する場合は <strong>DELETE</strong> と入力してください。
+            </p>
+            <input type="text" id="account-delete-confirm-input" class="input input-sm" placeholder="DELETE と入力"
+              autocomplete="off" style="margin-bottom: 8px;" />
+            <div class="auth-error-msg" id="account-delete-error"></div>
+            <button type="button" class="btn btn-danger btn-sm btn-block" id="btn-account-delete">アカウントを完全に削除する</button>
+          </div>
         </div>
 
         <!-- アカウントモーダル内テストアカウント切替 (v2.17.1) -->

@@ -108,17 +108,18 @@ if (env.IS_CLOUD) {
 }
 
 // B-8: セキュリティヘッダー (Helmet + CSP)
+const turnstileEnabled = auth.isTurnstileEnabled();
 app.use(
   helmet({
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'"],
+        scriptSrc: turnstileEnabled ? ["'self'", "https://challenges.cloudflare.com"] : ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
         imgSrc: ["'self'", "data:", "blob:", "https:"],
         connectSrc: ["'self'", "https:"],
-        frameSrc: ["'none'"],
+        frameSrc: turnstileEnabled ? ["https://challenges.cloudflare.com"] : ["'none'"],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
         formAction: ["'self'"],
@@ -279,6 +280,7 @@ app.get('/api/auth/config', (req, res) => {
     isLocal: !env.IS_CLOUD,
     testUsersEnabled: env.TEST_USERS_ENABLED,
     anonymousMode,
+    turnstileSiteKey: auth.isTurnstileEnabled() ? auth.getTurnstileSiteKey() : '',
   });
 });
 
@@ -296,18 +298,78 @@ function sendAuthRouteError(res, err, fallbackMessage) {
 }
 
 app.post('/api/auth/signup', authLimiter, async (req, res) => {
-  const { email, password } = req.body || {};
+  const { email, password, captchaToken } = req.body || {};
   if (!email || !password) {
     return res.status(400).json({ error: 'メールアドレスとパスワードを入力してください' });
   }
   if (password.length < 8) {
     return res.status(400).json({ error: 'パスワードは8文字以上で設定してください' });
   }
+  if (auth.isTurnstileEnabled()) {
+    const captchaCheck = await auth.verifyTurnstileToken(captchaToken, req.ip);
+    if (!captchaCheck.ok) {
+      return res.status(400).json({ error: captchaCheck.error || 'ボット対策認証に失敗しました', code: 'CAPTCHA_FAILED' });
+    }
+  }
   try {
     const data = await auth.signupUser(email, password);
     res.json(data);
   } catch (err) {
     sendAuthRouteError(res, err, 'ユーザー登録に失敗しました');
+  }
+});
+
+app.post('/api/auth/reset-password', authLimiter, async (req, res) => {
+  const { email } = req.body || {};
+  if (!email) {
+    return res.status(400).json({ error: 'メールアドレスを入力してください' });
+  }
+  try {
+    const proto = req.protocol || 'https';
+    const host = req.get('host');
+    const redirectTo = host ? `${proto}://${host}/` : '';
+    await auth.requestPasswordReset(email, redirectTo);
+    res.json({
+      ok: true,
+      message: '登録されているメールアドレスであれば、パスワード再設定用の案内メールを送信しました。',
+    });
+  } catch (err) {
+    sendAuthRouteError(res, err, 'パスワード再設定リクエストに失敗しました');
+  }
+});
+
+app.post('/api/auth/update-password', authLimiter, async (req, res) => {
+  const authHeader = req.headers.authorization || '';
+  const match = authHeader.match(/^Bearer\s+(.+)$/i);
+  const accessToken = match ? match[1] : '';
+  const { password } = req.body || {};
+  if (!accessToken) {
+    return res.status(401).json({ error: '認証トークンが見つかりません。再設定メールのリンクからやり直してください' });
+  }
+  if (!password || String(password).length < 8) {
+    return res.status(400).json({ error: '新しいパスワードは8文字以上で設定してください' });
+  }
+  try {
+    await auth.updatePasswordWithToken(accessToken, password);
+    res.json({ ok: true, message: 'パスワードを更新しました。新しいパスワードでログインしてください。' });
+  } catch (err) {
+    sendAuthRouteError(res, err, 'パスワードの更新に失敗しました');
+  }
+});
+
+app.delete('/api/auth/account', authLimiter, auth.requireAuth, async (req, res) => {
+  const { confirm } = req.body || {};
+  if (String(confirm || '').trim() !== 'DELETE') {
+    return res.status(400).json({
+      error: 'アカウント削除を実行するには確認文字 "DELETE" を入力してください',
+      code: 'CONFIRMATION_REQUIRED',
+    });
+  }
+  try {
+    await auth.deleteAccount(req.user.id);
+    res.json({ ok: true, message: 'アカウントおよび関連データを完全に削除しました。ご利用ありがとうございました。' });
+  } catch (err) {
+    sendAuthRouteError(res, err, 'アカウント削除に失敗しました');
   }
 });
 
@@ -689,6 +751,16 @@ async function requireDailyCostLimit(req, res, next) {
         error: '本日の受付上限に達しました。明日以降に再度お試しください',
         code: 'DAILY_LIMIT_REACHED',
       });
+    }
+    // S-3: 無料枠（free）は別枠の低い日次上限を設け、無料アカウント大量利用で有料ユーザーが停止するのを防ぐ
+    if (env.IS_CLOUD && req.user && (req.user.plan || 'free') === 'free') {
+      const freeLimitJpy = usageEvents.getFreeDailyCostLimitJpy();
+      if (freeLimitJpy > 0 && todayCost >= freeLimitJpy) {
+        return res.status(503).json({
+          error: '本日の無料枠の受付上限に達しました。有料プランまたは明日以降に再度お試しください',
+          code: 'FREE_DAILY_LIMIT_REACHED',
+        });
+      }
     }
     return next();
   } catch (err) {
@@ -1500,6 +1572,10 @@ function startServer(port, host, retries = 5) {
 
     if (env.IS_CLOUD && modelConfig.isUsingDefaultModelPricing()) {
       console.warn('警告: モデル単価が仮の値です。AI Studio の請求画面で確認して設定してください');
+    }
+
+    if (env.IS_CLOUD && !auth.isTurnstileEnabled()) {
+      console.warn('ヒント: Bot による無料アカウント量産対策として TURNSTILE_SITE_KEY / TURNSTILE_SECRET_KEY の設定を推奨します');
     }
 
     if (process.pkg || process.env.AUTO_OPEN === '1') {

@@ -29,6 +29,25 @@ function getDailyCostLimitJpy() {
   return DEFAULT_DAILY_COST_LIMIT_JPY;
 }
 
+/**
+ * 無料プラン（free）向けの日次原価上限 (JPY) を返す (S-3)
+ * - 無料アカウントの大量利用で有料プラン利用者が巻き込まれて 503 停止するのを防ぐ
+ * - 環境変数 FREE_DAILY_COST_LIMIT_JPY が未指定時は全体上限の 30%（最小 1 円・全体上限以下）
+ * @returns {number}
+ */
+function getFreeDailyCostLimitJpy() {
+  const globalLimit = getDailyCostLimitJpy();
+  const raw = process.env.FREE_DAILY_COST_LIMIT_JPY;
+  if (raw !== undefined && raw !== '') {
+    const parsed = Number(raw);
+    if (Number.isFinite(parsed) && parsed >= 0) {
+      return Math.min(globalLimit, parsed);
+    }
+  }
+  if (globalLimit <= 0) return 0;
+  return Math.min(globalLimit, Math.max(1, Math.floor(globalLimit * 0.3)));
+}
+
 function getJstDateString(date = new Date()) {
   const d = date instanceof Date ? date : new Date(date);
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -361,6 +380,7 @@ module.exports = {
   recordUsageEvent,
   getJstDayStartIso,
   getDailyCostLimitJpy,
+  getFreeDailyCostLimitJpy,
   getTodayCostJpy,
   countDeepDiveUsage,
   getLocalUsageEvents,

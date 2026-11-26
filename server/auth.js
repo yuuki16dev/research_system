@@ -437,6 +437,252 @@ async function loginUser(email, password) {
   );
 }
 
+/* ------------------------------------------- S-3: Turnstile / Reset / Delete */
+
+const isUuid = (id) => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
+function getTurnstileSiteKey() {
+  return env.normalizeEnvValue(process.env.TURNSTILE_SITE_KEY);
+}
+
+function getTurnstileSecretKey() {
+  return env.normalizeEnvValue(process.env.TURNSTILE_SECRET_KEY);
+}
+
+function isTurnstileEnabled() {
+  return Boolean(env.IS_CLOUD && getTurnstileSiteKey() && getTurnstileSecretKey());
+}
+
+/**
+ * Cloudflare Turnstile トークンを検証する（未設定時はスキップ）
+ * @param {string} token
+ * @param {string} [remoteIp]
+ * @returns {Promise<{ ok: boolean, skipped?: boolean, error?: string }>}
+ */
+async function verifyTurnstileToken(token, remoteIp = '') {
+  if (!isTurnstileEnabled()) {
+    return { ok: true, skipped: true };
+  }
+  const cleanToken = typeof token === 'string' ? token.trim() : '';
+  if (!cleanToken) {
+    return { ok: false, error: 'ボット対策認証（Turnstile）を完了してから登録してください' };
+  }
+  const verifyUrl = env.normalizeEnvValue(process.env.TURNSTILE_VERIFY_URL) ||
+    'https://challenges.cloudflare.com/turnstile/v0/siteverify';
+
+  try {
+    const body = new URLSearchParams({
+      secret: getTurnstileSecretKey(),
+      response: cleanToken,
+    });
+    if (remoteIp) body.append('remoteip', String(remoteIp).trim());
+
+    const res = await fetch(verifyUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) {
+      console.error('[auth] Turnstile verification HTTP error:', res.status);
+      return { ok: false, error: 'ボット対策認証の確認に失敗しました。しばらくしてから再度お試しください' };
+    }
+    const data = await res.json();
+    if (data && data.success === true) {
+      return { ok: true };
+    }
+    return { ok: false, error: 'ボット対策認証に失敗しました。もう一度チェックを入れてお試しください' };
+  } catch (err) {
+    console.error('[auth] Turnstile verification exception:', err.message);
+    return { ok: false, error: 'ボット対策認証サーバーに接続できませんでした。しばらくしてから再度お試しください' };
+  }
+}
+
+/**
+ * パスワード再設定メールを送信する（メールアドレス存在有無は秘匿）
+ * @param {string} email
+ * @param {string} [redirectTo]
+ * @returns {Promise<{ ok: boolean }>}
+ */
+async function requestPasswordReset(email, redirectTo = '') {
+  const normEmail = String(email || '').trim().toLowerCase();
+  if (!normEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normEmail)) {
+    throw createAuthError('有効なメールアドレスを入力してください', 400);
+  }
+
+  const supabaseUrl = getSupabaseUrl();
+  const anonKey = getSupabaseAnonKey();
+  if (!env.IS_CLOUD || !supabaseUrl || !anonKey) {
+    throw createAuthError('クラウド認証（Supabase）が設定されていないため、パスワード再設定は利用できません', 400);
+  }
+
+  let endpoint = `${supabaseUrl}/auth/v1/recover`;
+  if (redirectTo && /^https?:\/\//i.test(redirectTo)) {
+    endpoint += `?redirect_to=${encodeURIComponent(redirectTo)}`;
+  }
+
+  let res;
+  try {
+    res = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: anonKey,
+      },
+      body: JSON.stringify({ email: normEmail }),
+      signal: AbortSignal.timeout(6000),
+    });
+  } catch (err) {
+    console.error('[auth] Supabase recover connection error:', err?.message || err);
+    throw createAuthError(AUTH_UNAVAILABLE_MESSAGE, 503);
+  }
+
+  if (res.status >= 500) {
+    console.error('[auth] Supabase recover server error:', res.status);
+    throw createAuthError(AUTH_UNAVAILABLE_MESSAGE, 503);
+  }
+  if (res.status === 429) {
+    throw createAuthError('再設定メールの送信回数上限に達しました。しばらく時間をおいて再試行してください', 429);
+  }
+
+  // アカウント存在推測（Enumeration）を防ぐため、400系含め一律成功として扱う
+  return { ok: true };
+}
+
+/**
+ * リカバリートークンまたはログイン中トークンで新しいパスワードを設定する
+ * @param {string} accessToken
+ * @param {string} newPassword
+ * @returns {Promise<{ ok: boolean }>}
+ */
+async function updatePasswordWithToken(accessToken, newPassword) {
+  const cleanToken = String(accessToken || '').trim();
+  if (!cleanToken) {
+    throw createAuthError('認証トークンが見つかりません。再設定リンクをもう一度開いてください', 401);
+  }
+  if (!newPassword || String(newPassword).length < 8) {
+    throw createAuthError('新しいパスワードは8文字以上で設定してください', 400);
+  }
+
+  const supabaseUrl = getSupabaseUrl();
+  const anonKey = getSupabaseAnonKey();
+  if (!env.IS_CLOUD || !supabaseUrl || !anonKey) {
+    throw createAuthError('クラウド認証（Supabase）が設定されていません', 400);
+  }
+
+  let res;
+  try {
+    res = await fetch(`${supabaseUrl}/auth/v1/user`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: anonKey,
+        Authorization: `Bearer ${cleanToken}`,
+      },
+      body: JSON.stringify({ password: String(newPassword) }),
+      signal: AbortSignal.timeout(6000),
+    });
+  } catch (err) {
+    console.error('[auth] Supabase update password connection error:', err?.message || err);
+    throw createAuthError(AUTH_UNAVAILABLE_MESSAGE, 503);
+  }
+
+  if (res.status >= 500) {
+    throw createAuthError(AUTH_UNAVAILABLE_MESSAGE, 503);
+  }
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw createAuthError(
+      (data && (data.msg || data.message || data.error_description)) || 'パスワードの更新に失敗しました（リンクの有効期限切れの可能性があります）',
+      res.status === 401 || res.status === 403 ? 401 : 400
+    );
+  }
+
+  return { ok: true };
+}
+
+/**
+ * クラウドユーザーの退会（関連データ削除・原価ログ匿名化・Authユーザー削除）
+ * @param {string} userId
+ * @returns {Promise<{ ok: boolean }>}
+ */
+async function deleteAccount(userId) {
+  if (!env.IS_CLOUD) {
+    throw createAuthError('ローカル版ではアカウント削除は不要です', 400);
+  }
+  const uid = String(userId || '').trim();
+  if (!isUuid(uid)) {
+    throw createAuthError('このアカウントは削除対象外です（テスト・匿名アカウント）', 400);
+  }
+
+  const supabaseUrl = getSupabaseUrl();
+  const serviceKey = getSupabaseServiceRoleKey();
+  if (!supabaseUrl || !serviceKey) {
+    throw createAuthError(AUTH_UNAVAILABLE_MESSAGE, 503);
+  }
+
+  const headers = env.buildSupabaseHeaders(serviceKey, { 'Content-Type': 'application/json' });
+
+  // 1. usage_events の利用者IDを匿名化（日次原価集計を壊さずに個人紐付けを除去）
+  try {
+    await fetch(`${supabaseUrl}/rest/v1/usage_events?user_id=eq.${encodeURIComponent(uid)}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ user_id: 'deleted-user' }),
+      signal: AbortSignal.timeout(6000),
+    });
+  } catch (err) {
+    console.warn('[auth] deleteAccount usage_events anonymize warning:', err.message);
+  }
+
+  // 2. 関連テーブルの明示削除（ON DELETE CASCADE と二重防御）
+  for (const target of [
+    `/rest/v1/user_reports?user_id=eq.${encodeURIComponent(uid)}`,
+    `/rest/v1/research_usage?user_id=eq.${encodeURIComponent(uid)}`,
+    `/rest/v1/profiles?id=eq.${encodeURIComponent(uid)}`,
+  ]) {
+    try {
+      await fetch(`${supabaseUrl}${target}`, {
+        method: 'DELETE',
+        headers,
+        signal: AbortSignal.timeout(6000),
+      });
+    } catch (err) {
+      console.warn(`[auth] deleteAccount table cleanup warning (${target}):`, err.message);
+    }
+  }
+
+  // 3. Supabase Auth 本体からユーザーを削除（必須・失敗時はエラー返却）
+  let delRes;
+  try {
+    delRes = await fetch(`${supabaseUrl}/auth/v1/admin/users/${encodeURIComponent(uid)}`, {
+      method: 'DELETE',
+      headers,
+      signal: AbortSignal.timeout(8000),
+    });
+  } catch (err) {
+    console.error('[auth] deleteAccount admin delete connection error:', err.message);
+    throw createAuthError(AUTH_UNAVAILABLE_MESSAGE, 503);
+  }
+
+  if (!delRes.ok && delRes.status !== 404) {
+    const errText = await delRes.text().catch(() => '');
+    console.error(`[auth] deleteAccount failed (HTTP ${delRes.status}): ${errText.slice(0, 200)}`);
+    throw createAuthError('アカウントの削除処理に失敗しました。しばらくしてから再度お試しください', 503);
+  }
+
+  // 4. サーバー内キャッシュおよびローカル残骸の消去
+  profileCache.delete(uid);
+  try {
+    const profileMod = require('./profile');
+    if (typeof profileMod.deleteLocalProfile === 'function') {
+      profileMod.deleteLocalProfile(uid);
+    }
+  } catch {}
+
+  return { ok: true };
+}
+
 module.exports = {
   PRESET_TEST_USERS,
   buildAnonymousUser,
@@ -446,6 +692,12 @@ module.exports = {
   verifyToken,
   signupUser,
   loginUser,
+  getTurnstileSiteKey,
+  isTurnstileEnabled,
+  verifyTurnstileToken,
+  requestPasswordReset,
+  updatePasswordWithToken,
+  deleteAccount,
   clearProfileCache,
   isCloudAuthEnabled: () => Boolean(env.IS_CLOUD || env.TEST_USERS_ENABLED),
 };

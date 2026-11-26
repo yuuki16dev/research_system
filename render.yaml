@@ -41,6 +41,12 @@ services:
         sync: false # テスト公開時のみ "true" を設定（既定は未設定＝ログイン必須）
       - key: DAILY_COST_LIMIT_JPY
         value: 1000 # 全体の日次AI推定原価上限 (JPY・R-5)
+      - key: FREE_DAILY_COST_LIMIT_JPY
+        value: 300 # 無料枠専用の日次原価上限 (JPY・S-3)
+      - key: TURNSTILE_SITE_KEY
+        sync: false # Cloudflare Turnstile サイトキー (Bot新規登録防止・S-3)
+      - key: TURNSTILE_SECRET_KEY
+        sync: false # Cloudflare Turnstile シークレットキー (S-3)
       - key: MODEL_PRICING_JSON
         sync: false # AI Studio 請求画面で確認したモデル単価JSON (R-6)
       - key: TAVILY_USD_PER_CREDIT

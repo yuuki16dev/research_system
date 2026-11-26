@@ -40,6 +40,25 @@ export const api = {
   authMe: () => request('GET', '/api/auth/me'),
   signup: (body) => request('POST', '/api/auth/signup', body),
   login: (body) => request('POST', '/api/auth/login', body),
+  resetPassword: (body) => request('POST', '/api/auth/reset-password', body),
+  updatePassword: async (password, explicitToken = '') => {
+    const headers = explicitToken
+      ? { 'Content-Type': 'application/json', Authorization: `Bearer ${explicitToken}` }
+      : getAuthHeaders({ 'Content-Type': 'application/json' });
+    const res = await fetch('/api/auth/update-password', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ password }),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      const err = new Error((data && data.error) || `HTTP ${res.status}`);
+      err.status = res.status;
+      throw err;
+    }
+    return data;
+  },
+  deleteAccount: (body) => request('DELETE', '/api/auth/account', body),
   getSettings: () => request('GET', '/api/settings'),
   saveSettings: (patch) => request('PUT', '/api/settings', patch),
   testSettings: (body) => request('POST', '/api/settings/test', body),

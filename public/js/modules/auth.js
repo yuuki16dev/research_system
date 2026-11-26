@@ -206,6 +206,16 @@ export async function refreshAuthStatus() {
     authState.isLocal = !!config.isLocal;
     authState.testUsersEnabled = !!config.testUsersEnabled;
     authState.anonymousMode = !!config.anonymousMode;
+    authState.turnstileSiteKey = config.turnstileSiteKey || '';
+
+    const dangerZone = document.getElementById('account-danger-zone');
+    if (dangerZone) {
+      dangerZone.hidden = Boolean(config.isLocal || config.anonymousMode);
+    }
+
+    if (authState.turnstileSiteKey) {
+      ensureTurnstileWidget(authState.turnstileSiteKey);
+    }
 
     // クラウド匿名テスト公開モード警告バナー制御 (R-1)
     const anonBanner = document.getElementById('anonymous-mode-banner');
@@ -404,7 +414,12 @@ export function initAuth() {
       }
 
       try {
-        const res = await api.signup({ email, password });
+        const captchaToken = authState.turnstileSiteKey ? getTurnstileToken() : '';
+        if (authState.turnstileSiteKey && !captchaToken) {
+          if (errEl) errEl.textContent = 'ボット対策認証（チェック）を完了してください';
+          return;
+        }
+        const res = await api.signup({ email, password, captchaToken });
         if (res.access_token) {
           await completeAuthSession(
             res.access_token,
@@ -419,6 +434,7 @@ export function initAuth() {
           toast('登録確認メールを送信しました。メール内のリンクをクリックして登録を完了してください。', 'info', 7000);
         }
       } catch (err) {
+        resetTurnstileWidget();
         if (errEl) errEl.textContent = err.message || 'アカウント作成に失敗しました';
       } finally {
         if (submitBtn) {
@@ -577,13 +593,224 @@ export function initAuth() {
     });
   }
 
-  // 11. 初回ステータス取得
+  // 11. パスワード再設定・リカバリー・アカウント削除ハンドラ (S-3)
+  const formReset = document.getElementById('auth-form-reset');
+  const formUpdatePass = document.getElementById('auth-form-update-password');
+  const btnShowReset = document.getElementById('btn-show-reset-password');
+  const btnBackToLogin = document.getElementById('btn-back-to-login');
+  let activeRecoveryToken = '';
+
+  if (btnShowReset) {
+    btnShowReset.addEventListener('click', () => {
+      if (formLogin) formLogin.hidden = true;
+      if (formSignup) formSignup.hidden = true;
+      if (formUpdatePass) formUpdatePass.hidden = true;
+      if (formReset) formReset.hidden = false;
+      const msgEl = document.getElementById('auth-reset-msg');
+      if (msgEl) msgEl.textContent = '';
+    });
+  }
+
+  if (btnBackToLogin) {
+    btnBackToLogin.addEventListener('click', () => {
+      if (formReset) formReset.hidden = true;
+      if (formUpdatePass) formUpdatePass.hidden = true;
+      if (formLogin) formLogin.hidden = false;
+    });
+  }
+
+  if (formReset) {
+    formReset.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const emailInput = document.getElementById('auth-reset-email');
+      const msgEl = document.getElementById('auth-reset-msg');
+      const submitBtn = formReset.querySelector('button[type="submit"]');
+      const email = emailInput ? emailInput.value.trim() : '';
+      if (!email) {
+        if (msgEl) msgEl.textContent = 'メールアドレスを入力してください';
+        return;
+      }
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = '送信中…';
+      }
+      try {
+        const res = await api.resetPassword({ email });
+        toast(res.message || 'パスワード再設定メールを送信しました', 'info', 7000);
+        if (msgEl) {
+          msgEl.style.color = '#34d399';
+          msgEl.textContent = res.message || '再設定メールを送信しました。メール内のリンクをご確認ください。';
+        }
+      } catch (err) {
+        if (msgEl) {
+          msgEl.style.color = '';
+          msgEl.textContent = err.message || '送信に失敗しました';
+        }
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = '再設定メールを送信';
+        }
+      }
+    });
+  }
+
+  if (formUpdatePass) {
+    formUpdatePass.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const p1 = (document.getElementById('auth-new-password') || {}).value || '';
+      const p2 = (document.getElementById('auth-new-password-confirm') || {}).value || '';
+      const msgEl = document.getElementById('auth-update-password-msg');
+      const submitBtn = formUpdatePass.querySelector('button[type="submit"]');
+      if (msgEl) msgEl.textContent = '';
+      if (p1.length < 8) {
+        if (msgEl) msgEl.textContent = '新しいパスワードは8文字以上で設定してください';
+        return;
+      }
+      if (p1 !== p2) {
+        if (msgEl) msgEl.textContent = '確認用パスワードが一致しません';
+        return;
+      }
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = '更新中…';
+      }
+      try {
+        await api.updatePassword(p1, activeRecoveryToken);
+        activeRecoveryToken = '';
+        toast('パスワードを更新しました。新しいパスワードでログインしてください。', 'success', 6000);
+        openAuthModal('login');
+      } catch (err) {
+        if (msgEl) msgEl.textContent = err.message || 'パスワード更新に失敗しました';
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = '新しいパスワードを保存';
+        }
+      }
+    });
+  }
+
+  // Supabase のパスワード再設定リンク (#access_token=...&type=recovery) を自動検知
+  try {
+    const hash = window.location.hash || '';
+    if (hash.includes('type=recovery') && hash.includes('access_token=')) {
+      const params = new URLSearchParams(hash.replace(/^#/, ''));
+      const token = params.get('access_token');
+      if (token) {
+        activeRecoveryToken = token;
+        if (window.history && window.history.replaceState) {
+          window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        }
+        openAuthModal('recovery');
+      }
+    }
+  } catch {}
+
+  const btnDeleteToggle = document.getElementById('btn-account-delete-toggle');
+  const deleteConfirmBox = document.getElementById('account-delete-confirm-box');
+  const btnDeleteAccount = document.getElementById('btn-account-delete');
+  if (btnDeleteToggle && deleteConfirmBox) {
+    btnDeleteToggle.addEventListener('click', () => {
+      deleteConfirmBox.hidden = !deleteConfirmBox.hidden;
+    });
+  }
+  if (btnDeleteAccount) {
+    btnDeleteAccount.addEventListener('click', async () => {
+      const confirmInput = document.getElementById('account-delete-confirm-input');
+      const errEl = document.getElementById('account-delete-error');
+      const typed = confirmInput ? confirmInput.value.trim() : '';
+      if (errEl) errEl.textContent = '';
+      if (typed !== 'DELETE') {
+        if (errEl) errEl.textContent = '確認のため "DELETE" と入力してください';
+        return;
+      }
+      btnDeleteAccount.disabled = true;
+      btnDeleteAccount.textContent = '削除処理中…';
+      try {
+        const res = await api.deleteAccount({ confirm: 'DELETE' });
+        setAuthSession(null, null);
+        clearSessionWorkspaceUI();
+        if (confirmInput) confirmInput.value = '';
+        if (deleteConfirmBox) deleteConfirmBox.hidden = true;
+        await refreshAuthStatus();
+        updateAccountDetailsUI();
+        closeModal(document.getElementById('modal-account'));
+        toast((res && res.message) || 'アカウントを削除しました', 'info', 6000);
+        await loadRecentHistory();
+        await renderHistoryDrawerList();
+      } catch (err) {
+        if (errEl) errEl.textContent = err.message || 'アカウント削除に失敗しました';
+      } finally {
+        btnDeleteAccount.disabled = false;
+        btnDeleteAccount.textContent = 'アカウントを完全に削除する';
+      }
+    });
+  }
+
+  // 12. 初回ステータス取得
   refreshAuthStatus();
+}
+
+// Cloudflare Turnstile ヘルパー (S-3)
+let turnstileWidgetId = null;
+let turnstileTokenValue = '';
+let turnstileScriptLoaded = false;
+
+function getTurnstileToken() {
+  return turnstileTokenValue || '';
+}
+
+function resetTurnstileWidget() {
+  turnstileTokenValue = '';
+  try {
+    if (window.turnstile && turnstileWidgetId !== null) {
+      window.turnstile.reset(turnstileWidgetId);
+    }
+  } catch {}
+}
+
+function ensureTurnstileWidget(siteKey) {
+  if (!siteKey) return;
+  const container = document.getElementById('turnstile-signup-container');
+  if (!container) return;
+  container.hidden = false;
+
+  const renderWidget = () => {
+    if (!window.turnstile || turnstileWidgetId !== null) return;
+    try {
+      turnstileWidgetId = window.turnstile.render(container, {
+        sitekey: siteKey,
+        callback: (token) => {
+          turnstileTokenValue = token || '';
+        },
+        'expired-callback': () => {
+          turnstileTokenValue = '';
+        },
+        'error-callback': () => {
+          turnstileTokenValue = '';
+        },
+      });
+    } catch {}
+  };
+
+  if (window.turnstile) {
+    renderWidget();
+    return;
+  }
+  if (turnstileScriptLoaded) return;
+  turnstileScriptLoaded = true;
+  const script = document.createElement('script');
+  script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+  script.async = true;
+  script.defer = true;
+  script.onload = renderWidget;
+  document.head.appendChild(script);
 }
 
 /**
  * 認証モーダルを開く
- * @param {'login'|'signup'} mode
+ * @param {'login'|'signup'|'recovery'} mode
  */
 export function openAuthModal(mode = 'login') {
   const modal = document.getElementById('modal-auth');
@@ -593,17 +820,26 @@ export function openAuthModal(mode = 'login') {
   const tabSignup = document.getElementById('auth-tab-signup');
   const formLogin = document.getElementById('auth-form-login');
   const formSignup = document.getElementById('auth-form-signup');
+  const formReset = document.getElementById('auth-form-reset');
+  const formUpdatePass = document.getElementById('auth-form-update-password');
   const errLogin = document.getElementById('auth-login-error');
   const errSignup = document.getElementById('auth-signup-error');
 
   if (errLogin) errLogin.textContent = '';
   if (errSignup) errSignup.textContent = '';
+  if (formReset) formReset.hidden = true;
+  if (formUpdatePass) formUpdatePass.hidden = true;
 
-  if (mode === 'signup') {
+  if (mode === 'recovery') {
+    if (formLogin) formLogin.hidden = true;
+    if (formSignup) formSignup.hidden = true;
+    if (formUpdatePass) formUpdatePass.hidden = false;
+  } else if (mode === 'signup') {
     if (tabSignup) tabSignup.classList.add('active');
     if (tabLogin) tabLogin.classList.remove('active');
     if (formSignup) formSignup.hidden = false;
     if (formLogin) formLogin.hidden = true;
+    if (authState.turnstileSiteKey) ensureTurnstileWidget(authState.turnstileSiteKey);
   } else {
     if (tabLogin) tabLogin.classList.add('active');
     if (tabSignup) tabSignup.classList.remove('active');
