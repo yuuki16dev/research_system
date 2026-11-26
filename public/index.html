@@ -452,12 +452,12 @@
 
                 <fieldset class="option-group context-group byod-group">
                   <div class="period-header">
-                    <legend class="field-label"><span data-icon="file-text"></span>手元の参考資料・データ投入 (BYOD) ＆ 参考URL</legend>
+                    <legend class="field-label"><span data-icon="file-text"></span><span id="byod-legend-text">手元の参考資料・データ投入 (BYOD) ＆ 参考URL</span></legend>
                     <span class="period-rec-tag"><span data-icon="sparkles"></span>ハイブリッド分析</span>
                   </div>
 
-                  <!-- BYOD ファイルドラッグ＆ドロップ -->
-                  <div class="byod-dropzone" id="byod-dropzone" tabindex="0" role="button" aria-label="ファイルをアップロード">
+                  <!-- BYOD ファイルドラッグ＆ドロップ (D-4: クラウド版では非表示) -->
+                  <div class="byod-dropzone" id="byod-dropzone" data-local-only="attachment" tabindex="0" role="button" aria-label="ファイルをアップロード">
                     <input type="file" id="byod-file-input" multiple accept=".pdf,.xlsx,.xls,.csv,.txt,.md,.json"
                       style="display: none;" />
                     <div class="byod-drop-content">
@@ -468,7 +468,7 @@
                       </div>
                     </div>
                   </div>
-                  <div class="byod-files-list" id="byod-files-list" style="display: none;"></div>
+                  <div class="byod-files-list" id="byod-files-list" data-local-only="attachment" style="display: none;"></div>
 
                   <!-- 参考URL先行分析 -->
                   <div class="byod-url-input-wrap">
@@ -482,14 +482,14 @@
                     <div class="byod-urls-list" id="byod-urls-list" style="display: none;"></div>
                   </div>
 
-                  <!-- 前提条件・メモ欄 -->
-                  <div class="byod-memo-wrap">
+                  <!-- 前提条件・メモ欄 (D-4: クラウド版では非表示) -->
+                  <div class="byod-memo-wrap" id="byod-memo-wrap" data-local-only="attachment">
                     <label for="reference-context-input" class="field-sublabel">前提メモ・補足指示（任意）</label>
                     <textarea id="reference-context-input" name="referenceContext" class="input input-textarea-sm"
                       rows="2" maxlength="15000"
                       placeholder="手持ちの機能リスト、自社サービス概要、比較したい特定URLや前提条件を貼り付けると、Web情報と掛け合わせて分析します"></textarea>
                   </div>
-                  <p class="field-hint"><span data-icon="sparkles"></span>手持ち資料・先行URLの一次情報とWeb最新情報をAIが突き合わせてハイブリッド分析します
+                  <p class="field-hint"><span data-icon="sparkles"></span><span id="byod-field-hint">手持ち資料・先行URLの一次情報とWeb最新情報をAIが突き合わせてハイブリッド分析します</span>
                   </p>
                 </fieldset>
               </div>
@@ -1850,7 +1850,7 @@
             </label>
             <div style="display: flex; gap: 8px; align-items: center;">
               <button type="button" class="btn btn-secondary btn-xs" id="btn-pres-browse-file"
-                style="font-size: 11.5px;">
+                data-local-only="attachment" style="font-size: 11.5px;">
                 <span data-icon="upload-cloud"></span> ファイルを選択
               </button>
               <button type="button" class="btn btn-ghost btn-xs" id="btn-pres-import-report" title="直近のリサーチ結果を自動で読み込む"
@@ -1864,8 +1864,8 @@
           <input type="file" id="pres-file-input" multiple accept=".txt,.md,.markdown,.json,.csv,.xlsx,.xls,.pdf"
             style="display: none;" />
 
-          <!-- ドラッグ＆ドロップエリア -->
-          <div class="pres-dropzone" id="pres-file-dropzone">
+          <!-- ドラッグ＆ドロップエリア (D-4: クラウド版では非表示) -->
+          <div class="pres-dropzone" id="pres-file-dropzone" data-local-only="attachment">
             <div class="pres-dropzone-inner">
               <span class="pres-dropzone-icon" data-icon="upload-cloud"></span>
               <div class="pres-dropzone-text">
@@ -1876,7 +1876,7 @@
           </div>
 
           <!-- 添付ファイル一覧バッジ表示領域 -->
-          <div class="pres-attached-files" id="pres-attached-files" style="display: none;"></div>
+          <div class="pres-attached-files" id="pres-attached-files" data-local-only="attachment" style="display: none;"></div>
 
           <textarea id="pres-document-input" class="textarea" rows="5"
             placeholder="企画書、設計書、議事録、新機能の仕様メモなどを貼り付け、またはファイルをドロップしてください…（ファイルの内容がここに自動展開されます）"

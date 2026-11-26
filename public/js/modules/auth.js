@@ -241,6 +241,20 @@ export async function refreshAuthStatus() {
       document.querySelectorAll('.btn-share-action').forEach((el) => {
         el.style.display = 'none';
       });
+
+      // D-4: クラウド版ではファイル添付および手持ち資料入力欄を非表示にする
+      document.querySelectorAll('[data-local-only="attachment"]').forEach((el) => {
+        el.hidden = true;
+        el.style.display = 'none';
+      });
+      const byodLegend = document.getElementById('byod-legend-text');
+      if (byodLegend) byodLegend.textContent = '先行調査する参考URL（任意）';
+      const byodHint = document.getElementById('byod-field-hint');
+      if (byodHint) byodHint.textContent = '指定した公開URLの一次情報とWeb最新情報をAIが突き合わせて分析します';
+      const presDocInput = document.getElementById('pres-document-input');
+      if (presDocInput) {
+        presDocInput.placeholder = '直近のリサーチ結果を引用するか、スライド化したいテキストを入力してください…（クラウド版ではファイル添付は無効です）';
+      }
     }
 
     const me = await api.authMe();

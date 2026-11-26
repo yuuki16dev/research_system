@@ -6,6 +6,7 @@
 import { $, esc, toast, copyText, hydrateIcons, openModal, closeModal } from '../ui.js';
 import { getAuthHeaders } from '../api.js';
 import { appState } from './state.js';
+import { authState } from './auth.js';
 import { openPdfPreview } from './export-handlers.js';
 
 let selectedAudience = '開発チーム・エンジニア';
@@ -125,6 +126,8 @@ ${insights}${tableInfo}
   }
 
   async function handleFiles(fileList) {
+    // D-4: クラウド版ではファイル添付を無効化
+    if (!authState.isLocal) return;
     if (!fileList || fileList.length === 0) return;
     const files = Array.from(fileList);
 
@@ -283,8 +286,14 @@ ${insights}${tableInfo}
   if (btnGenPrompt) {
     btnGenPrompt.addEventListener('click', async () => {
       const doc = docInput ? docInput.value.trim() : '';
-      if (!doc && attachedFiles.length === 0) {
-        toast('企画書・ドキュメントのテキストを入力するか、ファイルを添付してください', 'warn');
+      const effectiveFiles = authState.isLocal ? attachedFiles : [];
+      if (!doc && effectiveFiles.length === 0) {
+        toast(
+          authState.isLocal
+            ? '企画書・ドキュメントのテキストを入力するか、ファイルを添付してください'
+            : '企画書・ドキュメントのテキストを入力してください',
+          'warn'
+        );
         if (docInput) docInput.focus();
         return;
       }
@@ -303,7 +312,7 @@ ${insights}${tableInfo}
             document: doc,
             audience,
             goal,
-            files: attachedFiles.map((f) => ({ name: f.name, mimeType: f.mimeType })),
+            files: effectiveFiles.map((f) => ({ name: f.name, mimeType: f.mimeType })),
           }),
         });
 
@@ -334,8 +343,14 @@ ${insights}${tableInfo}
   if (btnGenSlides) {
     btnGenSlides.addEventListener('click', async () => {
       const doc = docInput ? docInput.value.trim() : '';
-      if (!doc && attachedFiles.length === 0) {
-        toast('企画書・ドキュメントのテキストを入力するか、ファイルを添付してください', 'warn');
+      const effectiveFiles = authState.isLocal ? attachedFiles : [];
+      if (!doc && effectiveFiles.length === 0) {
+        toast(
+          authState.isLocal
+            ? '企画書・ドキュメントのテキストを入力するか、ファイルを添付してください'
+            : '企画書・ドキュメントのテキストを入力してください',
+          'warn'
+        );
         if (docInput) docInput.focus();
         return;
       }
@@ -355,7 +370,7 @@ ${insights}${tableInfo}
             document: doc,
             audience,
             goal,
-            files: attachedFiles,
+            files: effectiveFiles,
           }),
         });
 

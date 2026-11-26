@@ -756,9 +756,12 @@ app.post('/api/research', auth.requireAuth, aiLimiter, requireDailyCostLimit, qu
   const customPurpose = String(b.customPurpose || '').trim().slice(0, 500);
   const customPeriod = String(b.customPeriod || '').trim().slice(0, 100);
   const sites = String(b.sites || '').slice(0, 300);
-  const referenceContext = String(b.referenceContext || '').trim().slice(0, 15000);
+  // D-4: クラウド版ではファイル添付と手持ち資料（referenceContext）を無効化・無視する
+  const referenceContext = env.IS_CLOUD ? '' : String(b.referenceContext || '').trim().slice(0, 15000);
   const referenceUrls = Array.isArray(b.referenceUrls) ? b.referenceUrls.map(u => String(u || '').trim()).filter(Boolean).slice(0, 10) : [];
-  const attachedFiles = Array.isArray(b.attachedFiles) ? b.attachedFiles.filter(f => f && typeof f === 'object' && f.name).slice(0, 10) : [];
+  const attachedFiles = env.IS_CLOUD
+    ? []
+    : (Array.isArray(b.attachedFiles) ? b.attachedFiles.filter(f => f && typeof f === 'object' && f.name).slice(0, 10) : []);
   const focus = typeof b.focus === 'string' ? b.focus.slice(0, 200) : '';
   const authoritative = !!b.authoritative;
   if (theme.length < 2) {
@@ -1173,8 +1176,10 @@ app.post('/api/export/text', auth.requireAuth, (req, res) => {
 /* ---------------------------------------------------- presentation studio */
 app.post('/api/presentation/prompt', auth.requireAuth, (req, res) => {
   const { document, audience, goal, files } = req.body || {};
+  // D-4: クラウド版ではファイル添付を無視する
+  const effectiveFiles = env.IS_CLOUD ? [] : files;
   try {
-    const prompt = presentation.generatePrompt({ document, audience, goal, files });
+    const prompt = presentation.generatePrompt({ document, audience, goal, files: effectiveFiles });
     res.json({ prompt });
   } catch (err) {
     res.status(400).json({ error: err.message || 'プロンプト生成に失敗しました' });
@@ -1237,11 +1242,17 @@ app.post('/api/presentation/generate', auth.requireAuth, aiLimiter, requireDaily
     return res.status(400).json({ error: validationError });
   }
 
+  // D-4: クラウド版ではファイル添付を無視する
+  const effectiveFiles = env.IS_CLOUD ? [] : files;
   const hasDoc = document && document.trim();
-  const hasFiles = Array.isArray(files) && files.length > 0;
+  const hasFiles = Array.isArray(effectiveFiles) && effectiveFiles.length > 0;
 
   if (!hasDoc && !hasFiles) {
-    return res.status(400).json({ error: '企画書・資料のテキストを入力するか、ファイルを添付してください' });
+    return res.status(400).json({
+      error: env.IS_CLOUD
+        ? '企画書・資料のテキストを入力してください（クラウド版ではファイル添付は無効です）'
+        : '企画書・資料のテキストを入力するか、ファイルを添付してください',
+    });
   }
 
   const userId = req.user ? req.user.id : 'owner-user';
@@ -1267,7 +1278,7 @@ app.post('/api/presentation/generate', auth.requireAuth, aiLimiter, requireDaily
   }
 
   try {
-    const slidesData = await presentation.generateSlides({ document, audience, goal, files, userId });
+    const slidesData = await presentation.generateSlides({ document, audience, goal, files: effectiveFiles, userId });
     res.json(slidesData);
   } catch (err) {
     if (reservation.reserved) {

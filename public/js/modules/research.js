@@ -9,7 +9,7 @@ import { appState } from './state.js';
 import { bindReportDeepDiveActions } from './deep-dive.js';
 import { loadRecentHistory } from './history.js';
 import { resetEditMode } from './editor.js';
-import { refreshAuthStatus } from './auth.js';
+import { authState, refreshAuthStatus } from './auth.js';
 
 export function bindFormControls() {
   const form = $('#research-form');
@@ -436,6 +436,8 @@ export function bindFormControls() {
   }
 
   async function processFiles(files) {
+    // D-4: クラウド版ではファイル添付を無効化
+    if (!authState.isLocal) return;
     for (const file of Array.from(files)) {
       if (attachedFiles.some(f => f.name === file.name && f.size === file.size)) continue;
       try {
@@ -586,7 +588,9 @@ export function bindFormControls() {
       ? 'problem'
       : 'auto';
     const customPurpose = ($('#custom-style-input') && $('#custom-style-input').value.trim()) || '';
-    const referenceContext = ($('#reference-context-input') && $('#reference-context-input').value.trim()) || '';
+    const referenceContext = authState.isLocal
+      ? (($('#reference-context-input') && $('#reference-context-input').value.trim()) || '')
+      : '';
     const authoritative = !!(checkAuthoritative && checkAuthoritative.checked);
 
     await startResearch({
@@ -601,7 +605,7 @@ export function bindFormControls() {
       customPurpose,
       referenceContext,
       referenceUrls: [...referenceUrls],
-      attachedFiles: [...attachedFiles],
+      attachedFiles: authState.isLocal ? [...attachedFiles] : [],
       authoritative,
     });
   });
