@@ -1310,7 +1310,7 @@ app.get('/api/history/backup', auth.requireAuth, async (req, res) => {
   const userPlan = req.user.plan || 'free';
   try {
     const reports = await history.getAllForUser(userId, userPlan);
-    const userProf = profile.getProfile(userId);
+    const userProf = await profile.getProfileAsync(userId);
     const ymd = new Date().toISOString().slice(0, 10).replace(/-/g, '');
 
     res.setHeader('Content-Type', 'application/json');
@@ -1343,7 +1343,7 @@ app.post('/api/history/restore', auth.requireAuth, async (req, res) => {
   try {
     const result = await history.restoreReports(reports, userId);
     if (incomingProfile && typeof incomingProfile === 'object') {
-      profile.updateProfile(userId, incomingProfile);
+      await profile.updateProfileAsync(userId, incomingProfile);
     }
 
     res.json({
@@ -1359,16 +1359,27 @@ app.post('/api/history/restore', auth.requireAuth, async (req, res) => {
   }
 });
 
-/* ------------------------------------------------------------ profile (v2.13.0) */
-app.get('/api/user/profile', auth.requireAuth, (req, res) => {
+/* ------------------------------------------------------------ profile (v2.13.0 / S-2 cloud persistence) */
+app.get('/api/user/profile', auth.requireAuth, async (req, res) => {
   const userId = req.user.id;
-  res.json({ ok: true, profile: profile.getProfile(userId) });
+  try {
+    const userProfile = await profile.getProfileAsync(userId);
+    res.json({ ok: true, profile: userProfile });
+  } catch (err) {
+    console.error('[profile] get error:', err.message);
+    res.status(500).json({ error: 'プロフィールの取得に失敗しました' });
+  }
 });
 
-app.put('/api/user/profile', auth.requireAuth, (req, res) => {
+app.put('/api/user/profile', auth.requireAuth, async (req, res) => {
   const userId = req.user.id;
-  const updated = profile.updateProfile(userId, req.body || {});
-  res.json({ ok: true, profile: updated });
+  try {
+    const updated = await profile.updateProfileAsync(userId, req.body || {});
+    res.json({ ok: true, profile: updated });
+  } catch (err) {
+    console.error('[profile] update error:', err.message);
+    res.status(500).json({ error: 'プロフィールの更新に失敗しました' });
+  }
 });
 app.get('/api/history/:id', auth.requireAuth, async (req, res) => {
   const userId = req.user.id;

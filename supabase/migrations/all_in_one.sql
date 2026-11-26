@@ -1,6 +1,6 @@
 -- ======================================================================
 -- Research Studio — Supabase Cloud Database All-in-One Idempotent Schema
--- 対象: 20261106_init.sql 〜 20261114_lock_user_reports_writes.sql 全統合版
+-- 対象: 20261106_init.sql 〜 20261126_profile_settings.sql 全統合版
 -- 実行方法: Supabase ダッシュボード > SQL Editor に貼り付けて「Run」を実行
 -- （新規構築・既存環境からの追従アップデートのどちらでも安全に再実行可能）
 -- ======================================================================
@@ -18,6 +18,10 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
+
+-- クラウド版ユーザープロフィール設定の永続化列 (20261126_profile_settings.sql)
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS profile_settings JSONB NOT NULL DEFAULT '{}'::jsonb;
 
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 

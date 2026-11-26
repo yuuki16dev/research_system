@@ -145,4 +145,63 @@ test('history tags & search: normalizeResult derives default tags and supports f
   assert.ok(resCross.tags.includes('クロス統合'));
 });
 
+test('S-2 cloud profile: getProfileAsync and updateProfileAsync persist to Supabase profiles.profile_settings', async () => {
+  const prevUrl = process.env.SUPABASE_URL;
+  const prevKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const origFetch = globalThis.fetch;
+
+  const uid = '22222222-2222-4222-8222-222222222222';
+  let storedSettings = {};
+  let patchCount = 0;
+
+  process.env.SUPABASE_URL = 'https://mock-profile.supabase.co';
+  process.env.SUPABASE_SERVICE_ROLE_KEY = 'sb_secret_mock_profile_key';
+
+  globalThis.fetch = async (url, init = {}) => {
+    const u = String(url);
+    assert.ok(u.includes('/rest/v1/profiles'), `unexpected url: ${u}`);
+    if ((init.method || 'GET').toUpperCase() === 'PATCH') {
+      patchCount += 1;
+      const body = JSON.parse(init.body || '{}');
+      storedSettings = body.profile_settings || {};
+      return new Response(JSON.stringify([{ profile_settings: storedSettings }]), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    return new Response(JSON.stringify([{ profile_settings: storedSettings }]), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  };
+
+  try {
+    const initial = await profile.getProfileAsync(uid);
+    assert.equal(initial.displayName, '');
+    assert.equal(initial.avatar, '👤');
+
+    const updated = await profile.updateProfileAsync(uid, {
+      displayName: 'クラウド永続ユーザー',
+      avatar: '🔬',
+      defaultTheme: 'tech-emerald',
+    });
+    assert.equal(patchCount, 1);
+    assert.equal(updated.displayName, 'クラウド永続ユーザー');
+    assert.equal(updated.avatar, '🔬');
+    assert.equal(updated.defaultTheme, 'tech-emerald');
+
+    const reloaded = await profile.getProfileAsync(uid);
+    assert.equal(reloaded.displayName, 'クラウド永続ユーザー');
+    assert.equal(reloaded.avatar, '🔬');
+    assert.equal(reloaded.defaultTheme, 'tech-emerald');
+  } finally {
+    globalThis.fetch = origFetch;
+    if (prevUrl === undefined) delete process.env.SUPABASE_URL;
+    else process.env.SUPABASE_URL = prevUrl;
+    if (prevKey === undefined) delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    else process.env.SUPABASE_SERVICE_ROLE_KEY = prevKey;
+  }
+});
+
+
 
